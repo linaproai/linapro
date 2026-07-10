@@ -3,6 +3,7 @@
 package hostservice
 
 import (
+	"lina-core/pkg/plugin/pluginbridge/protocol/hostservices"
 	"net/url"
 	"path"
 	"sort"
@@ -200,7 +201,7 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 			if len(spec.Tables) == 0 {
 				return gerror.Newf("host service %s must declare at least one table", spec.Service)
 			}
-			if spec.Service == HostServiceData {
+			if spec.Service == hostservices.HostServiceData {
 				if strings.TrimSpace(pluginID) == "" {
 					return gerror.New("host service data requires plugin-aware validation")
 				}
@@ -248,7 +249,7 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 		if len(spec.Resources) == 0 {
 			return gerror.Newf("host service %s must declare at least one resource", spec.Service)
 		}
-		if spec.Service == HostServiceNetwork {
+		if spec.Service == hostservices.HostServiceNetwork {
 			for _, resource := range spec.Resources {
 				if resource == nil {
 					continue
@@ -432,7 +433,7 @@ func normalizeHostServiceSpecs(specs []*HostServiceSpec, pluginID string) ([]*Ho
 
 // normalizeDeclaredPathForService validates service-specific path resources.
 func normalizeDeclaredPathForService(service string, value string) (string, error) {
-	if service == HostServiceManifest {
+	if service == hostservices.HostServiceManifest {
 		return normalizeManifestDeclaredPath(value)
 	}
 	return normalizeStorageDeclaredPath(value)

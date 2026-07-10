@@ -1949,7 +1949,9 @@ func (s *serviceImpl) replaceUpgradeServiceForTest(
 	if err != nil {
 		t.Fatalf("expected replacement upgrade service to build, got error: %v", err)
 	}
-	s.upgradeSvc = upgradeSvc
+	if err = s.lifecycleSvc.BindUpgrade(upgradeSvc); err != nil {
+		t.Fatalf("expected replacement upgrade service to bind, got error: %v", err)
+	}
 }
 
 // failingIntegrationService injects source-upgrade governance failures while

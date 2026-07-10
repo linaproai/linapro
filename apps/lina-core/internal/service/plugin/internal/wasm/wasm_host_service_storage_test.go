@@ -354,12 +354,12 @@ func TestHandleHostServiceInvokeStorageBatchMethods(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodStorageStatBatch,
 		"reports/",
-		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"paths":["reports/a.json","reports/missing.json"]}`)}),
+		protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: []byte(`{"paths":["reports/a.json","reports/missing.json"]}`)}),
 	)
 	if statResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("stat.batch: expected success, got status=%d payload=%s", statResponse.Status, string(statResponse.Payload))
 	}
-	jsonPayload, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(statResponse.Payload)
+	jsonPayload, err := protocol.UnmarshalHostServiceJSONResponse(statResponse.Payload)
 	if err != nil {
 		t.Fatalf("decode stat.batch JSON envelope: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestHandleHostServiceInvokeStorageBatchMethods(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodStorageListCursor,
 		"reports/",
-		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"prefix":"reports/","limit":1}`)}),
+		protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: []byte(`{"prefix":"reports/","limit":1}`)}),
 	)
 	if listResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("list.cursor: expected success, got status=%d payload=%s", listResponse.Status, string(listResponse.Payload))
@@ -384,7 +384,7 @@ func TestHandleHostServiceInvokeStorageBatchMethods(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodStorageDeleteBatch,
 		"reports/",
-		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"paths":["reports/a.json","../outside.json"]}`)}),
+		protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: []byte(`{"paths":["reports/a.json","../outside.json"]}`)}),
 	)
 	if deleteResponse.Status != protocol.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request for escaped batch path, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))

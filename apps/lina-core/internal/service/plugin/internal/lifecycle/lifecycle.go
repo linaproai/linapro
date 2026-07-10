@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/internal/service/plugin/internal/upgrade"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
@@ -43,6 +44,22 @@ type Service interface {
 	// RegisterLifecycleObserver subscribes one synchronous lifecycle observer
 	// and returns its unsubscribe function.
 	RegisterLifecycleObserver(observer LifecycleObserver) func()
+	// BindUpgrade attaches the composition-root upgrade service after shared
+	// cache adapters become available. The root facade must call this during
+	// startup before serving upgrade traffic.
+	BindUpgrade(upgradeSvc upgrade.Service) error
+	// ListSourceUpgradeStatuses scans source manifests and returns one
+	// effective-versus-discovered upgrade-status item per source plugin.
+	ListSourceUpgradeStatuses(ctx context.Context) ([]*upgrade.SourceUpgradeStatus, error)
+	// ValidateSourcePluginUpgradeReadiness scans source-plugin version drift
+	// without failing on pending upgrades.
+	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
+	// PreviewRuntimeUpgrade returns a side-effect-free upgrade preview for one pending plugin.
+	PreviewRuntimeUpgrade(ctx context.Context, pluginID string) (*upgrade.RuntimeUpgradePreview, error)
+	// UpgradeSourcePlugin applies one explicit source-plugin runtime upgrade.
+	UpgradeSourcePlugin(ctx context.Context, pluginID string) (*upgrade.SourceUpgradeResult, error)
+	// ExecuteRuntimeUpgrade runs one explicit runtime upgrade after confirmation.
+	ExecuteRuntimeUpgrade(ctx context.Context, pluginID string, options upgrade.RuntimeUpgradeOptions) (*upgrade.RuntimeUpgradeResult, error)
 	// LifecycleService exposes tenant lifecycle governance through the existing
 	// plugin capability contract instead of repeating its method set here.
 	plugincap.LifecycleService
@@ -77,6 +94,8 @@ type serviceImpl struct {
 	capabilities capability.Services
 	// lifecycleObservers stores synchronous lifecycle observers for this lifecycle instance.
 	lifecycleObservers *lifecycleObserverRegistry
+	// upgradeSvc owns source and dynamic upgrade planning/execution after BindUpgrade.
+	upgradeSvc upgrade.Service
 }
 
 // New creates a new lifecycle Service with explicit runtime dependencies.

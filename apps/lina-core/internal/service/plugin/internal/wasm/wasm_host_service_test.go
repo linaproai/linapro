@@ -2301,13 +2301,13 @@ func marshalCapabilityJSONRequest(t *testing.T, value any) []byte {
 	if err != nil {
 		t.Fatalf("marshal capability JSON request failed: %v", err)
 	}
-	return protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: content})
+	return protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: content})
 }
 
 // decodeCapabilityJSONResponse decodes one transport JSON response for tests.
 func decodeCapabilityJSONResponse(t *testing.T, payload []byte, out any) {
 	t.Helper()
-	response, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(payload)
+	response, err := protocol.UnmarshalHostServiceJSONResponse(payload)
 	if err != nil {
 		t.Fatalf("decode capability response failed: %v", err)
 	}

@@ -40,7 +40,7 @@ func invokeCapabilityJSONWithResource(service string, method string, resourceRef
 	if out == nil {
 		return nil
 	}
-	response, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(payload)
+	response, err := protocol.UnmarshalHostServiceJSONResponse(payload)
 	if err != nil {
 		return err
 	}

@@ -48,9 +48,9 @@ func (r *configHostCallRecorder) invoke(service string, method string, resourceR
 		if err != nil {
 			return nil, err
 		}
-		return protocol.MarshalHostServiceCapabilityJSONResponse(&protocol.HostServiceCapabilityJSONResponse{Value: content}), nil
+		return protocol.MarshalHostServiceJSONResponse(&protocol.HostServiceJSONResponse{Value: content}), nil
 	}
-	return protocol.MarshalHostServiceCapabilityJSONResponse(&protocol.HostServiceCapabilityJSONResponse{Value: []byte(`true`)}), nil
+	return protocol.MarshalHostServiceJSONResponse(&protocol.HostServiceJSONResponse{Value: []byte(`true`)}), nil
 }
 
 // TestHostConfigCapabilityGetUsesDefaultForMissingOrNilValues verifies the

@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/store"
@@ -228,7 +227,7 @@ func (s *serviceImpl) executeRuntimeUpgradeByType(
 			}
 			return nil
 		}
-		return bizerr.NewCode(lifecycle.CodePluginNotInstalled)
+		return bizerr.NewCode(CodePluginNotInstalled)
 	default:
 		return bizerr.NewCode(
 			CodePluginRuntimeUpgradeTypeUnsupported,
@@ -567,7 +566,7 @@ func (s *serviceImpl) dynamicLifecycleError(
 ) error {
 	reasons := s.summarizeLocalizedDynamicLifecycleVetoReasons(ctx, decisions)
 	return bizerr.NewCode(
-		lifecycle.CodePluginLifecyclePreconditionVetoed,
+		CodePluginLifecyclePreconditionVetoed,
 		bizerr.P("operation", hook.String()),
 		bizerr.P("pluginId", pluginID),
 		bizerr.P("reasons", reasons),

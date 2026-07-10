@@ -7,6 +7,7 @@ package hostservice
 import (
 	"bytes"
 	"encoding/json"
+	"lina-core/pkg/plugin/pluginbridge/protocol/hostservices"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"gopkg.in/yaml.v3"
@@ -64,7 +65,7 @@ func (spec HostServiceSpec) MarshalJSON() ([]byte, error) {
 		payload["resources"] = &hostServiceDataResourcesWire{Tables: spec.Tables}
 	} else if len(spec.Keys) > 0 {
 		payload["resources"] = &hostServiceKeyResourcesWire{Keys: spec.Keys}
-	} else if spec.Service == HostServiceNetwork && len(spec.Resources) > 0 {
+	} else if spec.Service == hostservices.HostServiceNetwork && len(spec.Resources) > 0 {
 		payload["resources"] = marshalNetworkResources(spec.Resources)
 	} else if len(spec.Resources) > 0 {
 		payload["resources"] = spec.Resources
@@ -102,14 +103,14 @@ func (spec *HostServiceSpec) UnmarshalJSON(data []byte) error {
 		spec.Resources = resources
 	case '{':
 		switch normalizeHostServiceName(spec.Service) {
-		case HostServiceStorage, HostServiceManifest:
+		case hostservices.HostServiceStorage, hostservices.HostServiceManifest:
 			var storageResources hostServiceStorageResourcesWire
 			if err := json.Unmarshal(trimmed, &storageResources); err != nil {
 				return err
 			}
 			spec.Paths = append([]string(nil), storageResources.Paths...)
 			return nil
-		case HostServiceHostConfig:
+		case hostservices.HostServiceHostConfig:
 			var keyResources hostServiceKeyResourcesWire
 			if err := json.Unmarshal(trimmed, &keyResources); err != nil {
 				return err
@@ -147,7 +148,7 @@ func (spec HostServiceSpec) MarshalYAML() (interface{}, error) {
 		payload["resources"] = &hostServiceDataResourcesWire{Tables: spec.Tables}
 	} else if len(spec.Keys) > 0 {
 		payload["resources"] = &hostServiceKeyResourcesWire{Keys: spec.Keys}
-	} else if spec.Service == HostServiceNetwork && len(spec.Resources) > 0 {
+	} else if spec.Service == hostservices.HostServiceNetwork && len(spec.Resources) > 0 {
 		payload["resources"] = marshalNetworkResources(spec.Resources)
 	} else if len(spec.Resources) > 0 {
 		payload["resources"] = spec.Resources
@@ -193,14 +194,14 @@ func (spec *HostServiceSpec) UnmarshalYAML(node *yaml.Node) error {
 		spec.Resources = resources
 	case yaml.MappingNode:
 		switch normalizeHostServiceName(spec.Service) {
-		case HostServiceStorage, HostServiceManifest:
+		case hostservices.HostServiceStorage, hostservices.HostServiceManifest:
 			var storageResources hostServiceStorageResourcesWire
 			if err := wire.Resources.Decode(&storageResources); err != nil {
 				return err
 			}
 			spec.Paths = append([]string(nil), storageResources.Paths...)
 			return nil
-		case HostServiceHostConfig:
+		case hostservices.HostServiceHostConfig:
 			var keyResources hostServiceKeyResourcesWire
 			if err := wire.Resources.Decode(&keyResources); err != nil {
 				return err
@@ -240,7 +241,7 @@ func marshalNetworkResources(resources []*HostServiceResourceSpec) []*hostServic
 // unmarshalJSONResourcesByService decodes service-specific JSON `resources`
 // payloads into normalized host resource declarations.
 func unmarshalJSONResourcesByService(service string, payload []byte) ([]*HostServiceResourceSpec, error) {
-	if normalizeHostServiceName(service) == HostServiceNetwork {
+	if normalizeHostServiceName(service) == hostservices.HostServiceNetwork {
 		var resources []*hostServiceNetworkResourceWire
 		if err := json.Unmarshal(payload, &resources); err != nil {
 			return nil, err
@@ -258,7 +259,7 @@ func unmarshalJSONResourcesByService(service string, payload []byte) ([]*HostSer
 // unmarshalYAMLResourcesByService decodes service-specific YAML `resources`
 // payloads into normalized host resource declarations.
 func unmarshalYAMLResourcesByService(service string, node *yaml.Node) ([]*HostServiceResourceSpec, error) {
-	if normalizeHostServiceName(service) == HostServiceNetwork {
+	if normalizeHostServiceName(service) == hostservices.HostServiceNetwork {
 		var resources []*hostServiceNetworkResourceWire
 		if err := node.Decode(&resources); err != nil {
 			return nil, err

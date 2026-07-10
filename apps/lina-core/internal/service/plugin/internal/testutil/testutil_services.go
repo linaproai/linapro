@@ -268,6 +268,9 @@ func newServicesWithInjected(
 	if err != nil {
 		panic(fmt.Sprintf("create test upgrade service: %v", err))
 	}
+	if err = lifecycleSvc.BindUpgrade(upgradeSvc); err != nil {
+		panic(fmt.Sprintf("bind test upgrade service: %v", err))
+	}
 
 	return &Services{
 		Catalog:     catalogSvc,

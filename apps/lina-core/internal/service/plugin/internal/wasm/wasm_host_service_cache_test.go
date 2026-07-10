@@ -408,7 +408,7 @@ func TestHandleHostServiceInvokeCacheBatchMethods(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodCacheSetMany,
 		namespace,
-		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"items":[{"key":"profile","value":"enabled","expireSeconds":60},{"key":"theme","value":"dark","expireSeconds":60}]}`)}),
+		protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: []byte(`{"items":[{"key":"profile","value":"enabled","expireSeconds":60},{"key":"theme","value":"dark","expireSeconds":60}]}`)}),
 	)
 	if setResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("set_many: expected success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
@@ -419,12 +419,12 @@ func TestHandleHostServiceInvokeCacheBatchMethods(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodCacheGetMany,
 		namespace,
-		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"keys":["profile","missing"]}`)}),
+		protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: []byte(`{"keys":["profile","missing"]}`)}),
 	)
 	if getResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("get_many: expected success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
 	}
-	payload, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(getResponse.Payload)
+	payload, err := protocol.UnmarshalHostServiceJSONResponse(getResponse.Payload)
 	if err != nil {
 		t.Fatalf("decode get_many JSON envelope: %v", err)
 	}
@@ -438,7 +438,7 @@ func TestHandleHostServiceInvokeCacheBatchMethods(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodCacheDeleteMany,
 		namespace,
-		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"keys":["profile","theme"]}`)}),
+		protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: []byte(`{"keys":["profile","theme"]}`)}),
 	)
 	if deleteResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("delete_many: expected success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))

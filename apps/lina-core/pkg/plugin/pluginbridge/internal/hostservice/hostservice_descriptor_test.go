@@ -329,32 +329,32 @@ func TestDomainCapabilityBoundaryGovernance(t *testing.T) {
 func capabilityContractDirForHostService(root string, service string) string {
 	capabilityRoot := filepath.Join(root, "pkg/plugin/capability")
 	switch service {
-	case HostServiceRuntime,
-		HostServiceStorage,
-		HostServiceNetwork,
-		HostServiceData,
-		HostServiceCache,
-		HostServiceLock,
-		HostServiceHostConfig,
-		HostServiceManifest:
+	case hostservices.HostServiceRuntime,
+		hostservices.HostServiceStorage,
+		hostservices.HostServiceNetwork,
+		hostservices.HostServiceData,
+		hostservices.HostServiceCache,
+		hostservices.HostServiceLock,
+		hostservices.HostServiceHostConfig,
+		hostservices.HostServiceManifest:
 		return ""
-	case HostServiceAPIDoc:
+	case hostservices.HostServiceAPIDoc:
 		return filepath.Join(capabilityRoot, "apidoccap")
-	case HostServiceAuth:
+	case hostservices.HostServiceAuth:
 		return filepath.Join(capabilityRoot, "authcap")
-	case HostServiceUsers:
+	case hostservices.HostServiceUsers:
 		return filepath.Join(capabilityRoot, "usercap")
-	case HostServiceBizCtx:
+	case hostservices.HostServiceBizCtx:
 		return filepath.Join(capabilityRoot, "bizctxcap")
-	case HostServiceFiles:
+	case hostservices.HostServiceFiles:
 		return filepath.Join(capabilityRoot, "filecap")
-	case HostServiceJobs:
+	case hostservices.HostServiceJobs:
 		return filepath.Join(capabilityRoot, "jobcap")
-	case HostServiceNotifications:
+	case hostservices.HostServiceNotifications:
 		return filepath.Join(capabilityRoot, "notifycap")
-	case HostServicePlugins:
+	case hostservices.HostServicePlugins:
 		return filepath.Join(capabilityRoot, "plugincap")
-	case HostServiceSessions:
+	case hostservices.HostServiceSessions:
 		return filepath.Join(capabilityRoot, "sessioncap")
 	default:
 		return filepath.Join(capabilityRoot, service+"cap")
@@ -675,12 +675,12 @@ func dispatchFunctionNames(t *testing.T, dir string) map[string]struct{} {
 func hostServiceConstNameForService(t *testing.T, service string) string {
 	t.Helper()
 	switch service {
-	case HostServiceAPIDoc:
-		return "HostServiceAPIDoc"
-	case HostServiceBizCtx:
-		return "HostServiceBizCtx"
-	case HostServiceHostConfig:
-		return "HostServiceHostConfig"
+	case hostservices.HostServiceAPIDoc:
+		return "hostservices.HostServiceAPIDoc"
+	case hostservices.HostServiceBizCtx:
+		return "hostservices.HostServiceBizCtx"
+	case hostservices.HostServiceHostConfig:
+		return "hostservices.HostServiceHostConfig"
 	default:
 		parts := strings.Split(service, "_")
 		for i, part := range parts {
@@ -696,11 +696,11 @@ func hostServiceConstNameForService(t *testing.T, service string) string {
 func dispatcherFunctionNameForService(t *testing.T, service string) string {
 	t.Helper()
 	switch service {
-	case HostServiceAPIDoc:
+	case hostservices.HostServiceAPIDoc:
 		return "dispatchAPIDocHostService"
-	case HostServiceBizCtx:
+	case hostservices.HostServiceBizCtx:
 		return "dispatchBizCtxHostService"
-	case HostServiceHostConfig:
+	case hostservices.HostServiceHostConfig:
 		return "dispatchHostConfigService"
 	default:
 		constName := hostServiceConstNameForService(t, service)
@@ -768,7 +768,7 @@ func readmeResourceDeclaration(
 	noneLabel string,
 	notificationsResource string,
 ) string {
-	if descriptor.Service == HostServiceNotifications {
+	if descriptor.Service == hostservices.HostServiceNotifications {
 		return notificationsResource
 	}
 	switch descriptor.ResourceKind {
@@ -781,7 +781,7 @@ func readmeResourceDeclaration(
 	case hostServiceResourceKey:
 		return "`resources.keys`"
 	case hostServiceResourceRef:
-		if descriptor.Service == HostServiceNetwork {
+		if descriptor.Service == hostservices.HostServiceNetwork {
 			return "`resources[].url`"
 		}
 		return "`resources[].ref`"

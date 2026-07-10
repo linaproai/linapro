@@ -246,3 +246,10 @@ catalog implementation and only lists core-owned services.
 ## Maintenance Notes
 
 When plugin public contracts or dynamic `host service` descriptors change, update both `README.md` and `README.zh-CN.md` in this directory.
+
+### Host Service Payloads and Constants
+
+- New core-owned host-service methods must use the unified JSON envelope (`HostServiceJSONRequest` / `HostServiceJSONResponse` or empty payloads). Do not introduce dedicated binary codecs for new methods.
+- Existing dedicated codec methods are frozen; catalog governance tests reject dedicated expansion outside that allowlist.
+- Service and method wire constants are maintained once in `pluginbridge/protocol/hostservices/wire_constants.go`. The catalog must reference those constants (not string literals); catalog tests enforce this.
+- New WASM JSON host-service methods should reuse the `decodeCapabilityJSONRequest` and `capabilityJSONResponse` helpers.

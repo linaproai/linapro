@@ -450,8 +450,6 @@ type serviceImpl struct {
 	runtimeSvc runtime.Service
 	// integrationSvc provides host extension, menu, hook, and resource integration.
 	integrationSvc integration.Service
-	// upgradeSvc provides unified source and dynamic upgrade planning and execution.
-	upgradeSvc upgrade.Service
 	// frontendSvc manages in-memory frontend bundles for dynamic plugins.
 	frontendSvc frontend.Service
 	// openapiSvc projects dynamic routes into the host OpenAPI document.
@@ -662,6 +660,8 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-	service.upgradeSvc = upgradeSvc
+	if err = lifecycleSvc.BindUpgrade(upgradeSvc); err != nil {
+		return nil, err
+	}
 	return service, nil
 }

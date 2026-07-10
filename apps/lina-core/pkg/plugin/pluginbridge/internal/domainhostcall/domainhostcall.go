@@ -95,13 +95,13 @@ func (s baseService) callHostServiceJSONRequest(service string, method string, r
 		if err != nil {
 			return err
 		}
-		payload = protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: content})
+		payload = protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: content})
 	}
 	responsePayload, err := s.callHostService(service, method, resourceRef, table, payload)
 	if err != nil || out == nil {
 		return err
 	}
-	response, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(responsePayload)
+	response, err := protocol.UnmarshalHostServiceJSONResponse(responsePayload)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func (s baseService) callJSONRequest(service string, method string, input any, o
 		if err != nil {
 			return err
 		}
-		payload = protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: content})
+		payload = protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: content})
 	}
 	return s.call(service, method, payload, out)
 }

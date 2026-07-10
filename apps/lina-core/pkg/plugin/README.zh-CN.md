@@ -221,3 +221,10 @@ hostServices:
 ## 维护说明
 
 当插件公开契约或动态 `host service` 描述符发生变化时，需要同步更新本目录下的`README.md`和`README.zh-CN.md`。
+
+### Host Service 载荷与常量
+
+- 新增 core-owned host service 方法必须使用统一 JSON envelope（`HostServiceJSONRequest` / `HostServiceJSONResponse` 或空载荷）。不得为新增方法引入 dedicated binary codec。
+- 存量 dedicated codec 方法集合已冻结；catalog 治理测试会拒绝名单外的 dedicated 扩张。
+- `service` / `method` 线值常量只维护在 `pluginbridge/protocol/hostservices/wire_constants.go`。catalog 必须引用这些常量（禁止重复写 wire 字符串字面量）；catalog 测试会校验。
+- WASM 分发侧新增 JSON 方法应优先复用 `decodeCapabilityJSONRequest` 与 `capabilityJSONResponse` helper。

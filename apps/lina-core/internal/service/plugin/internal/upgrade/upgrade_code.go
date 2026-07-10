@@ -7,7 +7,6 @@ package upgrade
 import (
 	"github.com/gogf/gf/v2/errors/gcode"
 
-	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/pkg/bizerr"
 )
 
@@ -66,12 +65,37 @@ var (
 		"Plugin {pluginId} runtime upgrade from {fromVersion} to {toVersion} failed",
 		gcode.CodeInternalError,
 	)
+	// CodePluginNotInstalled reports that a lifecycle operation requires an installed plugin.
+	CodePluginNotInstalled = bizerr.MustDefine(
+		"PLUGIN_NOT_INSTALLED",
+		"Plugin is not installed",
+		gcode.CodeInvalidParameter,
+	)
+	// CodePluginLifecyclePreconditionVetoed reports that one or more lifecycle
+	// precondition callbacks blocked an operation.
+	CodePluginLifecyclePreconditionVetoed = bizerr.MustDefine(
+		"PLUGIN_LIFECYCLE_PRECONDITION_VETOED",
+		"Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle preconditions: {reasons}",
+		gcode.CodeInvalidOperation,
+	)
 	// CodePluginReleaseNotFound reports that a plugin release row is missing.
-	CodePluginReleaseNotFound = lifecycle.CodePluginReleaseNotFound
+	CodePluginReleaseNotFound = bizerr.MustDefine(
+		"PLUGIN_RELEASE_NOT_FOUND",
+		"Plugin release record does not exist: {pluginId}@{version}",
+		gcode.CodeNotFound,
+	)
 	// CodePluginDependencyBlocked reports that plugin dependency checks rejected an upgrade action.
-	CodePluginDependencyBlocked = lifecycle.CodePluginDependencyBlocked
+	CodePluginDependencyBlocked = bizerr.MustDefine(
+		"PLUGIN_DEPENDENCY_BLOCKED",
+		"Plugin {pluginId} dependency check failed: {blockers}",
+		gcode.CodeInvalidParameter,
+	)
 	// CodePluginReverseDependencyBlocked reports that installed downstream plugins depend on the target plugin.
-	CodePluginReverseDependencyBlocked = lifecycle.CodePluginReverseDependencyBlocked
+	CodePluginReverseDependencyBlocked = bizerr.MustDefine(
+		"PLUGIN_REVERSE_DEPENDENCY_BLOCKED",
+		"Plugin {pluginId} cannot be changed because installed plugins depend on it: {dependents}",
+		gcode.CodeInvalidOperation,
+	)
 	// CodePluginRuntimeUpgradeSnapshotMissing reports missing effective or target manifest snapshot data.
 	CodePluginRuntimeUpgradeSnapshotMissing = bizerr.MustDefine(
 		"PLUGIN_RUNTIME_UPGRADE_SNAPSHOT_MISSING",

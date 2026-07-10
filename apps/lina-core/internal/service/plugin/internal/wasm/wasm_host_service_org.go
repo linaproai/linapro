@@ -7,7 +7,6 @@ package wasm
 
 import (
 	"context"
-	"encoding/json"
 
 	"lina-core/pkg/plugin/capability/orgcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -205,17 +204,4 @@ type orgAssignmentReplaceByUserRequest struct {
 	UserID  int   `json:"userId"`
 	DeptID  *int  `json:"deptId,omitempty"`
 	PostIDs []int `json:"postIds"`
-}
-
-// capabilityJSONResponse encodes one capability result as a transport-owned
-// JSON response without making pluginbridge own capability DTO definitions.
-func capabilityJSONResponse(value any) *bridgehostcall.HostCallResponseEnvelope {
-	content, err := json.Marshal(value)
-	if err != nil {
-		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
-	}
-	payload := bridgehostservice.MarshalHostServiceCapabilityJSONResponse(
-		&bridgehostservice.HostServiceCapabilityJSONResponse{Value: content},
-	)
-	return bridgehostcall.NewHostCallSuccessResponse(payload)
 }

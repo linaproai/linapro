@@ -72,7 +72,7 @@ func (s *serviceImpl) ReconcileAutoEnabledTenantPlugins(ctx context.Context) err
 // bootstrapBuiltinRuntimeUpgrade executes the unified runtime-upgrade envelope
 // with startup confirmation already supplied by host-owned builtin governance.
 func (s *serviceImpl) bootstrapBuiltinRuntimeUpgrade(ctx context.Context, pluginID string) error {
-	_, err := s.upgradeSvc.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	_, err := s.lifecycleSvc.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
 	return err
 }
 

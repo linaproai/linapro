@@ -27,7 +27,7 @@ func (r *notificationsHostCallRecorder) invoke(service string, method string, re
 	r.service = service
 	r.method = method
 	if len(request) > 0 {
-		envelope, err := protocol.UnmarshalHostServiceCapabilityJSONRequest(request)
+		envelope, err := protocol.UnmarshalHostServiceJSONRequest(request)
 		if err != nil {
 			return err
 		}

@@ -5,6 +5,7 @@ package hostservice
 
 import (
 	"encoding/json"
+	"lina-core/pkg/plugin/pluginbridge/protocol/hostservices"
 	"reflect"
 	"testing"
 
@@ -32,13 +33,13 @@ func TestValidateHostServiceSpecsNormalizesStoragePaths(t *testing.T) {
 	if len(specs) != 2 {
 		t.Fatalf("expected 2 normalized specs, got %d", len(specs))
 	}
-	if specs[0].Service != HostServiceRuntime {
+	if specs[0].Service != hostservices.HostServiceRuntime {
 		t.Fatalf("expected runtime spec to sort first, got %s", specs[0].Service)
 	}
-	if specs[1].Service != HostServiceStorage {
+	if specs[1].Service != hostservices.HostServiceStorage {
 		t.Fatalf("expected storage spec to be normalized, got %s", specs[1].Service)
 	}
-	if len(specs[1].Methods) != 2 || specs[1].Methods[0] != HostServiceMethodStorageGet || specs[1].Methods[1] != HostServiceMethodStoragePut {
+	if len(specs[1].Methods) != 2 || specs[1].Methods[0] != hostservices.HostServiceMethodStorageGet || specs[1].Methods[1] != hostservices.HostServiceMethodStoragePut {
 		t.Fatalf("expected normalized storage methods [get put], got %#v", specs[1].Methods)
 	}
 	if len(specs[1].Paths) != 2 || specs[1].Paths[0] != "exports/daily.json" || specs[1].Paths[1] != "reports/" {
@@ -50,8 +51,8 @@ func TestValidateHostServiceSpecsNormalizesStoragePaths(t *testing.T) {
 // declarations cannot carry resource entries.
 func TestValidateHostServiceSpecsRejectsRuntimeResources(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceRuntime,
-		Methods: []string{HostServiceMethodRuntimeInfoUUID},
+		Service: hostservices.HostServiceRuntime,
+		Methods: []string{hostservices.HostServiceMethodRuntimeInfoUUID},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: "unexpected",
 		}},
@@ -65,8 +66,8 @@ func TestValidateHostServiceSpecsRejectsRuntimeResources(t *testing.T) {
 // explicit errors instead of panicking on invalid host service input.
 func TestNormalizeHostServiceSpecsReturnsError(t *testing.T) {
 	normalized, err := NormalizeHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceStorage,
-		Methods: []string{HostServiceMethodStorageGet},
+		Service: hostservices.HostServiceStorage,
+		Methods: []string{hostservices.HostServiceMethodStorageGet},
 	}})
 	if err == nil {
 		t.Fatal("expected invalid host service declaration to return an error")
@@ -86,8 +87,8 @@ func TestMustNormalizeHostServiceSpecsPanics(t *testing.T) {
 	}()
 
 	MustNormalizeHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceStorage,
-		Methods: []string{HostServiceMethodStorageGet},
+		Service: hostservices.HostServiceStorage,
+		Methods: []string{hostservices.HostServiceMethodStorageGet},
 	}})
 }
 
@@ -175,7 +176,7 @@ func TestValidateCapabilitiesRejectsRemovedCapabilities(t *testing.T) {
 // declarations must grant concrete methods explicitly.
 func TestValidateHostServiceSpecsRejectsMissingMethods(t *testing.T) {
 	specs := []*HostServiceSpec{{
-		Service: HostServiceHostConfig,
+		Service: hostservices.HostServiceHostConfig,
 		Keys:    []string{"workspace.basePath"},
 	}}
 
@@ -191,8 +192,8 @@ func TestValidateHostServiceSpecsRejectsMissingMethods(t *testing.T) {
 // plugin config read access is authorized as a plugins domain method.
 func TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{{
-		Service: HostServicePlugins,
-		Methods: []string{HostServiceMethodPluginsConfigGet},
+		Service: hostservices.HostServicePlugins,
+		Methods: []string{hostservices.HostServiceMethodPluginsConfigGet},
 	}}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
@@ -210,19 +211,19 @@ func TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources(t *testing
 func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{
 		{
-			Service: HostServiceOrg,
+			Service: hostservices.HostServiceOrg,
 			Methods: []string{
-				HostServiceMethodOrgStatus,
-				HostServiceMethodOrgBatchGetUserOrgProfiles,
-				HostServiceMethodOrgDepartmentBatchGet,
-				HostServiceMethodOrgPostBatchGet,
+				hostservices.HostServiceMethodOrgStatus,
+				hostservices.HostServiceMethodOrgBatchGetUserOrgProfiles,
+				hostservices.HostServiceMethodOrgDepartmentBatchGet,
+				hostservices.HostServiceMethodOrgPostBatchGet,
 			},
 		},
 		{
-			Service: HostServiceTenant,
+			Service: hostservices.HostServiceTenant,
 			Methods: []string{
-				HostServiceMethodTenantStatus,
-				HostServiceMethodTenantListUserTenants,
+				hostservices.HostServiceMethodTenantStatus,
+				hostservices.HostServiceMethodTenantListUserTenants,
 			},
 		},
 	}
@@ -244,16 +245,16 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 // ordinary domain host services are authorized by service and method only.
 func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{
-		{Service: HostServiceAuth, Methods: []string{HostServiceMethodAuthzBatchGetPermissions, HostServiceMethodAuthzBatchHasPermissions}},
-		{Service: HostServiceDict, Methods: []string{HostServiceMethodDictValueResolveLabels, HostServiceMethodDictListValues, HostServiceMethodDictValueEnsureValuesVisible}},
-		{Service: HostServiceFiles, Methods: []string{HostServiceMethodFilesBatchGet, HostServiceMethodFilesList}},
-		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsCurrent, HostServiceMethodSessionsList, HostServiceMethodSessionsBatchGetUserOnlineStatus, HostServiceMethodSessionsEnsureVisible}},
-		{Service: HostServiceJobs, Methods: []string{HostServiceMethodJobsBatchGet, HostServiceMethodJobsList, HostServiceMethodJobsEnsureVisible, HostServiceMethodJobsRegister}},
-		{Service: HostServiceAPIDoc, Methods: []string{HostServiceMethodAPIDocFindRouteTitleOperationKeys}},
-		{Service: HostServiceBizCtx, Methods: []string{HostServiceMethodBizCtxCurrent}},
-		{Service: HostServiceRoute, Methods: []string{HostServiceMethodRouteMetadataGet}},
-		{Service: HostServiceNotifications, Methods: []string{HostServiceMethodNotificationsBatchGetMessages, HostServiceMethodNotificationsList, HostServiceMethodNotificationsDelete, HostServiceMethodNotificationsMarkRead}},
-		{Service: HostServicePlugins, Methods: []string{HostServiceMethodPluginsCurrent}},
+		{Service: hostservices.HostServiceAuth, Methods: []string{hostservices.HostServiceMethodAuthzBatchGetPermissions, hostservices.HostServiceMethodAuthzBatchHasPermissions}},
+		{Service: hostservices.HostServiceDict, Methods: []string{hostservices.HostServiceMethodDictValueResolveLabels, hostservices.HostServiceMethodDictListValues, hostservices.HostServiceMethodDictValueEnsureValuesVisible}},
+		{Service: hostservices.HostServiceFiles, Methods: []string{hostservices.HostServiceMethodFilesBatchGet, hostservices.HostServiceMethodFilesList}},
+		{Service: hostservices.HostServiceSessions, Methods: []string{hostservices.HostServiceMethodSessionsCurrent, hostservices.HostServiceMethodSessionsList, hostservices.HostServiceMethodSessionsBatchGetUserOnlineStatus, hostservices.HostServiceMethodSessionsEnsureVisible}},
+		{Service: hostservices.HostServiceJobs, Methods: []string{hostservices.HostServiceMethodJobsBatchGet, hostservices.HostServiceMethodJobsList, hostservices.HostServiceMethodJobsEnsureVisible, hostservices.HostServiceMethodJobsRegister}},
+		{Service: hostservices.HostServiceAPIDoc, Methods: []string{hostservices.HostServiceMethodAPIDocFindRouteTitleOperationKeys}},
+		{Service: hostservices.HostServiceBizCtx, Methods: []string{hostservices.HostServiceMethodBizCtxCurrent}},
+		{Service: hostservices.HostServiceRoute, Methods: []string{hostservices.HostServiceMethodRouteMetadataGet}},
+		{Service: hostservices.HostServiceNotifications, Methods: []string{hostservices.HostServiceMethodNotificationsBatchGetMessages, hostservices.HostServiceMethodNotificationsList, hostservices.HostServiceMethodNotificationsDelete, hostservices.HostServiceMethodNotificationsMarkRead}},
+		{Service: hostservices.HostServicePlugins, Methods: []string{hostservices.HostServiceMethodPluginsCurrent}},
 	}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
@@ -294,7 +295,7 @@ func TestValidateHostServiceSpecsRejectsPluginGovernanceLifecycleMethods(t *test
 		method := method
 		t.Run(method, func(t *testing.T) {
 			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-				Service: HostServicePlugins,
+				Service: hostservices.HostServicePlugins,
 				Methods: []string{method},
 			}})
 			if err == nil {
@@ -329,8 +330,8 @@ func TestValidateHostServiceSpecsRejectsPluginsConfigTypedMethods(t *testing.T) 
 		method := method
 		t.Run(method, func(t *testing.T) {
 			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-				Service: HostServicePlugins,
-				Methods: []string{HostServiceMethodPluginsConfigGet, method},
+				Service: hostservices.HostServicePlugins,
+				Methods: []string{hostservices.HostServiceMethodPluginsConfigGet, method},
 			}})
 			if err == nil {
 				t.Fatalf("expected plugins config typed helper method %s to be rejected", method)
@@ -343,8 +344,8 @@ func TestValidateHostServiceSpecsRejectsPluginsConfigTypedMethods(t *testing.T) 
 // plugin config declarations only accept config.get.
 func TestValidateHostServiceSpecsRejectsPluginsConfigUnsupportedMethods(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServicePlugins,
-		Methods: []string{HostServiceMethodPluginsConfigGet, "config.set"},
+		Service: hostservices.HostServicePlugins,
+		Methods: []string{hostservices.HostServiceMethodPluginsConfigGet, "config.set"},
 	}})
 	if err == nil {
 		t.Fatal("expected unsupported plugins config methods to be rejected")
@@ -355,8 +356,8 @@ func TestValidateHostServiceSpecsRejectsPluginsConfigUnsupportedMethods(t *testi
 // config declarations do not accept resource restrictions in this model.
 func TestValidateHostServiceSpecsRejectsPluginsConfigResources(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServicePlugins,
-		Methods: []string{HostServiceMethodPluginsConfigGet},
+		Service: hostservices.HostServicePlugins,
+		Methods: []string{hostservices.HostServiceMethodPluginsConfigGet},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: "monitor.*",
 		}},
@@ -370,8 +371,8 @@ func TestValidateHostServiceSpecsRejectsPluginsConfigResources(t *testing.T) {
 // declarations use resources.keys as their resource boundary.
 func TestValidateHostServiceSpecsAcceptsHostConfigKeys(t *testing.T) {
 	specs := []*HostServiceSpec{{
-		Service: HostServiceHostConfig,
-		Methods: []string{HostServiceMethodHostConfigGet},
+		Service: hostservices.HostServiceHostConfig,
+		Methods: []string{hostservices.HostServiceMethodHostConfigGet},
 		Keys:    []string{" i18n.default ", "workspace.basePath"},
 	}}
 
@@ -393,7 +394,7 @@ func TestValidateHostServiceSpecsAcceptsHostConfigKeys(t *testing.T) {
 func TestValidateHostServiceSpecsRejectsLegacyHostRuntimeName(t *testing.T) {
 	specs := []*HostServiceSpec{{
 		Service: "hostRuntime",
-		Methods: []string{HostServiceMethodHostConfigGet},
+		Methods: []string{hostservices.HostServiceMethodHostConfigGet},
 		Keys:    []string{"workspace.basePath"},
 	}}
 
@@ -406,8 +407,8 @@ func TestValidateHostServiceSpecsRejectsLegacyHostRuntimeName(t *testing.T) {
 // runtime declarations must explicitly request authorized host config keys.
 func TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceHostConfig,
-		Methods: []string{HostServiceMethodHostConfigGet},
+		Service: hostservices.HostServiceHostConfig,
+		Methods: []string{hostservices.HostServiceMethodHostConfigGet},
 	}})
 	if err == nil {
 		t.Fatal("expected hostConfig without resources.keys to be rejected")
@@ -418,8 +419,8 @@ func TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys(t *testing.T) {
 // declarations use resources.paths as their resource boundary.
 func TestValidateHostServiceSpecsAcceptsManifestPaths(t *testing.T) {
 	specs := []*HostServiceSpec{{
-		Service: HostServiceManifest,
-		Methods: []string{HostServiceMethodManifestGet},
+		Service: hostservices.HostServiceManifest,
+		Methods: []string{hostservices.HostServiceMethodManifestGet},
 		Paths: []string{
 			" metadata.yaml ",
 			"config/config.example.yaml",
@@ -462,8 +463,8 @@ func TestValidateHostServiceSpecsRejectsUnsafeManifestPaths(t *testing.T) {
 		manifestPath := manifestPath
 		t.Run(manifestPath, func(t *testing.T) {
 			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-				Service: HostServiceManifest,
-				Methods: []string{HostServiceMethodManifestGet},
+				Service: hostservices.HostServiceManifest,
+				Methods: []string{hostservices.HostServiceMethodManifestGet},
 				Paths:   []string{manifestPath},
 			}})
 			if err == nil {
@@ -492,8 +493,8 @@ func TestValidateHostServiceSpecsRejectsCronResources(t *testing.T) {
 // services require path declarations instead of generic resource refs.
 func TestValidateHostServiceSpecsRejectsStorageResourceRefs(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceStorage,
-		Methods: []string{HostServiceMethodStorageGet},
+		Service: hostservices.HostServiceStorage,
+		Methods: []string{hostservices.HostServiceMethodStorageGet},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: "plugin-private-files",
 		}},
@@ -507,8 +508,8 @@ func TestValidateHostServiceSpecsRejectsStorageResourceRefs(t *testing.T) {
 // resource-bearing services fail validation when required scopes are absent.
 func TestValidateHostServiceSpecsRejectsCoreServiceWithoutResource(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceStorage,
-		Methods: []string{HostServiceMethodStorageGet},
+		Service: hostservices.HostServiceStorage,
+		Methods: []string{hostservices.HostServiceMethodStorageGet},
 	}})
 	if err == nil {
 		t.Fatal("expected storage host service without paths to be rejected")
@@ -519,8 +520,8 @@ func TestValidateHostServiceSpecsRejectsCoreServiceWithoutResource(t *testing.T)
 // service declarations require plugin-aware table ownership validation.
 func TestValidateHostServiceSpecsRejectsDataTablesWithoutPlugin(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceData,
-		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataUpdate},
+		Service: hostservices.HostServiceData,
+		Methods: []string{hostservices.HostServiceMethodDataList, hostservices.HostServiceMethodDataUpdate},
 		Tables:  []string{" sys_plugin_node_state ", "sys_user"},
 	}})
 	if err == nil {
@@ -532,8 +533,8 @@ func TestValidateHostServiceSpecsRejectsDataTablesWithoutPlugin(t *testing.T) {
 // production validation allows only data tables in the current plugin namespace.
 func TestValidateHostServiceSpecsForPluginAcceptsOwnedDataTables(t *testing.T) {
 	specs := []*HostServiceSpec{{
-		Service: HostServiceData,
-		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataUpdate},
+		Service: hostservices.HostServiceData,
+		Methods: []string{hostservices.HostServiceMethodDataList, hostservices.HostServiceMethodDataUpdate},
 		Tables: []string{
 			" plugin_linapro_demo_dynamic_record ",
 			"plugin_linapro_demo_dynamic",
@@ -552,8 +553,8 @@ func TestValidateHostServiceSpecsForPluginAcceptsOwnedDataTables(t *testing.T) {
 // data service declarations cannot authorize host sys_* core tables.
 func TestValidateHostServiceSpecsForPluginRejectsCoreDataTables(t *testing.T) {
 	err := ValidateHostServiceSpecsForPlugin("linapro-demo-dynamic", []*HostServiceSpec{{
-		Service: HostServiceData,
-		Methods: []string{HostServiceMethodDataList},
+		Service: hostservices.HostServiceData,
+		Methods: []string{hostservices.HostServiceMethodDataList},
 		Tables:  []string{"sys_plugin_node_state"},
 	}})
 	if err == nil {
@@ -566,8 +567,8 @@ func TestValidateHostServiceSpecsForPluginRejectsCoreDataTables(t *testing.T) {
 // generic data host service authorization.
 func TestNormalizeHostServiceSpecsForPluginRejectsOtherPluginDataTables(t *testing.T) {
 	normalized, err := NormalizeHostServiceSpecsForPlugin("linapro-demo-dynamic", []*HostServiceSpec{{
-		Service: HostServiceData,
-		Methods: []string{HostServiceMethodDataList},
+		Service: hostservices.HostServiceData,
+		Methods: []string{hostservices.HostServiceMethodDataList},
 		Tables:  []string{"plugin_linapro_org_dept"},
 	}})
 	if err == nil {
@@ -582,8 +583,8 @@ func TestNormalizeHostServiceSpecsForPluginRejectsOtherPluginDataTables(t *testi
 // use table authorization instead of generic resources.
 func TestValidateHostServiceSpecsRejectsDataResources(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceData,
-		Methods: []string{HostServiceMethodDataList},
+		Service: hostservices.HostServiceData,
+		Methods: []string{hostservices.HostServiceMethodDataList},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: "unexpected",
 		}},
@@ -597,8 +598,8 @@ func TestValidateHostServiceSpecsRejectsDataResources(t *testing.T) {
 // services accept normalized URL-pattern resources.
 func TestValidateHostServiceSpecsAcceptsNetworkURLPatterns(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceNetwork,
-		Methods: []string{HostServiceMethodNetworkRequest},
+		Service: hostservices.HostServiceNetwork,
+		Methods: []string{hostservices.HostServiceMethodNetworkRequest},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: " https://*.example.com/api ",
 		}},
@@ -613,22 +614,22 @@ func TestValidateHostServiceSpecsAcceptsNetworkURLPatterns(t *testing.T) {
 func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	specs := []*HostServiceSpec{
 		{
-			Service: HostServiceCache,
-			Methods: []string{HostServiceMethodCacheGet, HostServiceMethodCacheSet},
+			Service: hostservices.HostServiceCache,
+			Methods: []string{hostservices.HostServiceMethodCacheGet, hostservices.HostServiceMethodCacheSet},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: " order-sync-cache "},
 			},
 		},
 		{
-			Service: HostServiceLock,
-			Methods: []string{HostServiceMethodLockAcquire, HostServiceMethodLockRelease},
+			Service: hostservices.HostServiceLock,
+			Methods: []string{hostservices.HostServiceMethodLockAcquire, hostservices.HostServiceMethodLockRelease},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: " order-sync-lock "},
 			},
 		},
 		{
-			Service: HostServiceNotifications,
-			Methods: []string{HostServiceMethodNotificationsSend},
+			Service: hostservices.HostServiceNotifications,
+			Methods: []string{hostservices.HostServiceMethodNotificationsSend},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: " inbox "},
 			},
@@ -759,8 +760,8 @@ func TestValidateHostServiceSpecsUsesOwnerAwareIdentityForDuplicates(t *testing.
 // network resources only declare URL patterns.
 func TestValidateHostServiceSpecsRejectsNetworkResourceGovernanceFields(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceNetwork,
-		Methods: []string{HostServiceMethodNetworkRequest},
+		Service: hostservices.HostServiceNetwork,
+		Methods: []string{hostservices.HostServiceMethodNetworkRequest},
 		Resources: []*HostServiceResourceSpec{{
 			Ref:          "https://api.example.com",
 			AllowMethods: []string{"GET"},
@@ -775,8 +776,8 @@ func TestValidateHostServiceSpecsRejectsNetworkResourceGovernanceFields(t *testi
 // marshal and unmarshal through `resources.paths`.
 func TestHostServiceSpecJSONUsesResourcePathsForStorage(t *testing.T) {
 	spec := &HostServiceSpec{
-		Service: HostServiceStorage,
-		Methods: []string{HostServiceMethodStorageGet, HostServiceMethodStoragePut},
+		Service: hostservices.HostServiceStorage,
+		Methods: []string{hostservices.HostServiceMethodStorageGet, hostservices.HostServiceMethodStoragePut},
 		Paths:   []string{"reports/", "exports/daily.json"},
 	}
 
@@ -802,7 +803,7 @@ func TestHostServiceSpecJSONUsesResourcePathsForStorage(t *testing.T) {
 	if err = json.Unmarshal(payload, decoded); err != nil {
 		t.Fatalf("expected storage host service json unmarshal to succeed, got %v", err)
 	}
-	if decoded.Service != HostServiceStorage || len(decoded.Paths) != 2 {
+	if decoded.Service != hostservices.HostServiceStorage || len(decoded.Paths) != 2 {
 		t.Fatalf("unexpected decoded storage host service: %#v", decoded)
 	}
 	if len(decoded.Resources) != 0 {
@@ -846,8 +847,8 @@ func TestHostServiceSpecJSONRoundTripsOwnerVersion(t *testing.T) {
 // services marshal and unmarshal through `resources.keys`.
 func TestHostServiceSpecJSONUsesResourceKeysForHostConfig(t *testing.T) {
 	spec := &HostServiceSpec{
-		Service: HostServiceHostConfig,
-		Methods: []string{HostServiceMethodHostConfigGet},
+		Service: hostservices.HostServiceHostConfig,
+		Methods: []string{hostservices.HostServiceMethodHostConfigGet},
 		Keys:    []string{"workspace.basePath", "i18n.default"},
 	}
 
@@ -873,7 +874,7 @@ func TestHostServiceSpecJSONUsesResourceKeysForHostConfig(t *testing.T) {
 	if err = json.Unmarshal(payload, decoded); err != nil {
 		t.Fatalf("expected hostConfig host service json unmarshal to succeed, got %v", err)
 	}
-	if decoded.Service != HostServiceHostConfig || len(decoded.Keys) != 2 {
+	if decoded.Service != hostservices.HostServiceHostConfig || len(decoded.Keys) != 2 {
 		t.Fatalf("unexpected decoded hostConfig host service: %#v", decoded)
 	}
 	if len(decoded.Resources) != 0 {
@@ -885,8 +886,8 @@ func TestHostServiceSpecJSONUsesResourceKeysForHostConfig(t *testing.T) {
 // services marshal and unmarshal through `resources.paths`.
 func TestHostServiceSpecYAMLUsesResourcePathsForManifest(t *testing.T) {
 	spec := &HostServiceSpec{
-		Service: HostServiceManifest,
-		Methods: []string{HostServiceMethodManifestGet},
+		Service: hostservices.HostServiceManifest,
+		Methods: []string{hostservices.HostServiceMethodManifestGet},
 		Paths:   []string{"metadata.yaml", "resources/*.yaml"},
 	}
 
@@ -912,7 +913,7 @@ func TestHostServiceSpecYAMLUsesResourcePathsForManifest(t *testing.T) {
 	if err = yaml.Unmarshal(payload, decoded); err != nil {
 		t.Fatalf("expected manifest host service yaml unmarshal to succeed, got %v", err)
 	}
-	if decoded.Service != HostServiceManifest || len(decoded.Paths) != 2 {
+	if decoded.Service != hostservices.HostServiceManifest || len(decoded.Paths) != 2 {
 		t.Fatalf("unexpected decoded manifest host service: %#v", decoded)
 	}
 	if len(decoded.Resources) != 0 {
@@ -956,8 +957,8 @@ func TestHostServiceSpecYAMLRoundTripsOwnerVersion(t *testing.T) {
 // marshal and unmarshal through `resources.tables`.
 func TestHostServiceSpecJSONUsesResourceTablesForData(t *testing.T) {
 	spec := &HostServiceSpec{
-		Service: HostServiceData,
-		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataGet},
+		Service: hostservices.HostServiceData,
+		Methods: []string{hostservices.HostServiceMethodDataList, hostservices.HostServiceMethodDataGet},
 		Tables:  []string{"sys_plugin_node_state"},
 	}
 
@@ -983,7 +984,7 @@ func TestHostServiceSpecJSONUsesResourceTablesForData(t *testing.T) {
 	if err = json.Unmarshal(payload, decoded); err != nil {
 		t.Fatalf("expected data host service json unmarshal to succeed, got %v", err)
 	}
-	if decoded.Service != HostServiceData || len(decoded.Tables) != 1 || decoded.Tables[0] != "sys_plugin_node_state" {
+	if decoded.Service != hostservices.HostServiceData || len(decoded.Tables) != 1 || decoded.Tables[0] != "sys_plugin_node_state" {
 		t.Fatalf("unexpected decoded data host service: %#v", decoded)
 	}
 	if len(decoded.Resources) != 0 {
@@ -995,8 +996,8 @@ func TestHostServiceSpecJSONUsesResourceTablesForData(t *testing.T) {
 // `resources.tables` shape for data service declarations.
 func TestHostServiceSpecYAMLUsesResourceTablesForData(t *testing.T) {
 	spec := &HostServiceSpec{
-		Service: HostServiceData,
-		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataGet},
+		Service: hostservices.HostServiceData,
+		Methods: []string{hostservices.HostServiceMethodDataList, hostservices.HostServiceMethodDataGet},
 		Tables:  []string{"sys_plugin_node_state"},
 	}
 
@@ -1022,7 +1023,7 @@ func TestHostServiceSpecYAMLUsesResourceTablesForData(t *testing.T) {
 	if err = yaml.Unmarshal(payload, decoded); err != nil {
 		t.Fatalf("expected data host service yaml unmarshal to succeed, got %v", err)
 	}
-	if decoded.Service != HostServiceData || len(decoded.Tables) != 1 || decoded.Tables[0] != "sys_plugin_node_state" {
+	if decoded.Service != hostservices.HostServiceData || len(decoded.Tables) != 1 || decoded.Tables[0] != "sys_plugin_node_state" {
 		t.Fatalf("unexpected decoded data host service: %#v", decoded)
 	}
 	if len(decoded.Resources) != 0 {
@@ -1034,8 +1035,8 @@ func TestHostServiceSpecYAMLUsesResourceTablesForData(t *testing.T) {
 // marshal and unmarshal YAML resource URLs through the shared resources array.
 func TestHostServiceSpecYAMLUsesURLForNetworkResources(t *testing.T) {
 	spec := &HostServiceSpec{
-		Service: HostServiceNetwork,
-		Methods: []string{HostServiceMethodNetworkRequest},
+		Service: hostservices.HostServiceNetwork,
+		Methods: []string{hostservices.HostServiceMethodNetworkRequest},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: "https://*.example.com/api",
 		}},
@@ -1063,7 +1064,7 @@ func TestHostServiceSpecYAMLUsesURLForNetworkResources(t *testing.T) {
 	if err = yaml.Unmarshal(payload, decoded); err != nil {
 		t.Fatalf("expected network host service yaml unmarshal to succeed, got %v", err)
 	}
-	if decoded.Service != HostServiceNetwork || len(decoded.Resources) != 1 || decoded.Resources[0].Ref != "https://*.example.com/api" {
+	if decoded.Service != hostservices.HostServiceNetwork || len(decoded.Resources) != 1 || decoded.Resources[0].Ref != "https://*.example.com/api" {
 		t.Fatalf("unexpected decoded network host service: %#v", decoded)
 	}
 }
@@ -1072,8 +1073,8 @@ func TestHostServiceSpecYAMLUsesURLForNetworkResources(t *testing.T) {
 // method duplicates are rejected during validation.
 func TestValidateHostServiceSpecsRejectsDuplicateMethods(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceStorage,
-		Methods: []string{HostServiceMethodStorageGet, "GET"},
+		Service: hostservices.HostServiceStorage,
+		Methods: []string{hostservices.HostServiceMethodStorageGet, "GET"},
 		Paths:   []string{"reports/"},
 	}})
 	if err == nil {
@@ -1086,12 +1087,12 @@ func TestValidateHostServiceSpecsRejectsDuplicateMethods(t *testing.T) {
 func TestCapabilitiesFromHostServicesDerivesCapabilitySet(t *testing.T) {
 	capabilities := CapabilitiesFromHostServices([]*HostServiceSpec{
 		{
-			Service: HostServiceRuntime,
-			Methods: []string{HostServiceMethodRuntimeInfoUUID},
+			Service: hostservices.HostServiceRuntime,
+			Methods: []string{hostservices.HostServiceMethodRuntimeInfoUUID},
 		},
 		{
-			Service: HostServiceData,
-			Methods: []string{HostServiceMethodDataList, HostServiceMethodDataCreate},
+			Service: hostservices.HostServiceData,
+			Methods: []string{hostservices.HostServiceMethodDataList, hostservices.HostServiceMethodDataCreate},
 			Tables:  []string{"sys_plugin_node_state"},
 		},
 	})
@@ -1109,22 +1110,22 @@ func TestCapabilitiesFromHostServicesDerivesCapabilitySet(t *testing.T) {
 func TestCapabilitiesFromHostServicesDerivesLowPriorityCapabilitySet(t *testing.T) {
 	capabilities := CapabilitiesFromHostServices([]*HostServiceSpec{
 		{
-			Service: HostServiceCache,
-			Methods: []string{HostServiceMethodCacheGet, HostServiceMethodCacheSet},
+			Service: hostservices.HostServiceCache,
+			Methods: []string{hostservices.HostServiceMethodCacheGet, hostservices.HostServiceMethodCacheSet},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: "order-sync-cache"},
 			},
 		},
 		{
-			Service: HostServiceLock,
-			Methods: []string{HostServiceMethodLockAcquire},
+			Service: hostservices.HostServiceLock,
+			Methods: []string{hostservices.HostServiceMethodLockAcquire},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: "order-sync-lock"},
 			},
 		},
 		{
-			Service: HostServiceNotifications,
-			Methods: []string{HostServiceMethodNotificationsSend},
+			Service: hostservices.HostServiceNotifications,
+			Methods: []string{hostservices.HostServiceMethodNotificationsSend},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: "inbox"},
 			},

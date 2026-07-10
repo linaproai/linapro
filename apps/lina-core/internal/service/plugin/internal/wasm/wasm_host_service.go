@@ -86,7 +86,7 @@ func decodeCapabilityJSONRequest(payload []byte, out any) error {
 	if out == nil || len(payload) == 0 {
 		return nil
 	}
-	request, err := bridgehostservice.UnmarshalHostServiceCapabilityJSONRequest(payload)
+	request, err := bridgehostservice.UnmarshalHostServiceJSONRequest(payload)
 	if err != nil {
 		return err
 	}
@@ -97,6 +97,20 @@ func decodeCapabilityJSONRequest(payload []byte, out any) error {
 		return gerror.Wrap(err, "decode capability JSON request failed")
 	}
 	return nil
+}
+
+// capabilityJSONResponse encodes one ordinary domain value as a JSON host-service
+// success envelope. New JSON host-service methods should use this helper with
+// decodeCapabilityJSONRequest instead of dedicated binary codecs.
+func capabilityJSONResponse(value any) *bridgehostcall.HostCallResponseEnvelope {
+	content, err := json.Marshal(value)
+	if err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
+	}
+	payload := bridgehostservice.MarshalHostServiceJSONResponse(
+		&bridgehostservice.HostServiceJSONResponse{Value: content},
+	)
+	return bridgehostcall.NewHostCallSuccessResponse(payload)
 }
 
 // invalidCapabilityRequest returns a transport error for malformed domain

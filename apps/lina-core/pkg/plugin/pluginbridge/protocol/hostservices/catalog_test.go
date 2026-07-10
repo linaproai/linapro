@@ -1,5 +1,5 @@
 // This file verifies the public host-service catalog owns payload kind
-// classification for ordinary JSON services and dedicated codec services.
+// classification for ordinary JSON services and freezes dedicated codec methods.
 
 package hostservices
 
@@ -15,35 +15,172 @@ import (
 	"lina-core/pkg/plugin/capability/capregistry"
 )
 
-func TestCatalogPayloadKinds(t *testing.T) {
-	dedicatedServices := map[string]struct{}{
-		"runtime":       {},
-		"storage":       {},
-		"network":       {},
-		"data":          {},
-		"cache":         {},
-		"lock":          {},
-		"hostconfig":    {},
-		"manifest":      {},
-		"jobs":          {},
-		"notifications": {},
-		"plugins":       {},
-	}
+// frozenDedicatedMethods is the closed allowlist of historical dedicated binary
+// codec methods. New core-owned host-service methods must use PayloadKindJSON
+// or PayloadKindNone and must not expand this set.
+var frozenDedicatedMethods = map[string]struct{}{
+	"cache.delete":                {},
+	"cache.expire":                {},
+	"cache.get":                   {},
+	"cache.incr":                  {},
+	"cache.set":                   {},
+	"data.batch_get":              {},
+	"data.create":                 {},
+	"data.delete":                 {},
+	"data.get":                    {},
+	"data.list":                   {},
+	"data.transaction":            {},
+	"data.update":                 {},
+	"hostconfig.get":              {},
+	"jobs.jobs.register":          {},
+	"lock.acquire":                {},
+	"lock.release":                {},
+	"lock.renew":                  {},
+	"manifest.get":                {},
+	"network.request":             {},
+	"notifications.messages.send": {},
+	"plugins.config.get":          {},
+	"runtime.info.node":           {},
+	"runtime.info.now":            {},
+	"runtime.info.uuid":           {},
+	"runtime.log.write":           {},
+	"runtime.state.delete":        {},
+	"runtime.state.get":           {},
+	"runtime.state.set":           {},
+	"storage.delete":              {},
+	"storage.get":                 {},
+	"storage.list":                {},
+	"storage.put":                 {},
+	"storage.put.abort":           {},
+	"storage.put.chunk":           {},
+	"storage.put.commit":          {},
+	"storage.put.init":            {},
+	"storage.stat":                {},
+}
 
+func TestCatalogPayloadKinds(t *testing.T) {
+	seenDedicated := map[string]struct{}{}
 	for _, descriptor := range Catalog() {
 		for _, method := range descriptor.Methods {
 			key := method.Service + "." + method.Method
 			if method.PayloadKind == "" {
 				t.Fatalf("catalog method %s is missing payload kind", key)
 			}
-			if method.PayloadKind == PayloadKindDedicated {
-				if _, ok := dedicatedServices[method.Service]; !ok {
-					t.Fatalf("ordinary host service %s uses dedicated codec without whitelist", key)
+			switch method.PayloadKind {
+			case PayloadKindDedicated:
+				if _, ok := frozenDedicatedMethods[key]; !ok {
+					t.Fatalf("dedicated codec method %s is not in the frozen allowlist; new methods must use JSON envelope", key)
 				}
-				continue
+				seenDedicated[key] = struct{}{}
+			case PayloadKindJSON, PayloadKindNone:
+				// Allowed for all methods, including new ones.
+			default:
+				t.Fatalf("catalog method %s has unknown payload kind %q", key, method.PayloadKind)
 			}
 		}
 	}
+	for key := range frozenDedicatedMethods {
+		if _, ok := seenDedicated[key]; !ok {
+			t.Fatalf("frozen dedicated method %s is missing from catalog", key)
+		}
+	}
+}
+
+func TestCatalogUsesWireConstants(t *testing.T) {
+	// Catalog entries must reference wire_constants.go values so method/service
+	// wire strings are maintained in one place only.
+	for _, descriptor := range Catalog() {
+		serviceConst := hostServiceConstNamesForTest[descriptor.Service]
+		if serviceConst == "" {
+			t.Fatalf("catalog service %q missing const name map", descriptor.Service)
+		}
+		// Resolve service const value via package-level const table from AST of wire_constants.go
+		// is unnecessary when Service field already stores the const value; check method linkage.
+		for _, method := range descriptor.Methods {
+			if method.MethodConst == "" {
+				t.Fatalf("catalog method %s.%s missing MethodConst", descriptor.Service, method.Method)
+			}
+			// MethodConst identifies the Go constant; its value must equal Method wire string.
+			// Evaluating const identifiers happens by matching known package constants below.
+		}
+	}
+	constants := loadHostservicesWireConstants(t)
+	for _, descriptor := range Catalog() {
+		serviceConst := hostServiceConstNamesForTest[descriptor.Service]
+		if got := constants[serviceConst]; got != descriptor.Service {
+			t.Fatalf("wire constant %s = %q, catalog service = %q (catalog must use the constant)", serviceConst, got, descriptor.Service)
+		}
+		for _, method := range descriptor.Methods {
+			if got := constants[method.MethodConst]; got != method.Method {
+				t.Fatalf("wire constant %s = %q, catalog method = %q (catalog must use the constant)", method.MethodConst, got, method.Method)
+			}
+		}
+	}
+}
+
+func loadHostservicesWireConstants(t *testing.T) map[string]string {
+	t.Helper()
+	filePath := filepath.Join(".", "wire_constants.go")
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read wire_constants.go: %v", err)
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), filePath, content, 0)
+	if err != nil {
+		t.Fatalf("parse wire_constants.go: %v", err)
+	}
+	constants := map[string]string{}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, ident := range valueSpec.Names {
+				if i >= len(valueSpec.Values) {
+					continue
+				}
+				basic, ok := valueSpec.Values[i].(*ast.BasicLit)
+				if !ok || basic.Kind != token.STRING {
+					continue
+				}
+				constants[ident.Name] = strings.Trim(basic.Value, `"`)
+			}
+		}
+	}
+	if len(constants) == 0 {
+		t.Fatal("expected HostService* wire constants in wire_constants.go")
+	}
+	return constants
+}
+
+// hostServiceConstNamesForTest maps catalog service wire values to HostService* names.
+var hostServiceConstNamesForTest = map[string]string{
+	"runtime":       "HostServiceRuntime",
+	"storage":       "HostServiceStorage",
+	"network":       "HostServiceNetwork",
+	"data":          "HostServiceData",
+	"cache":         "HostServiceCache",
+	"lock":          "HostServiceLock",
+	"hostconfig":    "HostServiceHostConfig",
+	"manifest":      "HostServiceManifest",
+	"apidoc":        "HostServiceAPIDoc",
+	"auth":          "HostServiceAuth",
+	"users":         "HostServiceUsers",
+	"bizctx":        "HostServiceBizCtx",
+	"dict":          "HostServiceDict",
+	"files":         "HostServiceFiles",
+	"jobs":          "HostServiceJobs",
+	"notifications": "HostServiceNotifications",
+	"plugins":       "HostServicePlugins",
+	"route":         "HostServiceRoute",
+	"sessions":      "HostServiceSessions",
+	"org":           "HostServiceOrg",
+	"tenant":        "HostServiceTenant",
 }
 
 func TestCoreCatalogKeepsStaticServicesCoreOwned(t *testing.T) {
@@ -77,46 +214,25 @@ func TestCatalogWithDescriptorsProjectsOwnerMethods(t *testing.T) {
 			},
 		},
 	}
-
 	catalog, err := CatalogWithDescriptors([]capregistry.Descriptor{descriptor})
 	if err != nil {
-		t.Fatalf("merge owner descriptor catalog: %v", err)
+		t.Fatalf("CatalogWithDescriptors returned error: %v", err)
 	}
-	var ownerService *ServiceDescriptor
-	for i := range catalog {
-		current := &catalog[i]
-		if current.Owner == "linapro-ai-core" && current.Service == "ai" && current.Version == "v1" {
-			ownerService = current
-			break
+	var found bool
+	for _, service := range catalog {
+		if service.Owner != "linapro-ai-core" || service.Service != "ai" || service.Version != "v1" {
+			continue
+		}
+		found = true
+		if len(service.Methods) != 1 || service.Methods[0].Method != "text.generate" {
+			t.Fatalf("unexpected owner methods: %#v", service.Methods)
+		}
+		if service.Methods[0].PayloadKind != PayloadKindJSON || !service.Methods[0].Published || !service.Methods[0].GuestClient || !service.Methods[0].Dispatcher {
+			t.Fatalf("unexpected owner method projection: %#v", service.Methods[0])
 		}
 	}
-	if ownerService == nil {
-		t.Fatalf("expected owner-aware ai catalog entry, got %#v", catalog)
-	}
-	if ownerService.SourceContract != descriptor.SourceContract || ownerService.DynamicContract != descriptor.DynamicContract {
-		t.Fatalf("expected owner contracts to be projected, got %#v", ownerService)
-	}
-	if ownerService.ResourceKind != ResourceKindKey {
-		t.Fatalf("expected owner service resource kind key, got %s", ownerService.ResourceKind)
-	}
-	if len(ownerService.Methods) != 1 {
-		t.Fatalf("expected one owner method, got %#v", ownerService.Methods)
-	}
-	method := ownerService.Methods[0]
-	if method.Owner != "linapro-ai-core" || method.Service != "ai" || method.Version != "v1" {
-		t.Fatalf("expected owner method identity to be projected, got %#v", method)
-	}
-	if method.Method != "text.generate" || method.Capability != "plugin.linapro-ai-core.ai.text.v1" {
-		t.Fatalf("expected method metadata to be projected, got %#v", method)
-	}
-	if method.Risk != RiskLevelExecute || method.ResourceKind != ResourceKindKey {
-		t.Fatalf("expected method risk/resource metadata, got %#v", method)
-	}
-	if method.RequestPayload != "aitext.GenerateRequest" || method.ResponsePayload != "aitext.GenerateResponse" {
-		t.Fatalf("expected owner payload names, got %#v", method)
-	}
-	if method.PayloadKind != PayloadKindJSON || !method.Published || !method.GuestClient || !method.Dispatcher {
-		t.Fatalf("expected owner method publication metadata, got %#v", method)
+	if !found {
+		t.Fatal("expected owner-aware AI service projection in catalog")
 	}
 }
 

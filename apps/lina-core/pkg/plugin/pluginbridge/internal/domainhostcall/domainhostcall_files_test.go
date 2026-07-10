@@ -24,7 +24,7 @@ type filesHostCallRecorder struct {
 func (r *filesHostCallRecorder) invoke(service string, method string, request []byte, out any) error {
 	r.service = service
 	r.method = method
-	envelope, err := protocol.UnmarshalHostServiceCapabilityJSONRequest(request)
+	envelope, err := protocol.UnmarshalHostServiceJSONRequest(request)
 	if err != nil {
 		return err
 	}
