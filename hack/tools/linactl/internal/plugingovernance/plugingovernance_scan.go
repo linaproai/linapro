@@ -544,16 +544,6 @@ func readGoModulePath(goModPath string) (string, error) {
 	return "", nil
 }
 
-// ownerPluginIDFromCapImport resolves the owner plugin ID for one backend/cap
-// import path.
-func ownerPluginIDFromCapImport(importPath string, moduleOwners []pluginModuleOwner) string {
-	ownerPluginID, pluginSubpath := ownerPluginIDFromImport(importPath, moduleOwners)
-	if ownerPluginID == "" || !isBackendCapSubpath(pluginSubpath) {
-		return ""
-	}
-	return ownerPluginID
-}
-
 // validateDataServiceTable enforces current-plugin table ownership for data grants.
 func validateDataServiceTable(report *Report, relPath string, pluginID string, table tableNode) {
 	tableName := normalizeTableName(table.Table)

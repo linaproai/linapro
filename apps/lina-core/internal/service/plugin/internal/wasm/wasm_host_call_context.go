@@ -112,56 +112,113 @@ func (hcc *hostCallContext) hasOwnerHostServiceAccess(
 	}
 
 	if normalizedOwner != "" {
-		if normalizedTable != "" {
-			return false
-		}
-		if normalizedResourceRef == "" {
-			return len(spec.Resources) == 0
-		}
-		return hcc.ownerHostServiceResource(normalizedOwner, normalizedService, normalizedVersion, normalizedResourceRef) != nil
+		return hasOwnerScopedHostServiceAccess(
+			hcc,
+			normalizedOwner,
+			normalizedService,
+			normalizedVersion,
+			normalizedResourceRef,
+			normalizedTable,
+			spec,
+		)
 	}
+	return hcc.hasPlatformHostServiceAccess(
+		snapshot,
+		identity,
+		spec,
+		normalizedService,
+		normalizedMethod,
+		normalizedResourceRef,
+		normalizedTable,
+	)
+}
 
+// hasOwnerScopedHostServiceAccess authorizes owner-plugin host service targets.
+// Owner-scoped calls never authorize tables; empty resource refs require an
+// empty resource grant list, otherwise the resource must match the snapshot.
+func hasOwnerScopedHostServiceAccess(
+	hcc *hostCallContext,
+	owner string,
+	service string,
+	version string,
+	resourceRef string,
+	table string,
+	spec *bridgehostservice.HostServiceSpec,
+) bool {
+	if table != "" {
+		return false
+	}
+	if resourceRef == "" {
+		return len(spec.Resources) == 0
+	}
+	return hcc.ownerHostServiceResource(owner, service, version, resourceRef) != nil
+}
+
+// hasPlatformHostServiceAccess authorizes platform-owned host service targets.
+// Storage/network/manifest/host-config/data use specialized matchers; a fixed
+// set of domain services only allow empty resource and table refs.
+func (hcc *hostCallContext) hasPlatformHostServiceAccess(
+	snapshot *hostServiceAccessSnapshot,
+	identity string,
+	spec *bridgehostservice.HostServiceSpec,
+	service string,
+	method string,
+	resourceRef string,
+	table string,
+) bool {
 	// Storage and network authorizations may grant prefixes or URL patterns
 	// instead of exact resource IDs, so they must be resolved through the same
 	// matcher used by the runtime dispatcher.
-	if normalizedService == bridgehostservice.HostServiceStorage {
-		return normalizedResourceRef != "" && matchAuthorizedStoragePath(snapshot.hostServices, normalizedResourceRef) != ""
+	switch service {
+	case bridgehostservice.HostServiceStorage:
+		return resourceRef != "" && matchAuthorizedStoragePath(snapshot.hostServices, resourceRef) != ""
+	case bridgehostservice.HostServiceNetwork:
+		return resourceRef != "" && hcc.hostServiceResource(service, resourceRef) != nil
+	case bridgehostservice.HostServiceHostConfig:
+		return resourceRef != "" && snapshot.hasKey(identity, resourceRef)
+	case bridgehostservice.HostServiceManifest:
+		return resourceRef != "" && matchAuthorizedManifestPath(spec.Paths, resourceRef)
+	case bridgehostservice.HostServiceData:
+		return table != "" && snapshot.hasTable(identity, table)
+	case bridgehostservice.HostServiceNotifications:
+		if method == bridgehostservice.HostServiceMethodNotificationsSend {
+			return resourceRef != "" && hcc.hostServiceResource(service, resourceRef) != nil
+		}
+		return resourceRef == "" && table == ""
 	}
-	if normalizedService == bridgehostservice.HostServiceNetwork {
-		return normalizedResourceRef != "" && hcc.hostServiceResource(normalizedService, normalizedResourceRef) != nil
+
+	if isResourceFreePlatformHostService(service) {
+		return resourceRef == "" && table == ""
 	}
-	if normalizedService == bridgehostservice.HostServiceHostConfig {
-		return normalizedResourceRef != "" && snapshot.hasKey(identity, normalizedResourceRef)
-	}
-	if normalizedService == bridgehostservice.HostServiceManifest {
-		return normalizedResourceRef != "" && matchAuthorizedManifestPath(spec.Paths, normalizedResourceRef)
-	}
-	if normalizedService == bridgehostservice.HostServiceData {
-		return normalizedTable != "" && snapshot.hasTable(identity, normalizedTable)
-	}
-	if normalizedService == bridgehostservice.HostServiceNotifications &&
-		normalizedMethod == bridgehostservice.HostServiceMethodNotificationsSend {
-		return normalizedResourceRef != "" && hcc.hostServiceResource(normalizedService, normalizedResourceRef) != nil
-	}
-	if normalizedService == bridgehostservice.HostServiceAPIDoc ||
-		normalizedService == bridgehostservice.HostServiceAuth ||
-		normalizedService == bridgehostservice.HostServiceUsers ||
-		normalizedService == bridgehostservice.HostServiceBizCtx ||
-		normalizedService == bridgehostservice.HostServiceDict ||
-		normalizedService == bridgehostservice.HostServiceFiles ||
-		normalizedService == bridgehostservice.HostServiceJobs ||
-		normalizedService == bridgehostservice.HostServiceNotifications ||
-		normalizedService == bridgehostservice.HostServicePlugins ||
-		normalizedService == bridgehostservice.HostServiceRoute ||
-		normalizedService == bridgehostservice.HostServiceSessions ||
-		normalizedService == bridgehostservice.HostServiceOrg ||
-		normalizedService == bridgehostservice.HostServiceTenant {
-		return normalizedResourceRef == "" && normalizedTable == ""
-	}
-	if normalizedResourceRef == "" {
+	if resourceRef == "" {
 		return len(spec.Resources) == 0 && len(spec.Tables) == 0
 	}
-	return hcc.hostServiceResource(normalizedService, normalizedResourceRef) != nil
+	return hcc.hostServiceResource(service, resourceRef) != nil
+}
+
+// resourceFreePlatformHostServices lists platform host services that authorize
+// only method access and reject resource/table scoping. Keys are lower-case
+// service wire values from the host-service protocol catalog.
+var resourceFreePlatformHostServices = map[string]struct{}{
+	bridgehostservice.HostServiceAPIDoc:   {},
+	bridgehostservice.HostServiceAuth:     {},
+	bridgehostservice.HostServiceUsers:    {},
+	bridgehostservice.HostServiceBizCtx:   {},
+	bridgehostservice.HostServiceDict:     {},
+	bridgehostservice.HostServiceFiles:    {},
+	bridgehostservice.HostServiceJobs:     {},
+	bridgehostservice.HostServicePlugins:  {},
+	bridgehostservice.HostServiceRoute:    {},
+	bridgehostservice.HostServiceSessions: {},
+	bridgehostservice.HostServiceOrg:      {},
+	bridgehostservice.HostServiceTenant:   {},
+}
+
+// isResourceFreePlatformHostService reports whether the service is in the
+// resource-free platform host service set.
+func isResourceFreePlatformHostService(service string) bool {
+	_, ok := resourceFreePlatformHostServices[service]
+	return ok
 }
 
 // hostServiceResource returns the authorized resource snapshot for one service/ref pair.

@@ -103,17 +103,6 @@ func (s selectableAgent) optionLabel() string {
 	return s.Name
 }
 
-// hasLinkRole reports whether the agent has at least one resource where
-// it is link-class (a managed relative symlink can be created).
-func (s selectableAgent) hasLinkRole() bool {
-	for _, category := range s.Roles {
-		if category == common.CategoryLink {
-			return true
-		}
-	}
-	return false
-}
-
 // needsSetup reports whether the aggregate `make agents` picker should
 // treat this agent as "Needs setup" rather than "Built-in support".
 //
