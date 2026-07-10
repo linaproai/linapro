@@ -58,7 +58,7 @@ var (
 	// CodePluginTenantProvisioningPolicyInvalid reports that a new-tenant provisioning policy cannot apply to the plugin.
 	CodePluginTenantProvisioningPolicyInvalid = bizerr.MustDefine(
 		"PLUGIN_TENANT_PROVISIONING_POLICY_INVALID",
-		"Plugin {pluginId} must support linapro-tenant-core governance and be installed in tenant_scoped mode before it can be auto-enabled for new tenants",
+		"Plugin {pluginId} must support multi-tenant governance and be installed in tenant_scoped mode before it can be auto-enabled for new tenants",
 		gcode.CodeInvalidParameter,
 	)
 	// CodePluginBuiltinManagementActionDenied reports that ordinary plugin

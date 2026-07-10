@@ -1,5 +1,8 @@
 // This file verifies shared command helpers and command-package governance
 // checks for confirmations, source plugin route middleware, and panic usage.
+// Official plugin backend/plugin.go init registration fail-fast panics are
+// auto-allowed by AST pattern without enumerating plugin IDs in the host
+// allowlist; non-registration panic patterns remain rejected.
 
 package cmd
 
@@ -400,81 +403,16 @@ var productionPanicPolicy = panicAuditPolicy{
 			Category: panicCategoryStartup,
 			Reason:   "plugin data DB drivers must register once before plugin data access can work",
 		},
-		{
-			Path:     "apps/lina-plugins/linapro-content-notice/backend/plugin.go",
-			Function: "init",
-			Count:    2,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-ops-demo-guard/backend/plugin.go",
-			Function: "init",
-			Count:    3,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-monitor-loginlog/backend/plugin.go",
-			Function: "init",
-			Count:    6,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin, route, hook, and cron registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-monitor-online/backend/plugin.go",
-			Function: "init",
-			Count:    2,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-monitor-operlog/backend/plugin.go",
-			Function: "init",
-			Count:    2,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-monitor-server/backend/plugin.go",
-			Function: "init",
-			Count:    4,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-tenant-core/backend/plugin.go",
-			Function: "init",
-			Count:    6,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin and framework provider factory registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-org-core/backend/plugin.go",
-			Function: "init",
-			Count:    3,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin and framework provider factory registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-ai-core/backend/plugin.go",
-			Function: "init",
-			Count:    4,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin, route, cron, and framework provider factory registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
-		},
-		{
-			Path:     "apps/lina-plugins/linapro-demo-source/backend/plugin.go",
-			Function: "init",
-			Count:    5,
-			Category: panicCategoryPluginRegistration,
-			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
-		},
+		// Official source plugins under apps/lina-plugins/*/backend/plugin.go are not
+		// enumerated here. Their init registration fail-fast panics are auto-allowed
+		// by AST pattern matching (see classifyPluginRegistrationPanic).
 	},
 }
 
 // TestProductionPanicsMatchAllowlist verifies production panic usage stays
-// narrow and documented.
+// narrow and documented. Host code uses an explicit Path/Function/Count
+// allowlist; official plugin backend/plugin.go init registration fail-fast
+// panics are auto-allowed by AST pattern without enumerating plugin IDs.
 func TestProductionPanicsMatchAllowlist(t *testing.T) {
 	repoRoot := repoRootFromTest(t)
 	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
@@ -483,7 +421,7 @@ func TestProductionPanicsMatchAllowlist(t *testing.T) {
 	found := scanProductionPanicCalls(t, repoRoot, productionPanicPolicy)
 	allowlist := buildPanicAllowlist(t, productionPanicPolicy.Allowances)
 
-	assertNoUnexpectedPanics(t, found, allowlist)
+	assertNoUnexpectedPanics(t, repoRoot, found, allowlist)
 	assertNoStalePanicAllowances(t, found, allowlist)
 }
 
@@ -638,9 +576,11 @@ func scanFilePanicCalls(t *testing.T, path string, relPath string, found map[pan
 	}
 }
 
-// assertNoUnexpectedPanics verifies every found panic is explicitly allowlisted.
+// assertNoUnexpectedPanics verifies every found panic is explicitly allowlisted
+// or matches the official plugin init registration fail-fast auto-allow pattern.
 func assertNoUnexpectedPanics(
 	t *testing.T,
+	repoRoot string,
 	found map[panicKey]int,
 	allowlist map[panicKey]panicAllowance,
 ) {
@@ -649,13 +589,27 @@ func assertNoUnexpectedPanics(
 	for _, key := range sortedPanicKeys(found) {
 		count := found[key]
 		allowance, ok := allowlist[key]
-		if !ok {
-			t.Errorf("panic call is not allowlisted: %s count=%d", key, count)
+		if ok {
+			if allowance.Count != count {
+				t.Errorf("panic count changed for %s: want %d, got %d", key, allowance.Count, count)
+			}
 			continue
 		}
-		if allowance.Count != count {
-			t.Errorf("panic count changed for %s: want %d, got %d", key, allowance.Count, count)
+		matched, allowed, reason := classifyPluginRegistrationPanic(repoRoot, key)
+		if matched {
+			if allowed {
+				continue
+			}
+			t.Errorf(
+				"unexpected panic pattern in plugin init %s category=%s count=%d: %s",
+				key,
+				panicCategoryPluginRegistration,
+				count,
+				reason,
+			)
+			continue
 		}
+		t.Errorf("panic call is not allowlisted: %s count=%d", key, count)
 	}
 }
 
@@ -729,4 +683,205 @@ func receiverName(expr ast.Expr) string {
 	default:
 		return "unknown"
 	}
+}
+
+// isOfficialPluginBackendPluginGo reports whether relPath is a source plugin
+// entry file at apps/lina-plugins/<plugin-id>/backend/plugin.go.
+func isOfficialPluginBackendPluginGo(relPath string) bool {
+	parts := strings.Split(filepath.ToSlash(relPath), "/")
+	return len(parts) == 5 &&
+		parts[0] == "apps" &&
+		parts[1] == "lina-plugins" &&
+		parts[2] != "" &&
+		parts[2] != "." &&
+		parts[2] != ".." &&
+		parts[3] == "backend" &&
+		parts[4] == "plugin.go"
+}
+
+// classifyPluginRegistrationPanic reports whether a scanned panic key is under
+// an official plugin backend/plugin.go init and every panic in that init is a
+// registration fail-fast of the form panic(errIdent). When the path/function
+// matches the plugin entry convention but the AST pattern fails, matched is
+// true and allowed is false so callers can emit a pattern-specific diagnostic.
+func classifyPluginRegistrationPanic(repoRoot string, key panicKey) (matched bool, allowed bool, reason string) {
+	if key.Function != "init" || !isOfficialPluginBackendPluginGo(key.Path) {
+		return false, false, ""
+	}
+	ok, failReason := pluginInitRegistrationFailFast(repoRoot, key.Path)
+	if !ok {
+		return true, false, failReason
+	}
+	return true, true, ""
+}
+
+// pluginInitRegistrationFailFast parses one plugin.go file and reports whether
+// its package-level init only uses registration fail-fast panics.
+func pluginInitRegistrationFailFast(repoRoot string, relPath string) (bool, string) {
+	absPath := filepath.Join(repoRoot, filepath.FromSlash(relPath))
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, absPath, nil, 0)
+	if err != nil {
+		return false, "parse failed: " + err.Error()
+	}
+	return initFuncRegistrationFailFast(parsed)
+}
+
+// initFuncRegistrationFailFast inspects the package-level init function body.
+// It requires at least one panic and that every panic is panic(<ident>).
+func initFuncRegistrationFailFast(file *ast.File) (bool, string) {
+	var initFn *ast.FuncDecl
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil || fn.Name.Name != "init" || fn.Body == nil {
+			continue
+		}
+		initFn = fn
+		break
+	}
+	if initFn == nil {
+		return false, "missing package-level init"
+	}
+
+	panicCount := 0
+	var unexpected string
+	ast.Inspect(initFn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := call.Fun.(*ast.Ident)
+		if !ok || ident.Name != "panic" {
+			return true
+		}
+		panicCount++
+		if !isRegistrationFailFastPanicCall(call) {
+			unexpected = "panic is not registration fail-fast panic(<ident>)"
+			return false
+		}
+		return true
+	})
+	if unexpected != "" {
+		return false, unexpected
+	}
+	if panicCount == 0 {
+		return false, "init has no panic calls"
+	}
+	return true, ""
+}
+
+// isRegistrationFailFastPanicCall reports whether a panic call is the standard
+// registration fail-fast form panic(err) / panic(someIdent). Literal messages,
+// formatted strings, and constructed errors are rejected.
+func isRegistrationFailFastPanicCall(call *ast.CallExpr) bool {
+	if call == nil || len(call.Args) != 1 {
+		return false
+	}
+	_, ok := call.Args[0].(*ast.Ident)
+	return ok
+}
+
+// TestPluginRegistrationFailFastHelpers verifies auto-allow path checks and
+// AST pattern acceptance / rejection without depending on the full workspace scan.
+func TestPluginRegistrationFailFastHelpers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("path matching", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			path string
+			want bool
+		}{
+			{path: "apps/lina-plugins/linapro-demo-source/backend/plugin.go", want: true},
+			{path: "apps/lina-plugins/acme-demo/backend/plugin.go", want: true},
+			{path: "apps/lina-core/internal/cmd/cmd.go", want: false},
+			{path: "apps/lina-plugins/linapro-demo-source/backend/other.go", want: false},
+			{path: "apps/lina-plugins/linapro-demo-source/plugin.go", want: false},
+			{path: "apps/lina-plugins/../evil/backend/plugin.go", want: false},
+		}
+		for _, tc := range cases {
+			if got := isOfficialPluginBackendPluginGo(tc.path); got != tc.want {
+				t.Fatalf("isOfficialPluginBackendPluginGo(%q)=%v, want %v", tc.path, got, tc.want)
+			}
+		}
+	})
+
+	t.Run("accepts panic ident fail-fast", func(t *testing.T) {
+		t.Parallel()
+		src := `package plugin
+func init() {
+	if err := register(); err != nil {
+		panic(err)
+	}
+	if err != nil {
+		panic(err)
+	}
+}
+func register() error { return nil }
+`
+		file := mustParseTestSource(t, src)
+		ok, reason := initFuncRegistrationFailFast(file)
+		if !ok {
+			t.Fatalf("expected fail-fast init accepted, got reason=%q", reason)
+		}
+	})
+
+	t.Run("rejects literal panic", func(t *testing.T) {
+		t.Parallel()
+		src := `package plugin
+func init() {
+	if err := register(); err != nil {
+		panic(err)
+	}
+	panic("unexpected")
+}
+func register() error { return nil }
+`
+		file := mustParseTestSource(t, src)
+		ok, reason := initFuncRegistrationFailFast(file)
+		if ok {
+			t.Fatal("expected literal panic to be rejected")
+		}
+		if reason == "" {
+			t.Fatal("expected rejection reason")
+		}
+	})
+
+	t.Run("rejects formatted panic", func(t *testing.T) {
+		t.Parallel()
+		src := `package plugin
+import "fmt"
+func init() {
+	panic(fmt.Sprintf("bad %s", "x"))
+}
+`
+		file := mustParseTestSource(t, src)
+		ok, _ := initFuncRegistrationFailFast(file)
+		if ok {
+			t.Fatal("expected formatted panic to be rejected")
+		}
+	})
+
+	t.Run("rejects non-init production panic path for auto-allow key", func(t *testing.T) {
+		t.Parallel()
+		key := panicKey{
+			Path:     "apps/lina-plugins/demo/backend/plugin.go",
+			Function: "registerRoutes",
+		}
+		matched, allowed, _ := classifyPluginRegistrationPanic(t.TempDir(), key)
+		if matched || allowed {
+			t.Fatal("non-init function must not match plugin registration auto-allow")
+		}
+	})
+}
+
+// mustParseTestSource parses an in-memory Go source file for helper unit tests.
+func mustParseTestSource(t *testing.T, src string) *ast.File {
+	t.Helper()
+	fileSet := token.NewFileSet()
+	file, err := parser.ParseFile(fileSet, "plugin.go", src, 0)
+	if err != nil {
+		t.Fatalf("parse test source: %v", err)
+	}
+	return file
 }
