@@ -165,3 +165,13 @@ Import boundary scanning via `linactl plugins.check` allows cross-plugin product
 ## Host Layer Simplification
 
 New core-owned host service methods must use JSON envelopes. Existing dedicated codecs are frozen as a method-level allowlist. Wire constants for services and methods live only under `protocol/hostservices` and are referenced by the catalog; no `go generate`. Historical `HostServiceCapabilityJSON*` aliases are removed in favor of `HostServiceJSON*`. Upgrade preview/execute is owned by the lifecycle facade; the root plugin package no longer constructs or holds a parallel `upgrade.Service`, while public type aliases remain stable for management API callers.
+
+## 同权同信与动态外部登录
+
+**决策**：经宿主安装或升级治理并处于启用状态的动态插件，与源码插件适用同一信任级与能力准入模型；不得仅因 `type=dynamic` 永久拒绝发布某一 core-owned 领域能力。
+
+**关键设计**：
+- 动态插件可经 hostServices 授权调用 `external_login.login_by_verified_identity` 与 `users.create_from_external`，guest 走真实 host call 而非永久 stub。
+- 源码 provider ownership 继续 `ProvideExternalIdentity(providerID)`；动态 ownership 由 `auth` 服务下 `resources[].ref` 声明 provider ID，WASM dispatcher 校验后盖章 pluginID 铸会话。
+- 调用链：dynamic guest → domainhostcall → wasm dispatcher（授权 + ownership）→ capability 或等价 auth/users 实现。
+- 安全仍依赖安装治理、方法级授权、provider ownership 与启用检查；被攻破的已授权动态插件与源码插件同信模型，后续可叠加宿主验签加固。

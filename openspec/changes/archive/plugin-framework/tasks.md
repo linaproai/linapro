@@ -43,3 +43,6 @@
 - [x] 验证：core 插件相关包测试、`linapro-ai-core`/`linapro-demo-dynamic` 包测试、`plugins.check`、`make wasm`、i18n 检查、E2E TC017/TC007、OpenSpec 严格校验与 lina-review。
 - [x] FB 摘要：owner invoker 收敛到`aicap.Service`；动态 descriptor 仅发布可运行方法；wire 常量放弃 go generate；CapabilityID 改为`plugin.linapro-ai-core.ai.*`。
 - [x] 治理：i18n 覆盖 owner 错误码/授权展示与前端 owner/version 标签；缓存按关键运行时数据治理；数据权限在 owner 查询路径接入；无新增业务表；API 主要扩展 owner-aware 投影；前端授权弹窗可观察行为由 E2E 覆盖；DI 以启动期 descriptor registry 与 domainServices 显式传递。
+
+- [x] 发布动态外部登录与从外部建号 host service（`external_login.login_by_verified_identity`、`users.create_from_external`），对齐安装授权后源码/动态同权同信；更新 README/规则与 fail-closed 单测为未授权拒绝/授权成功。
+- [x] 验证：相关 go test、OpenSpec strict；治理：i18n 文档表述同步，无新增用户可见运行时文案要求；数据权限与 ownership 校验保持 fail-closed。
