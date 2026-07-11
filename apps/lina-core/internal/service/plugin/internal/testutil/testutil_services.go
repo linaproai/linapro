@@ -472,12 +472,13 @@ func newTestCapabilities(bizCtxSvc bizctxcap.Service) capability.Services {
 // APIDoc returns a fallback apidoc service for plugin integration tests.
 func (s *testCapabilities) APIDoc() apidoccap.Service { return testNoopAPIDoc{} }
 
-// Auth returns a no-op auth namespace for plugin integration tests.
+// Auth returns a no-op auth namespace for plugin integration tests, including a
+// non-nil ExternalLogin sub-capability so external-login plugins can register routes.
 func (s *testCapabilities) Auth() authcap.Service {
 	if s == nil {
-		return authcap.New(testNoopAuth{}, nil, nil)
+		return authcap.New(testNoopAuth{}, nil, testNoopExternalLogin{})
 	}
-	return authcap.New(testNoopAuth{}, s.authz, nil)
+	return authcap.New(testNoopAuth{}, s.authz, testNoopExternalLogin{})
 }
 
 // Users returns an empty user-domain service for plugin integration tests.
