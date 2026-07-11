@@ -333,9 +333,12 @@ test.describe("TC-6 插件依赖管理展示", () => {
     await expect(reverseBlockers).toContainText(
       "仍有其他已安装插件依赖此插件，请先处理后再卸载。",
     );
-    // Distinct downstream consumers must appear once each by display name.
-    await expect(reverseBlockers).toContainText("Consumer Plugin >=0.1.0");
-    await expect(reverseBlockers).toContainText("Consumer Plugin B >=0.1.0");
+    // Distinct downstream consumers appear once each by plugin ID only;
+    // uninstall guidance does not include version constraints.
+    await expect(reverseBlockers).toContainText(consumerPluginID);
+    await expect(reverseBlockers).toContainText(consumerPluginBID);
+    await expect(reverseBlockers).not.toContainText("Consumer Plugin");
+    await expect(reverseBlockers).not.toContainText(">=0.1.0");
     // reverse_dependency blockers share the target ID; must not collapse into
     // duplicate "存在下游依赖 <target> >=0.1.0" tags when dependents are listed.
     await expect(reverseBlockers).not.toContainText(

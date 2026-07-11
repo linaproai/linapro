@@ -277,9 +277,51 @@ const [Grid, gridApi] = useVbenVxeGrid({
     rowConfig: {
       keyField: 'id',
     },
+    rowClassName: 'cursor-pointer',
     id: 'system-plugin-index',
   },
+  gridEvents: {
+    cellClick: ({
+      $event,
+      column,
+      row,
+    }: {
+      $event?: Event;
+      column?: { field?: string };
+      row: PluginListItem;
+    }) => {
+      if (shouldIgnorePluginRowClick(column?.field, $event)) {
+        return;
+      }
+      void handleDetail(row);
+    },
+  },
 });
+
+/** Columns / controls that must not open the detail modal on click. */
+const pluginRowClickIgnoredFields = new Set([
+  'action',
+  'autoEnableForNewTenants',
+  'enabled',
+]);
+
+function shouldIgnorePluginRowClick(
+  columnField?: string,
+  event?: Event,
+): boolean {
+  if (columnField && pluginRowClickIgnoredFields.has(columnField)) {
+    return true;
+  }
+  const target = event?.target;
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(
+    target.closest(
+      'button, a, input, textarea, select, .ant-switch, .ant-checkbox, .ant-radio, [role="switch"], [role="button"], [role="checkbox"]',
+    ),
+  );
+}
 
 function getPluginTypeLabel(type: string) {
   return type === 'source'

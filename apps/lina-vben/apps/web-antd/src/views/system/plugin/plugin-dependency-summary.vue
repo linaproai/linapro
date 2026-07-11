@@ -64,9 +64,10 @@ const shouldRender = computed(() => {
     : hasUninstallContent.value;
 });
 
+// Uninstall only needs "who depends on me" for operators to clear
+// dependents first; version constraints are not actionable here.
 function formatReverseDependent(item: PluginDependencyReverseDependent) {
-  const name = item.name || item.pluginId;
-  return item.requiredVersion ? `${name} ${item.requiredVersion}` : name;
+  return item.pluginId || item.name || '';
 }
 
 function formatFrameworkMismatch() {
@@ -165,7 +166,7 @@ function formatBlocker(blocker: PluginDependencyBlocker) {
         <div class="mt-2 flex flex-wrap gap-2">
           <Tag
             v-for="item in reverseDependents"
-            :key="`${item.pluginId}-${item.requiredVersion}`"
+            :key="item.pluginId"
             color="red"
           >
             {{ formatReverseDependent(item) }}

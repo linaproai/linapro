@@ -879,6 +879,24 @@ export class PluginPage {
   }
 
   /**
+   * Opens the plugin detail modal by clicking a non-interactive cell in the row
+   * (name cell), not the action-column Detail button.
+   */
+  async openPluginDetailByRowClick(pluginId: string) {
+    await this.ensurePluginRowVisible(pluginId);
+    const nameCell = this.pluginNameCell(pluginId);
+    await expect(nameCell).toBeVisible();
+    await nameCell.click();
+    await expect(this.pluginDetailModal()).toBeVisible();
+  }
+
+  async expectPluginRowClickableCursor(pluginId: string) {
+    const row = this.pluginRow(pluginId);
+    await expect(row).toBeVisible();
+    await expect(row).toHaveCSS("cursor", "pointer");
+  }
+
+  /**
    * Asserts every label cell in the plugin detail Descriptions table stays on
    * one line (no multi-line wrap of field names such as "Authorization Status").
    */
