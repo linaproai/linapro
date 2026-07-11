@@ -279,7 +279,7 @@ var productionPanicPolicy = panicAuditPolicy{
 		},
 		{
 			Path:     "apps/lina-core/pkg/bizerr/bizerr_code.go",
-			Function: "MustDefineWithKey",
+			Function: "MustDefine",
 			Count:    3,
 			Category: panicCategoryMustConstructor,
 			Reason:   "invalid business error definitions must fail during startup or tests",

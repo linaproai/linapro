@@ -1,19 +1,6 @@
 {
   "error": {
     "auth": {
-      "external": {
-        "identityInvalid": "外部认证 Provider 返回的身份信息无效",
-        "userNotProvisioned": "当前外部身份未关联本地账号"
-      },
-      "login": {
-        "clientType": {
-          "invalid": "客户端类型无效"
-        },
-        "invalidCredentials": "用户名或密码错误",
-        "ipBlacklisted": "登录IP已被禁止",
-        "updateLastLoginFailed": "更新最后登录时间失败",
-        "userDisabled": "用户已停用"
-      },
       "password": {
         "hashFailed": "密码加密失败"
       },
@@ -24,6 +11,42 @@
         "invalid": "无效的Token",
         "state": {
           "unavailable": "认证Token状态暂时不可用"
+        }
+      },
+      "pre": {
+        "token": {
+          "invalid": "预登录令牌无效或已过期"
+        }
+      },
+      "invalid": {
+        "credentials": "用户名或密码错误"
+      },
+      "ip": {
+        "blacklisted": "登录IP已被禁止"
+      },
+      "client": {
+        "type": {
+          "invalid": "客户端类型无效"
+        }
+      },
+      "user": {
+        "disabled": "用户已停用"
+      },
+      "login": {
+        "state": {
+          "update": {
+            "failed": "更新最后登录时间失败"
+          }
+        }
+      },
+      "external": {
+        "identity": {
+          "invalid": "外部认证 Provider 返回的身份信息无效"
+        },
+        "user": {
+          "not": {
+            "provisioned": "当前外部身份未关联本地账号"
+          }
         }
       }
     },
@@ -661,7 +684,10 @@
         "type": {
           "unsupported": "通知通道类型暂不支持: {channelType}"
         },
-        "unavailable": "通知通道不存在或已停用"
+        "unavailable": "通知通道不存在或已停用",
+        "query": {
+          "failed": "查询通知渠道失败"
+        }
       },
       "inbox": {
         "recipient": {
@@ -680,13 +706,36 @@
         "not": {
           "found": "用户不存在"
         }
+      },
+      "recipient": {
+        "query": {
+          "failed": "查询收件箱通知接收人失败"
+        }
+      },
+      "message": {
+        "create": {
+          "failed": "创建通知消息失败"
+        }
+      },
+      "delivery": {
+        "create": {
+          "failed": "创建通知投递记录失败"
+        }
       }
     },
     "permission": {
-      "contextLoadFailed": "加载接口权限上下文失败",
-      "currentUserMissing": "未获取到当前登录用户",
       "denied": {
         "required": "当前用户缺少接口权限: {permissions}"
+      },
+      "current": {
+        "user": {
+          "missing": "未获取到当前登录用户"
+        }
+      },
+      "context": {
+        "load": {
+          "failed": "加载接口权限上下文失败"
+        }
       }
     },
     "plugin": {
@@ -727,6 +776,11 @@
           },
           "wait": {
             "canceled": "启动期等待插件 {pluginId} 自动启用已取消"
+          },
+          "tenant": {
+            "provisioning": {
+              "failed": "插件 {pluginId} 启动自动启用的租户开通失败"
+            }
           }
         }
       },
@@ -773,6 +827,11 @@
         "version": {
           "downgrade": {
             "unsupported": "不支持回退到更低版本的动态插件，请使用宿主自动回滚结果或重新上传更高版本"
+          }
+        },
+        "uninstall": {
+          "artifact": {
+            "missing": "动态插件 {pluginId} 缺少 wasm 产物，无法执行完整卸载。可使用强制卸载仅清理宿主治理数据"
           }
         }
       },
@@ -847,6 +906,9 @@
           },
           "service": {
             "unavailable": "源码插件缓存服务未配置"
+          },
+          "key": {
+            "required": "源码插件缓存键不能为空"
           }
         },
         "enable": {
@@ -940,6 +1002,114 @@
         "dependency": {
           "blocked": "插件 {pluginId} 不能变更，因为已有已安装插件依赖它：{dependents}"
         }
+      },
+      "lock": {
+        "plugin": {
+          "id": {
+            "required": "插件锁服务需要插件 ID"
+          }
+        },
+        "name": {
+          "required": "插件锁名称不能为空",
+          "too": {
+            "long": "插件锁名称超过 {maxBytes} 字节限制"
+          }
+        },
+        "lease": {
+          "too": {
+            "short": "插件锁租约不能短于 {minLease}",
+            "long": "插件锁租约不能长于 {maxLease}"
+          }
+        },
+        "ticket": {
+          "required": "插件锁票据不能为空"
+        },
+        "service": {
+          "unavailable": "插件锁服务不可用"
+        }
+      },
+      "storage": {
+        "plugin": {
+          "id": {
+            "required": "插件存储服务需要插件 ID"
+          }
+        },
+        "path": {
+          "required": "插件存储路径不能为空",
+          "invalid": "插件存储路径无效",
+          "too": {
+            "long": "插件存储路径超过 {maxBytes} 字节限制"
+          }
+        },
+        "object": {
+          "exists": "插件存储对象已存在"
+        },
+        "list": {
+          "limit": {
+            "invalid": "插件存储列表限制无效"
+          }
+        },
+        "provider": {
+          "unavailable": "插件存储提供者不可用",
+          "conflict": "存在多个可用的插件存储提供者：{providerIds}",
+          "already": {
+            "registered": "插件存储提供者 {providerId} 已注册"
+          },
+          "id": {
+            "required": "插件存储提供者 ID 不能为空"
+          },
+          "factory": {
+            "required": "需要插件存储提供者工厂"
+          }
+        }
+      },
+      "install": {
+        "mock": {
+          "data": {
+            "failed": "插件 {pluginId} 已安装成功，但模拟数据文件 {failedFile} 加载失败并已回滚：{cause}"
+          }
+        },
+        "mode": {
+          "invalid": "插件安装模式仅支持 global 或 tenant_scoped",
+          "scope": {
+            "nature": {
+              "mismatch": "插件 {pluginId} 的 scope_nature={scopeNature} 不能使用 install_mode={installMode}"
+            }
+          }
+        }
+      },
+      "startup": {
+        "consistency": {
+          "failed": "插件启动一致性校验失败：{details}"
+        }
+      },
+      "force": {
+        "uninstall": {
+          "disabled": "强制卸载已被 plugin.allowForceUninstall 禁用"
+        }
+      },
+      "host": {
+        "auth": {
+          "token": {
+            "state": {
+              "unavailable": "插件宿主认证令牌状态暂时不可用"
+            },
+            "invalid": "插件宿主认证令牌无效"
+          }
+        },
+        "external": {
+          "login": {
+            "plugin": {
+              "id": {
+                "required": "外部登录服务需要插件 ID"
+              },
+              "disabled": "外部登录不可用，因为插件已禁用"
+            },
+            "provider": {
+              "forbidden": "外部登录 Provider 不属于当前调用插件"
+            }
+          }
+        }
       }
     },
     "role": {
@@ -974,6 +1144,9 @@
         "assignment": {
           "forbidden": "当前上下文不能分配所选菜单权限"
         }
+      },
+      "tenant": {
+        "mismatch": "角色不属于当前租户"
       }
     },
     "tenant": {
@@ -984,8 +1157,14 @@
               "forbidden": "租户角色不能使用全部数据权限"
             }
           }
+        },
+        "assignment": {
+          "forbidden": "租户角色仅可分配给同一租户内的启用用户"
         }
-      }
+      },
+      "required": "需要选择租户",
+      "forbidden": "当前用户无法访问租户 {tenantId}",
+      "suspended": "租户 {tenantId} 已停用"
     },
     "user": {
       "builtin": {
@@ -1059,8 +1238,10 @@
       },
       "provision": {
         "email": {
-          "conflict": "已存在使用相同邮箱的账号，请登录该账号后再绑定此外部身份"
-        }
+          "conflict": "已存在使用相同邮箱的账号，请登录该账号后再绑定此外部身份",
+          "invalid": "外部开通需要有效的邮箱地址"
+        },
+        "failed": "开通外部用户失败"
       },
       "username": {
         "exists": "用户名已存在"
@@ -1297,6 +1478,77 @@
     "platform": {
       "permission": {
         "required": "需要平台上下文权限"
+      },
+      "role": {
+        "assignment": {
+          "forbidden": "平台角色仅可在平台上下文中分配"
+        }
+      }
+    },
+    "dialect": {
+      "link": {
+        "required": "需要数据库连接"
+      },
+      "unsupported": "数据库方言 {prefix} 不受支持；支持的前缀为 pgsql:",
+      "mysql": {
+        "unsupported": "不再支持 mysql 方言；支持的前缀为 pgsql:"
+      },
+      "sqlite": {
+        "unsupported": "不再支持 sqlite 方言；支持的前缀为 pgsql:"
+      }
+    },
+    "capability": {
+      "current": {
+        "user": {
+          "required": "需要当前用户"
+        }
+      },
+      "denied": "能力访问被拒绝",
+      "unavailable": "能力 {capability} 不可用",
+      "provider": {
+        "conflict": "能力 {capability} 存在多个可用提供者：{providerIds}"
+      },
+      "limit": {
+        "exceeded": "能力请求超过限制 {limit}"
+      }
+    },
+    "cross": {
+      "tenant": {
+        "not": {
+          "allowed": "当前上下文不允许跨租户访问"
+        }
+      }
+    },
+    "coordination": {
+      "key": {
+        "invalid": "协调键无效"
+      },
+      "ttl": {
+        "invalid": "协调 TTL 无效"
+      },
+      "lock": {
+        "not": {
+          "held": "协调锁当前未由本持有者持有"
+        }
+      },
+      "redis": {
+        "unavailable": "Redis 协调后端不可用"
+      },
+      "kv": {
+        "operation": {
+          "failed": "协调键值操作失败"
+        }
+      },
+      "revision": {
+        "unavailable": "协调修订号不可用"
+      },
+      "event": {
+        "publish": {
+          "failed": "协调事件发布失败"
+        },
+        "subscribe": {
+          "failed": "协调事件订阅失败"
+        }
       }
     }
   },

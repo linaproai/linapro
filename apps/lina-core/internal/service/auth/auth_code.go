@@ -10,26 +10,28 @@ import (
 
 var (
 	// CodeAuthInvalidCredentials reports invalid login credentials.
+	// messageKey is derived as error.auth.invalid.credentials.
 	CodeAuthInvalidCredentials = bizerr.MustDefine(
 		"AUTH_INVALID_CREDENTIALS",
 		"Invalid username or password",
 		gcode.CodeNotAuthorized,
 	)
 	// CodeAuthIPBlacklisted reports a login attempt from a denied IP address.
-	CodeAuthIPBlacklisted = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.auth.ip.blacklisted.
+	CodeAuthIPBlacklisted = bizerr.MustDefine(
 		"AUTH_IP_BLACKLISTED",
-		"error.auth.login.ipBlacklisted",
 		"Login IP is blacklisted",
 		gcode.CodeNotAuthorized,
 	)
 	// CodeAuthClientTypeInvalid reports a missing or unknown user-session client type.
-	CodeAuthClientTypeInvalid = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.auth.client.type.invalid.
+	CodeAuthClientTypeInvalid = bizerr.MustDefine(
 		"AUTH_CLIENT_TYPE_INVALID",
-		"error.auth.login.clientType.invalid",
 		"Client type is invalid",
 		gcode.CodeInvalidParameter,
 	)
 	// CodeAuthUserDisabled reports a disabled user login attempt.
+	// messageKey is derived as error.auth.user.disabled.
 	CodeAuthUserDisabled = bizerr.MustDefine(
 		"AUTH_USER_DISABLED",
 		"User account is disabled",
@@ -60,18 +62,18 @@ var (
 		gcode.CodeNotAuthorized,
 	)
 	// CodeAuthLoginStateUpdateFailed reports that login succeeded but last-login state cannot be persisted.
-	CodeAuthLoginStateUpdateFailed = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.auth.login.state.update.failed.
+	CodeAuthLoginStateUpdateFailed = bizerr.MustDefine(
 		"AUTH_LOGIN_STATE_UPDATE_FAILED",
-		"error.auth.login.updateLastLoginFailed",
 		"Failed to update last login time",
 		gcode.CodeInternalError,
 	)
 	// CodeAuthExternalIdentityInvalid reports that an external login request
 	// carries an empty provider or subject and cannot be resolved to a stable
 	// external identity key.
-	CodeAuthExternalIdentityInvalid = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.auth.external.identity.invalid.
+	CodeAuthExternalIdentityInvalid = bizerr.MustDefine(
 		"AUTH_EXTERNAL_IDENTITY_INVALID",
-		"error.auth.external.identityInvalid",
 		"External authentication provider returned an invalid identity",
 		gcode.CodeInvalidParameter,
 	)
@@ -79,9 +81,9 @@ var (
 	// identity has no linked local account. The message is intentionally
 	// uniform regardless of whether the captured email exists as another
 	// account so external login never leaks account existence.
-	CodeAuthExternalUserNotProvisioned = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.auth.external.user.not.provisioned.
+	CodeAuthExternalUserNotProvisioned = bizerr.MustDefine(
 		"AUTH_EXTERNAL_USER_NOT_PROVISIONED",
-		"error.auth.external.userNotProvisioned",
 		"No local account is linked to this external identity",
 		gcode.CodeNotAuthorized,
 	)

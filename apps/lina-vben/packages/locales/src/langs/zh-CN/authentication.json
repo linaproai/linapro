@@ -7,6 +7,8 @@
   "loginFailed": "登录失败",
   "externalLoginHandoffInvalid": "第三方登录交接码无效或已过期，请重试",
   "externalLoginConfigMissing": "第三方登录尚未完成配置，请先在对应插件设置中填写有效的 Client ID 与 Client Secret",
+  "externalLoginDiscoveryFailed": "无法连接身份认证服务。请检查插件设置中的 Issuer 地址是否正确，以及应用服务器能否访问该地址",
+  "externalLoginFailed": "第三方登录失败，请稍后重试或联系管理员",
   "loginSubtitle": "请输入您的帐户信息以进入 LinaPro 宿主工作区",
   "selectAccount": "快速选择账号",
   "username": "账号",

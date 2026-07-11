@@ -152,12 +152,19 @@ go run . dao dir=apps/lina-plugins/linapro-content-notice/backend
 
 ## 运行时 I18n 检查
 
-`linactl i18n.check`统一承载运行时`i18n`治理检查。该命令会扫描高风险运行时可见硬编码文案，并校验宿主和插件运行时消息`key`覆盖：
+`linactl i18n.check`统一承载运行时`i18n`治理检查。该命令会：
+
+1. 扫描高风险运行时可见硬编码文案；
+2. 校验宿主与插件运行时语言包的 **locale key 对等**；
+3. 校验宿主与所有`plugin.yaml`中`i18n.enabled: true`的插件：**每个`bizerr.MustDefine`按约定派生的`messageKey`都必须存在于对应`manifest/i18n/<locale>/`资源中**；
+4. 校验前端静态`$t(...)`引用覆盖。
 
 ```bash
 make i18n.check
 go run . i18n.check
 ```
+
+CI 通过可复用工作流`.github/workflows/reusable-i18n-check.yml`在 Main CI、Nightly 与 Release 验证套件中执行同一入口（检出官方插件 submodule 后运行`make i18n.check`）。
 
 默认扫描`allowlist`维护在`hack/tools/linactl/internal/runtimei18n/allowlist.json`。
 

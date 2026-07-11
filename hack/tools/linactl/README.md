@@ -152,12 +152,19 @@ Without a target parameter, generated code uses the `apps/lina-core` GoFrame pro
 
 ## Runtime I18n Checks
 
-`linactl i18n.check` owns the runtime `i18n` governance checks. It scans high-risk runtime-visible hard-coded copy and validates host/plugin runtime message key coverage:
+`linactl i18n.check` owns the runtime `i18n` governance checks. It:
+
+1. Scans high-risk runtime-visible hard-coded copy;
+2. Validates host/plugin runtime locale **key parity**;
+3. Validates host and every plugin with `i18n.enabled: true` in `plugin.yaml`: **each `bizerr.MustDefine` derived `messageKey` must exist under that module's `manifest/i18n/<locale>/` catalogs**;
+4. Validates frontend static `$t(...)` key coverage.
 
 ```bash
 make i18n.check
 go run . i18n.check
 ```
+
+CI runs the same entrypoint via `.github/workflows/reusable-i18n-check.yml` in the Main CI, Nightly, and Release verification suites (after checking out the official plugin submodule).
 
 The default scanner allowlist is maintained at `hack/tools/linactl/internal/runtimei18n/allowlist.json`.
 

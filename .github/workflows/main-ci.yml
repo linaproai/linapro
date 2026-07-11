@@ -54,6 +54,7 @@ jobs:
       include-plugin-frontend-unit-tests: true
       include-plugin-command-smoke: true
       include-make-command-smoke: true
+      include-i18n-check: true
       include-redis-integration: true
       include-host-only-build-smoke: true
       include-host-only-e2e-tests: false

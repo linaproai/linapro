@@ -3,7 +3,7 @@ package i18n
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -25,16 +25,14 @@ func TestLocalizeErrorSupportsStructuredRuntimeMessages(t *testing.T) {
 	t.Cleanup(resetRuntimeBundleCache)
 
 	pluginID := nextTestSourcePluginID()
-	key := "test.structured." + pluginID
-	code := bizerr.MustDefineWithKey(
+	code := bizerr.MustDefine(
 		"TEST_STRUCTURED_ERROR",
-		key,
 		"User {username} does not exist",
 		gcode.CodeNotFound,
 	)
 	registerTestSourcePluginI18N(t, pluginID, map[string]string{
-		DefaultLocale: fmt.Sprintf(`{"test":{"structured":{"%s":"用户 {username} 不存在"}}}`, pluginID),
-		EnglishLocale: fmt.Sprintf(`{"test":{"structured":{"%s":"User {username} does not exist"}}}`, pluginID),
+		DefaultLocale: `{"error":{"test":{"structured":{"error":"用户 {username} 不存在"}}}}`,
+		EnglishLocale: `{"error":{"test":{"structured":{"error":"User {username} does not exist"}}}}`,
 	})
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
@@ -65,9 +63,8 @@ func TestLocalizeErrorUsesStructuredFallback(t *testing.T) {
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
-	code := bizerr.MustDefineWithKey(
+	code := bizerr.MustDefine(
 		"TEST_STRUCTURED_MISSING_KEY",
-		"test.structured.missingKey",
 		"User {username} does not exist",
 		gcode.CodeNotFound,
 	)
@@ -114,20 +111,17 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 	t.Cleanup(resetRuntimeBundleCache)
 
 	pluginID := nextTestSourcePluginID()
-	key := "test.structured.cache." + pluginID
-	code := bizerr.MustDefineWithKey(
+	code := bizerr.MustDefine(
 		"TEST_STRUCTURED_CACHE",
-		key,
 		"Fallback {value}",
 		gcode.CodeInvalidParameter,
 	)
 	plugin := pluginhost.NewDeclarations(pluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(pluginID, true))},
-		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(fmt.Sprintf(
-			`{"test":{"structured":{"cache":{"%s":"Cached {value}"}}}}`,
-			pluginID,
-		))},
+		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(
+			`{"error":{"test":{"structured":{"cache":"Cached {value}"}}}}`,
+		)},
 	})
 	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
 		t.Fatalf("failed to register source plugin fixture: %v", err)
@@ -244,13 +238,11 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 		},
 	}
 
-	for index, testCase := range testCases {
+	for _, testCase := range testCases {
 		testCase := testCase
-		index := index
 		t.Run(testCase.name, func(t *testing.T) {
-			code := bizerr.MustDefineWithKey(
-				fmt.Sprintf("TEST_HOST_DATASCOPE_ERROR_%d", index),
-				testCase.key,
+			code := bizerr.MustDefine(
+				errorCodeFromRuntimeMessageKey(testCase.key),
 				testCase.fallback,
 				gcode.CodeInvalidParameter,
 			)
@@ -325,13 +317,11 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 		},
 	}
 
-	for index, testCase := range testCases {
+	for _, testCase := range testCases {
 		testCase := testCase
-		index := index
 		t.Run(testCase.name, func(t *testing.T) {
-			code := bizerr.MustDefineWithKey(
-				fmt.Sprintf("TEST_USER_TENANT_MEMBERSHIP_ERROR_%d", index),
-				testCase.key,
+			code := bizerr.MustDefine(
+				errorCodeFromRuntimeMessageKey(testCase.key),
 				testCase.fallback,
 				gcode.CodeInvalidParameter,
 			)
@@ -470,13 +460,11 @@ func TestLocalizeErrorUsesSourcePluginErrorResources(t *testing.T) {
 		},
 	}
 
-	for index, testCase := range testCases {
+	for _, testCase := range testCases {
 		testCase := testCase
-		index := index
 		t.Run(testCase.name, func(t *testing.T) {
-			code := bizerr.MustDefineWithKey(
-				fmt.Sprintf("TEST_PLUGIN_ERROR_%d", index),
-				testCase.key,
+			code := bizerr.MustDefine(
+				errorCodeFromRuntimeMessageKey(testCase.key),
 				testCase.fallback,
 				gcode.CodeInvalidParameter,
 			)
@@ -490,3 +478,15 @@ func TestLocalizeErrorUsesSourcePluginErrorResources(t *testing.T) {
 		})
 	}
 }
+
+// errorCodeFromRuntimeMessageKey converts a convention messageKey back into a
+// stable errorCode for tests that assert catalog coverage by key.
+func errorCodeFromRuntimeMessageKey(messageKey string) string {
+	key := strings.TrimPrefix(strings.TrimSpace(messageKey), "error.")
+	parts := strings.Split(key, ".")
+	for i, part := range parts {
+		parts[i] = strings.ToUpper(part)
+	}
+	return strings.Join(parts, "_")
+}
+

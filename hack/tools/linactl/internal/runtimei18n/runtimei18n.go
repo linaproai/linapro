@@ -1,6 +1,7 @@
 // Package runtimei18n implements repository-level runtime i18n governance
 // checks for linactl. It owns hard-coded runtime copy scanning, host/plugin
-// message coverage validation, and the default allowlist path used by the
+// locale key parity, bizerr messageKey coverage (host + i18n-enabled plugins),
+// frontend static $t key coverage, and the default allowlist path used by the
 // consolidated i18n.check command.
 package runtimei18n
 

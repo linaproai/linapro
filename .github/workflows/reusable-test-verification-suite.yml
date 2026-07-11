@@ -73,6 +73,12 @@ on:
         description: Whether to run make command smoke.
         required: true
         type: boolean
+      # Enables the runtime i18n governance gate (make i18n.check).
+      # 启用运行时 i18n 治理门禁（make i18n.check）。
+      include-i18n-check:
+        description: Whether to run make i18n.check with official plugin sources.
+        required: true
+        type: boolean
       # Enables Redis package-level integration tests.
       # 启用 Redis 包级集成测试。
       include-redis-integration:
@@ -221,6 +227,16 @@ jobs:
     name: Make command smoke
     if: ${{ inputs.include-make-command-smoke }}
     uses: ./.github/workflows/reusable-make-command-smoke.yml
+
+  # Runs make i18n.check against host and official plugin catalogs (bizerr + locale parity).
+  # 对宿主与官方插件语言包执行 make i18n.check（bizerr 映射 + locale 对等）。
+  i18n-check:
+    name: Runtime i18n check
+    if: ${{ inputs.include-i18n-check }}
+    uses: ./.github/workflows/reusable-i18n-check.yml
+    with:
+      submodules: recursive
+      require-plugin-workspace: true
 
   # Exercises Redis-backed integration paths that are separate from regular unit tests.
   # 单独验证依赖 Redis 的集成路径，避免混入常规单元测试作业。

@@ -19,6 +19,8 @@ import { pluginSlotKeys } from '#/plugins/plugin-slots';
 import { publicFrontendSettings } from '#/runtime/public-frontend';
 import { useAuthStore, useTenantStore } from '#/store';
 
+import { resolveExternalLoginErrorMessage as mapExternalLoginError } from './external-login-error';
+
 defineOptions({ name: 'Login' });
 
 const authStore = useAuthStore();
@@ -35,14 +37,13 @@ const router = useRouter();
  * replay the handoff.
  */
 function resolveExternalLoginErrorMessage(message: string) {
-  const normalized = message.trim();
-  if (
-    normalized === 'PLUGIN_OIDC_GOOGLE_CONFIG_MISSING' ||
-    normalized === 'PLUGIN_OIDC_DISCORD_CONFIG_MISSING'
-  ) {
-    return $t('authentication.externalLoginConfigMissing');
-  }
-  return normalized || $t('authentication.loginFailed');
+  return mapExternalLoginError(message, {
+    configMissing: $t('authentication.externalLoginConfigMissing'),
+    discoveryFailed: $t('authentication.externalLoginDiscoveryFailed'),
+    externalLoginFailed: $t('authentication.externalLoginFailed'),
+    fallbackLoginFailed: $t('authentication.loginFailed'),
+    translate: (key) => $t(key),
+  });
 }
 
 async function consumeExternalLogin() {

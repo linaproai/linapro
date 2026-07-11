@@ -7,6 +7,8 @@
   "loginFailed": "Login Failed",
   "externalLoginHandoffInvalid": "Third-party login handoff is invalid or expired. Please try again.",
   "externalLoginConfigMissing": "Third-party login is not configured yet. Enter a valid Client ID and Client Secret in the plugin settings first.",
+  "externalLoginDiscoveryFailed": "Could not reach the identity provider. Check that the Issuer URL in plugin settings is correct and reachable from the application server.",
+  "externalLoginFailed": "Third-party login failed. Please try again later or contact an administrator.",
   "loginSubtitle": "Enter your account details to access the LinaPro host workspace",
   "selectAccount": "Quick Select Account",
   "username": "Username",
