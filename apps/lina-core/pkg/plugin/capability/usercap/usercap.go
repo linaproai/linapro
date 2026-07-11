@@ -4,10 +4,19 @@ package usercap
 
 import (
 	"context"
+	"errors"
 
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/statusflag"
 )
+
+// ErrCreateFromExternalEmailConflict is the stable sentinel returned by
+// CreateFromExternal when an existing local account already uses the asserted
+// email. The host minting primitive enforces this safety invariant itself
+// (the unauthenticated login path has no actor context for data-scoped
+// lookups); plugin callers detect it with errors.Is and map it into their own
+// caller-visible conflict policy instead of minting or silently linking.
+var ErrCreateFromExternalEmailConflict = errors.New("usercap: an account with the same email already exists")
 
 // Service defines governed user capability methods for plugins. Read methods
 // use tenant/data-permission filtering and bounded batch or page sizes; command
@@ -36,6 +45,23 @@ type Service interface {
 	// actor and tenant; data permission: create boundary validation;
 	// performance: one transaction; audit/cache: authorization revision impact.
 	Create(ctx context.Context, input CreateInput) (UserID, error)
+	// CreateFromExternal mints one least-privilege platform account for a
+	// verified external identity, distinct from operator-driven Create. Unlike
+	// Create it takes no operator context, tenant, role or create-boundary
+	// validation: the username is derived from the email local part, or from a
+	// deterministic UsernameAnchor when Email is empty, the password is random
+	// and unusable, and no roles or tenants are assigned. Risk: mutate; context:
+	// no acting operator (system provisioning); data permission: none — callers
+	// decide WHEN provisioning is allowed and own idempotent link de-duplication;
+	// performance: one insert; audit/cache: none. This method is source-plugin
+	// only; dynamic (WASM) plugins receive a fail-closed stub because an
+	// operator-less account-minting primitive must not be exposed to sandboxed
+	// guests. Returns the new user ID, an ErrCreateFromExternalEmailConflict sentinel
+	// when an existing local account already uses the asserted email (the
+	// minting primitive enforces this takeover-safety invariant itself because
+	// the login path has no actor context), or an error when neither a valid
+	// email nor an anchor is supplied.
+	CreateFromExternal(ctx context.Context, input CreateFromExternalInput) (UserID, error)
 	// Update mutates one visible user through the host user owner. Risk:
 	// mutate; resource: target user and relation references; context: actor and
 	// tenant; data permission: target visibility check; performance: one
@@ -159,6 +185,26 @@ type CreateInput struct {
 	RoleIDs []int
 	// TenantIDs are active tenant memberships requested for the user.
 	TenantIDs []int
+}
+
+// CreateFromExternalInput describes one least-privilege external-identity
+// provisioning request. Email is the verified address asserted by the external
+// identity provider and may be empty for email-less providers (for example
+// WeChat); when Email is empty, UsernameAnchor is required so the host can
+// derive a stable, collision-resistant username without an email local part.
+type CreateFromExternalInput struct {
+	// Email is the verified email address from the external provider. It may be
+	// empty for email-less providers, in which case UsernameAnchor is required.
+	Email string
+	// DisplayName optionally seeds the nickname. Empty lets the owner apply
+	// defaults derived from the username.
+	DisplayName string
+	// Remark records the provisioning source for audit, e.g. the provider ID.
+	Remark string
+	// UsernameAnchor is a deterministic anchor used to derive a username when
+	// Email is empty. It MUST be collision-resistant per distinct external
+	// identity so two identities cannot alias onto one account.
+	UsernameAnchor string
 }
 
 // UpdateInput describes one governed user update request.

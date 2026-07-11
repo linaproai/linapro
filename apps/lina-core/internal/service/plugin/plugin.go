@@ -40,6 +40,7 @@ import (
 	"lina-core/internal/model/entity"
 
 	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/authcap/extlogin/extidspi"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -333,6 +334,7 @@ type integrationService interface {
 	RegisterSourcePluginProviderFactories(
 		tenantManager *tenantspi.Manager,
 		orgManager *orgspi.Manager,
+		externalIdentityManager *extidspi.Manager,
 	) error
 	// DispatchHookEvent dispatches one named hook event to all enabled plugins.
 	DispatchHookEvent(
@@ -394,6 +396,8 @@ type capabilityEnvService interface {
 	OrgProviderEnv(ctx context.Context, pluginID string) orgspi.ProviderEnv
 	// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
 	TenantProviderEnv(ctx context.Context, pluginID string) tenantspi.ProviderEnv
+	// ExternalIdentityProviderEnv returns typed, plugin-scoped external-identity-provider construction inputs.
+	ExternalIdentityProviderEnv(ctx context.Context, pluginID string) extidspi.ProviderEnv
 }
 
 // tenantLifecycleService defines tenant-governance lifecycle preconditions and notifications.

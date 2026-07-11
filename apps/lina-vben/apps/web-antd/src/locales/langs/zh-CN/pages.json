@@ -955,15 +955,15 @@
           "reverse_dependency_version": "下游版本约束不满足"
         },
         "checkFailed": "刷新插件依赖检查结果失败",
-        "cycle": "检测到插件依赖循环。",
-        "frameworkUnsatisfied": "框架版本不满足插件要求。",
+        "cycle": "检测到依赖循环，请调整相关插件的依赖关系后再继续。",
+        "frameworkUnsatisfied": "当前框架版本不符合该插件要求。",
         "frameworkUnsatisfiedDescription": "要求版本：{required}；当前版本：{current}。",
-        "installBlocked": "请先处理依赖阻断项，再安装该插件。",
+        "installBlocked": "依赖条件未满足，请根据下方提示处理后再安装。",
         "loading": "正在检查插件依赖...",
-        "resolveBeforeInstall": "请先处理依赖阻断项，再安装该插件。",
-        "resolveBeforeUninstall": "请先卸载依赖该插件的下游插件。",
+        "resolveBeforeInstall": "依赖条件未满足，请先处理后再安装该插件。",
+        "resolveBeforeUninstall": "请先卸载依赖此插件的下游插件，再继续卸载。",
         "title": "依赖检查",
-        "uninstallBlocked": "该插件仍被已安装插件依赖。"
+        "uninstallBlocked": "仍有其他已安装插件依赖此插件，请先处理后再卸载。"
       },
       "hostServices": {
         "identity": {
@@ -1060,7 +1060,7 @@
         "resourceCount": "资源数 {count}",
         "riskSection": "风险提示",
         "noRiskHints": "暂无额外风险提示",
-        "resolveBeforeUpgrade": "请先处理依赖阻断项，再升级该插件。"
+        "resolveBeforeUpgrade": "依赖条件未满足，请先处理后再升级该插件。"
       },
       "upload": {
         "acknowledge": "知道了",

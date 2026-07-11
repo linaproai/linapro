@@ -99,6 +99,11 @@ apps/lina-plugins/<plugin-id>/
 - 源码插件应通过 registrar 或等价上下文把`backend/plugin.go`中声明的 controller、service、路由、中间件和生命周期能力接入宿主。
 - 源码插件 provider/adapter 只能承载宿主稳定能力接缝实现，业务编排和领域逻辑仍必须放在`backend/internal/service/`。
 
+## 插件信任与能力对等
+
+- 源码插件与动态插件在经宿主安装或升级治理、并处于启用状态后，适用**同权、同信任级**：不得仅因插件 `type=dynamic` 而永久拒绝发布某一领域能力。
+- 能力可用性由安装/启用状态、依赖满足、`hostServices`（或等价）声明与授权、以及方法级校验共同决定，与插件类型无关。
+
 ## 动态插件对接要求
 
 动态插件是以运行时 WASM artifact 交付和加载的插件。动态插件必须保持与源码插件一致的后端业务开发结构，并额外遵守以下运行时对接结构：

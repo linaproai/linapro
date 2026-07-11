@@ -14,6 +14,7 @@ import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
 import { getUserInfoApi, loginApi, logoutApi } from '#/api';
+import { exchangeExternalLoginHandoffApi } from '#/api/extid';
 import { authSelectTenant } from '#/api/tenant';
 import { $t } from '#/locales';
 import { useTenantStore } from '#/store/tenant';
@@ -211,6 +212,78 @@ export const useAuthStore = defineStore('auth', () => {
     await clearSession(redirect);
   }
 
+  /**
+   * 消费插件外部登录（OIDC 等）回跳到登录页的登录结果。
+   * Consume an external-login (plugin OIDC) outcome delivered to the login
+   * page through query parameters. Mirrors the post-verification branches of
+   * authLogin: a token pair signs the user in immediately, while a pre-login
+   * token plus tenant candidates switches the login page into the existing
+   * two-stage tenant selection flow.
+   */
+  /**
+   * Completes third-party login after the SPA receives a one-time handoff code.
+   * Tokens never travel in the browser redirect URL.
+   */
+  async function completeExternalLoginFromHandoff(
+    handoff: string,
+    redirectPath?: string,
+  ) {
+    const code = (handoff ?? '').trim();
+    if (!code) {
+      return { requiresTenantSelection: false };
+    }
+    try {
+      loginLoading.value = true;
+      const loginResult = await exchangeExternalLoginHandoffApi(code);
+      const { accessToken, preToken, refreshToken } = loginResult;
+      const tenants = Array.isArray(loginResult.tenants)
+        ? loginResult.tenants
+        : [];
+
+      if (preToken && tenants.length > 1 && !accessToken) {
+        pendingPreToken.value = preToken;
+        tenantStore.setTenantContext({
+          currentTenant: null,
+          enabled: true,
+          tenants,
+        });
+        return { requiresTenantSelection: true, tenants };
+      }
+
+      if (!accessToken) {
+        return { requiresTenantSelection: false };
+      }
+
+      accessStore.setAccessToken(accessToken);
+      accessStore.setRefreshToken(refreshToken ?? null);
+      const userInfo = await fetchUserInfo();
+      userStore.setUserInfo(userInfo);
+      tenantStore.setTenantContext({
+        currentTenant: tenants.length === 1 ? (tenants[0] ?? null) : null,
+        enabled: resolveTenantEnabled(tenants, userInfo, tenants[0] ?? null),
+        tenants,
+      });
+      accessStore.setLoginExpired(false);
+      const landing = (redirectPath ?? '').trim();
+      await router.push(
+        landing ||
+          tenantStore.resolveFallbackPath(
+            userInfo.homePath || preferences.app.defaultHomePath,
+          ),
+      );
+      if (userInfo?.realName) {
+        notification.success({
+          description: `${$t('authentication.loginSuccessDesc')}: ${userInfo.realName}`,
+          duration: 3,
+          message: $t('authentication.loginSuccess'),
+        });
+      }
+      return { requiresTenantSelection: false, userInfo };
+    } finally {
+      loginLoading.value = false;
+    }
+  }
+
   async function fetchUserInfo() {
     const userInfo = await getUserInfoApi();
     userStore.setUserInfo(userInfo);
@@ -240,6 +313,7 @@ export const useAuthStore = defineStore('auth', () => {
     $reset,
     authLogin,
     clearSession,
+    completeExternalLoginFromHandoff,
     fetchUserInfo,
     loginLoading,
     logout,

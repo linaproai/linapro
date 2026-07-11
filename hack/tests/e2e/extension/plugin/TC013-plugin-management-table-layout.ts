@@ -83,6 +83,18 @@ async function mockPluginListApis(page: Page) {
       return;
     }
 
+    // Detail modal loads full projection before open; without this mock the
+    // click fails closed against a non-existent backend plugin id.
+    if (
+      request.method() === 'GET' &&
+      path.endsWith(`/plugins/${layoutPluginID}`)
+    ) {
+      await route.fulfill({
+        json: apiEnvelope(row),
+      });
+      return;
+    }
+
     await route.continue();
   });
 }
@@ -145,5 +157,22 @@ test.describe('TC-13 插件管理列表布局', () => {
       'runtimeState',
       /运行时状态表示插件文件发现版本与数据库有效版本.*状态列表示插件当前是否启用/u,
     );
+  });
+
+  test('TC-13b: 插件详情页最左标签列保持单行不换行', async ({ adminPage }) => {
+    await mockPluginListApis(adminPage);
+
+    const pluginPage = new PluginPage(adminPage);
+    await pluginPage.gotoManage();
+    await pluginPage.searchByPluginId(layoutPluginID);
+    await pluginPage.openPluginDetail(layoutPluginID);
+
+    await expect(pluginPage.pluginDetailModal()).toBeVisible();
+    await expect(pluginPage.pluginDetailDescriptions()).toBeVisible();
+    // Multi-character / multi-word field names are the ones that used to wrap.
+    await expect(pluginPage.pluginDetailModal()).toContainText('授权状态');
+    await expect(pluginPage.pluginDetailModal()).toContainText('有效版本');
+    await expect(pluginPage.pluginDetailModal()).toContainText('发现版本');
+    await pluginPage.expectPluginDetailLabelsNoWrap();
   });
 });

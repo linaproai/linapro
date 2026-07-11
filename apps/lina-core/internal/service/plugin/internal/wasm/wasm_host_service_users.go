@@ -1,7 +1,6 @@
 // This file adapts dynamic-plugin user host-service calls to the ordinary
-// usercap.Service contract. The dispatcher exposes only projections, bounded
-// search, and visibility checks; user-management commands remain outside the
-// dynamic ordinary service surface.
+// usercap.Service contract, including governed writes and CreateFromExternal
+// under the same-trust model for installed dynamic plugins.
 
 package wasm
 
@@ -98,6 +97,13 @@ func dispatchUsersHostService(
 			return invalidCapabilityRequest(err)
 		}
 		result, err := service.Create(ctx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodUsersCreateFromExternal:
+		var request usercap.CreateFromExternalInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.CreateFromExternal(ctx, request)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodUsersUpdate:
 		var request usercap.UpdateInput

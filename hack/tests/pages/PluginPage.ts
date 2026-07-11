@@ -481,6 +481,16 @@ export class PluginPage {
     return this.page.getByTestId("plugin-detail-modal").last();
   }
 
+  pluginDetailDescriptions(): Locator {
+    return this.page.getByTestId("plugin-detail-descriptions").last();
+  }
+
+  pluginDetailDescriptionLabels(): Locator {
+    return this.pluginDetailDescriptions().locator(
+      ".ant-descriptions-item-label",
+    );
+  }
+
   pluginRouteReviewToggle(): Locator {
     return this.page.getByTestId("plugin-route-review-toggle").last();
   }
@@ -858,13 +868,45 @@ export class PluginPage {
   }
 
   async openPluginDetail(pluginId: string) {
-    const detailButton = await this.pluginActionButton(
-      pluginId,
-      pluginDetailActionPattern,
-    );
+    // Prefer stable test id when present; fall back to action-column text match.
+    const byTestId = this.pluginDetailAction(pluginId);
+    const detailButton = (await byTestId.count()) > 0
+      ? byTestId
+      : await this.pluginActionButton(pluginId, pluginDetailActionPattern);
     await expect(detailButton).toBeVisible();
     await detailButton.click();
-    await expect(this.pluginDetailDialog()).toBeVisible();
+    await expect(this.pluginDetailModal()).toBeVisible();
+  }
+
+  /**
+   * Asserts every label cell in the plugin detail Descriptions table stays on
+   * one line (no multi-line wrap of field names such as "Authorization Status").
+   */
+  async expectPluginDetailLabelsNoWrap() {
+    const labels = this.pluginDetailDescriptionLabels();
+    await expect(labels.first()).toBeVisible();
+    const count = await labels.count();
+    expect(count, "插件详情标签列应至少包含一个字段").toBeGreaterThan(0);
+
+    for (let index = 0; index < count; index += 1) {
+      const label = labels.nth(index);
+      await expect(
+        label,
+        `插件详情第 ${index + 1} 个标签应禁止换行`,
+      ).toHaveCSS("white-space", "nowrap");
+      await expect
+        .poll(
+          async () =>
+            await label.evaluate((element) => {
+              // With wrap, multi-line labels grow scrollHeight; with nowrap they stay one line.
+              return element.scrollHeight <= element.clientHeight + 1;
+            }),
+          {
+            message: `插件详情第 ${index + 1} 个标签内容应保持单行`,
+          },
+        )
+        .toBe(true);
+    }
   }
 
   async openRuntimeUpgradeDialog(pluginId: string) {

@@ -173,8 +173,11 @@ func (a *sysConfigCapabilityAdapter) List(ctx context.Context, input capabilityh
 	return &capmodel.PageResult[*capabilityhostconfigcap.SysConfigInfo]{Items: items, Total: total}, nil
 }
 
-// SetValue writes one visible sys_config value and
-// advances the sys_config shared revision after the write succeeds.
+// SetValue upserts one visible sys_config value and advances the sys_config
+// shared revision after the write succeeds. A missing row is created at the
+// platform tenant scope so plugins can persist their namespaced settings
+// (`plugin.<plugin-id>.*`) on first save without seeding rows through
+// install-time SQL that would touch host-owned sys_* data.
 func (a *sysConfigCapabilityAdapter) SetValue(ctx context.Context, key capabilityhostconfigcap.SysConfigKey, value string) error {
 	normalizedKey := strings.TrimSpace(string(key))
 	if normalizedKey == "" {
@@ -193,7 +196,19 @@ func (a *sysConfigCapabilityAdapter) SetValue(ctx context.Context, key capabilit
 			return err
 		}
 		if row == nil {
-			return bizerr.NewCode(capmodel.CodeCapabilityDenied)
+			// First write for this key: create the platform-scope row. The
+			// name mirrors the key so admin listings stay identifiable; the
+			// row is plugin-owned data, never a built-in host default.
+			_, err = dao.SysConfig.Ctx(ctx).
+				Data(do.SysConfig{
+					TenantId:  datascope.PlatformTenantID,
+					Name:      normalizedKey,
+					Key:       normalizedKey,
+					Value:     value,
+					IsBuiltin: 0,
+				}).
+				Insert()
+			return err
 		}
 		if _, err = dao.SysConfig.Ctx(ctx).
 			Where(do.SysConfig{Id: row.Id}).

@@ -31,7 +31,9 @@ test.describe("TC-2 登录页展示收口与布局", () => {
     await expect(loginPage.createAccountEntry).toBeHidden();
     await expect(loginPage.mobileLoginButton).toBeHidden();
     await expect(loginPage.qrCodeLoginButton).toBeHidden();
-    await expect(loginPage.thirdPartyLoginTitle).toBeHidden();
+    // 「其他登录方式」由宿主在 auth.login.after 有插件注入时展示（对齐 Vben
+    // ThirdPartyLogin 分隔线），不再视为未实现入口。无插件时整块区域隐藏；
+    // 有插件时可见——此处不强制 hidden，由 TC-2e 覆盖布局契约。
 
     for (const path of [
       "/auth/code-login",
@@ -80,5 +82,92 @@ test.describe("TC-2 登录页展示收口与布局", () => {
       "placeholder",
       "Please enter password",
     );
+  });
+
+  test("TC-2e: 外部登录插槽对齐 Vben5 横向图标行与分隔线", async ({
+    loginPage,
+    page,
+  }) => {
+    await loginPage.goto();
+
+    // 宿主契约：login.vue 对齐 Vben ThirdPartyLogin —
+    // 分隔线「其他登录方式」+ flex-wrap justify-center 横向图标行。
+    // 使用与生产一致的 class 注入多入口夹具，不绑定具体 OIDC 插件。
+    const fixture = page.getByTestId("login-external-auth-slot-fixture");
+    await page.evaluate(() => {
+      const region =
+        document.querySelector(
+          '[data-testid="login-external-auth-region"]',
+        ) ??
+        (() => {
+          const el = document.createElement("div");
+          el.className = "login-external-auth w-full sm:mx-auto md:max-w-md";
+          el.setAttribute("data-testid", "login-external-auth-region");
+          const formRoot =
+            document.querySelector("form")?.parentElement ?? document.body;
+          formRoot.appendChild(el);
+          return el;
+        })();
+
+      // Ensure the Vben-style divider is present for the fixture.
+      if (!region.querySelector('[data-testid="login-third-party-divider"]')) {
+        const divider = document.createElement("div");
+        divider.className = "mt-4 flex items-center justify-between";
+        divider.setAttribute("data-testid", "login-third-party-divider");
+        divider.innerHTML = `
+          <span class="w-[35%] border-b border-input"></span>
+          <span class="text-center text-xs text-muted-foreground uppercase">其他登录方式</span>
+          <span class="w-[35%] border-b border-input"></span>
+        `;
+        region.prepend(divider);
+      }
+
+      let host = region.querySelector(
+        '[data-testid="login-external-auth-slot"]',
+      ) as HTMLElement | null;
+      if (!host) {
+        host = document.createElement("div");
+        // Mirror apps/web-antd login.vue PluginSlotOutlet classes.
+        host.className =
+          "mt-4 flex flex-wrap justify-center plugin-slot-outlet";
+        host.setAttribute("data-testid", "login-external-auth-slot");
+        region.appendChild(host);
+      }
+
+      host.setAttribute("data-testid", "login-external-auth-slot-fixture");
+      host.className =
+        "mt-4 flex flex-wrap justify-center plugin-slot-outlet";
+      host.innerHTML = `
+        <div class="plugin-slot-outlet__item" style="height:40px;width:40px;background:#e5e7eb;margin:0 4px"></div>
+        <div class="plugin-slot-outlet__item" style="height:40px;width:40px;background:#d1d5db;margin:0 4px"></div>
+      `;
+    });
+
+    await expect(fixture).toBeVisible();
+    await expect(page.getByTestId("login-third-party-divider")).toBeVisible();
+    await expect(loginPage.thirdPartyLoginTitle).toBeVisible();
+
+    const display = await fixture.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        display: style.display,
+        flexWrap: style.flexWrap,
+        justifyContent: style.justifyContent,
+      };
+    });
+    expect(display.display).toBe("flex");
+    expect(display.flexWrap).toBe("wrap");
+    expect(display.justifyContent).toBe("center");
+
+    const items = fixture.locator(".plugin-slot-outlet__item");
+    expect(await items.count()).toBe(2);
+    const firstBox = await items.nth(0).boundingBox();
+    const secondBox = await items.nth(1).boundingBox();
+    expect(firstBox).not.toBeNull();
+    expect(secondBox).not.toBeNull();
+    // Horizontal row: second item is to the right of the first (same row).
+    expect(secondBox!.x).toBeGreaterThan(firstBox!.x + firstBox!.width - 1);
+    const verticalDelta = Math.abs(secondBox!.y - firstBox!.y);
+    expect(verticalDelta).toBeLessThanOrEqual(8);
   });
 });

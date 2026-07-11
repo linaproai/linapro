@@ -7,6 +7,7 @@ const frameworkBlockedPluginID = "plugin-dev-dependency-framework-blocked-e2e";
 const blockedPluginID = "plugin-dev-dependency-blocked-e2e";
 const basePluginID = "plugin-dev-dependency-base-e2e";
 const consumerPluginID = "plugin-dev-dependency-consumer-e2e";
+const consumerPluginBID = "plugin-dev-dependency-consumer-b-e2e";
 const installNetworkFailurePluginID =
   "plugin-dev-dependency-install-network-failure-e2e";
 const uninstallNetworkFailurePluginID =
@@ -125,12 +126,21 @@ function installBlockerCheck(): DependencyCheck {
 function reverseBlockerCheck(): DependencyCheck {
   return {
     ...emptyDependencyCheck(basePluginID),
+    // reverse_dependency blockers mirror reverseDependents; UI must list each
+    // consumer once and must not collapse them to the target plugin ID.
     reverseBlockers: [
       {
         chain: [consumerPluginID, basePluginID],
         code: "reverse_dependency",
         dependencyId: basePluginID,
         pluginId: consumerPluginID,
+        requiredVersion: ">=0.1.0",
+      },
+      {
+        chain: [consumerPluginBID, basePluginID],
+        code: "reverse_dependency",
+        dependencyId: basePluginID,
+        pluginId: consumerPluginBID,
         requiredVersion: ">=0.1.0",
       },
     ],
@@ -141,7 +151,27 @@ function reverseBlockerCheck(): DependencyCheck {
         requiredVersion: ">=0.1.0",
         version: "v0.1.0",
       },
+      {
+        name: "Consumer Plugin B",
+        pluginId: consumerPluginBID,
+        requiredVersion: ">=0.1.0",
+        version: "v0.1.0",
+      },
     ],
+  };
+}
+
+function reverseBlockerOnlyCheck(): DependencyCheck {
+  return {
+    ...emptyDependencyCheck(basePluginID),
+    reverseBlockers: [
+      {
+        chain: [consumerPluginID, basePluginID],
+        code: "dependency_snapshot_unknown",
+        pluginId: consumerPluginID,
+      },
+    ],
+    reverseDependents: [],
   };
 }
 
@@ -228,7 +258,7 @@ test.describe("TC-6 插件依赖管理展示", () => {
 
     await expect(pluginPage.pluginDependencyFrameworkBlocker()).toBeVisible();
     await expect(pluginPage.pluginDependencyFrameworkBlocker()).toContainText(
-      "框架版本不满足插件要求。",
+      "当前框架版本不符合该插件要求。",
     );
     await expect(pluginPage.pluginDependencyFrameworkBlocker()).toContainText(
       "要求版本：>=0.7.0；当前版本：v0.6.0。",
@@ -258,16 +288,21 @@ test.describe("TC-6 插件依赖管理展示", () => {
     await pluginPage.searchByPluginId(blockedPluginID);
     await pluginPage.openInstallAuthorization(blockedPluginID);
 
-    await expect(pluginPage.pluginDependencyBlockers()).toBeVisible();
-    await expect(pluginPage.pluginDependencyBlockers()).toContainText(
-      "请先处理依赖阻断项",
+    const dependencyBlockers = pluginPage.pluginDependencyBlockers();
+    await expect(dependencyBlockers).toBeVisible();
+    await expect(dependencyBlockers).toContainText(
+      "依赖条件未满足，请根据下方提示处理后再安装。",
     );
-    await expect(pluginPage.pluginDependencyBlockers()).toContainText(
-      "依赖版本不满足",
-    );
-    await expect(pluginPage.pluginDependencyBlockers()).toContainText(
-      basePluginID,
-    );
+    await expect(dependencyBlockers).toContainText("依赖版本不满足");
+    await expect(dependencyBlockers).toContainText(basePluginID);
+    // 依赖阻断提示是说明文案，不应使用 Alert 默认标题字号（16px）
+    await expect
+      .poll(async () => {
+        return dependencyBlockers
+          .locator(".ant-alert-message")
+          .evaluate((el) => getComputedStyle(el).fontSize);
+      })
+      .toBe("14px");
     await expect(pluginPage.hostServiceAuthConfirmButton()).toBeDisabled();
     await expect(
       pluginPage.hostServiceAuthInstallAndEnableButton(),
@@ -293,12 +328,52 @@ test.describe("TC-6 插件依赖管理展示", () => {
     await pluginPage.searchByPluginId(basePluginID);
     await pluginPage.openUninstallDialog(basePluginID);
 
-    await expect(pluginPage.pluginDependencyReverseBlockers()).toBeVisible();
-    await expect(pluginPage.pluginDependencyReverseBlockers()).toContainText(
-      "该插件仍被已安装插件依赖。",
+    const reverseBlockers = pluginPage.pluginDependencyReverseBlockers();
+    await expect(reverseBlockers).toBeVisible();
+    await expect(reverseBlockers).toContainText(
+      "仍有其他已安装插件依赖此插件，请先处理后再卸载。",
     );
-    await expect(pluginPage.pluginDependencyReverseBlockers()).toContainText(
-      "Consumer Plugin >=0.1.0",
+    // Distinct downstream consumers must appear once each by display name.
+    await expect(reverseBlockers).toContainText("Consumer Plugin >=0.1.0");
+    await expect(reverseBlockers).toContainText("Consumer Plugin B >=0.1.0");
+    // reverse_dependency blockers share the target ID; must not collapse into
+    // duplicate "存在下游依赖 <target> >=0.1.0" tags when dependents are listed.
+    await expect(reverseBlockers).not.toContainText(
+      `存在下游依赖 ${basePluginID}`,
+    );
+    const reverseTags = reverseBlockers.locator(".ant-tag");
+    await expect(reverseTags).toHaveCount(2);
+    await expect(pluginPage.uninstallConfirmButton()).toBeDisabled();
+  });
+
+  test("TC-6c2: 仅有 reverseBlockers 时展示下游插件 ID 而非目标插件 ID", async ({
+    adminPage,
+  }) => {
+    await mockPluginDependencyApis(
+      adminPage,
+      [
+        pluginRow({
+          description:
+            "Used by E2E to verify reverse blocker subject formatting.",
+          id: basePluginID,
+          installed: 1,
+          name: "Dependency Base",
+        }),
+      ],
+      { [basePluginID]: reverseBlockerOnlyCheck() },
+    );
+
+    const pluginPage = new PluginPage(adminPage);
+    await pluginPage.gotoManage();
+    await pluginPage.searchByPluginId(basePluginID);
+    await pluginPage.openUninstallDialog(basePluginID);
+
+    const reverseBlockers = pluginPage.pluginDependencyReverseBlockers();
+    await expect(reverseBlockers).toBeVisible();
+    await expect(reverseBlockers).toContainText("依赖快照不可用");
+    await expect(reverseBlockers).toContainText(consumerPluginID);
+    await expect(reverseBlockers).not.toContainText(
+      new RegExp(`依赖快照不可用\\s+${basePluginID}`),
     );
     await expect(pluginPage.uninstallConfirmButton()).toBeDisabled();
   });

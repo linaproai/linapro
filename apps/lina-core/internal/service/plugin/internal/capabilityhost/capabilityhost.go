@@ -158,6 +158,7 @@ func New(
 		i18nAdapter        = newI18nAdapter(i18nSvc)
 		userDomain         = usercapadapter.NewCapabilityAdapter(userSvc, tenantSvc, scopeSvc, bizCtxAdapter)
 		tokenDomain        = newAuthAdapter(authSvc)
+		externalLoginBase  = newExternalLoginAdapter(authSvc, pluginStateSvc)
 		authzDomain        = role.NewCapabilityAdapter(roleAccessSvc, bizCtxAdapter, cacheCoordSvc)
 		dictDomain         = dict.NewCapabilityAdapter(tenantFilterSvc, i18nAdapter, cacheCoordSvc)
 		sysConfigDomain    = hostconfigadapter.NewSysConfigCapabilityAdapter(tenantFilterSvc, cacheCoordSvc)
@@ -173,7 +174,7 @@ func New(
 	)
 	return &directory{
 		apiDoc:          newAPIDocAdapter(apiDocSvc),
-		auth:            authcap.New(tokenDomain, authzDomain),
+		auth:            authcap.New(tokenDomain, authzDomain, externalLoginBase),
 		users:           userDomain,
 		bizCtx:          bizCtxAdapter,
 		cache:           kvCacheSvc,

@@ -123,6 +123,15 @@ func (s usersService) Create(_ context.Context, input usercap.CreateInput) (user
 	return out, err
 }
 
+// CreateFromExternal mints one least-privilege account for a verified external
+// identity through the users host service. Installed dynamic plugins share the
+// same trust model as source plugins and must declare the method in hostServices.
+func (s usersService) CreateFromExternal(_ context.Context, input usercap.CreateFromExternalInput) (usercap.UserID, error) {
+	var out usercap.UserID
+	err := s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersCreateFromExternal, input, &out)
+	return out, err
+}
+
 // Update updates one visible user through the dynamic users host service.
 func (s usersService) Update(_ context.Context, input usercap.UpdateInput) error {
 	return s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersUpdate, input, nil)

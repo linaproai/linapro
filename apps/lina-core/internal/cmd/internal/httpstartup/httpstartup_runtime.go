@@ -42,6 +42,7 @@ import (
 	"lina-core/internal/service/usermsg"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/plugin/capability/authcap/extlogin/extidspi"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -193,8 +194,9 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		jobRegistry = jobhandlersvc.New()
 	)
 	var (
-		tenantProviderManager = tenantspi.NewManager()
-		orgProviderManager    = orgspi.NewManager()
+		tenantProviderManager           = tenantspi.NewManager()
+		orgProviderManager              = orgspi.NewManager()
+		externalIdentityProviderManager = extidspi.NewManager()
 	)
 	var (
 		orgCapSvc    = orgspi.New(orgProviderManager, pluginRuntime, pluginRuntime.OrgProviderEnv)
@@ -211,6 +213,17 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		userMsgSvc   = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
 		apiDocSvc    = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginRuntime)
 	)
+	// Bind the manager-backed external-identity provider seam. The bound value
+	// is the host manager-backed service (lazy, gated by plugin enablement), not
+	// a plugin's raw provider: disabling the provider plugin (linapro-extid-core)
+	// immediately fails external login closed, and re-enabling restores it. The
+	// plugin only registers its factory at declaration time via
+	// RegisterSourcePluginProviderFactories below.
+	authSvc.BindExternalIdentityProvider(extidspi.New(
+		externalIdentityProviderManager,
+		pluginRuntime,
+		pluginRuntime.ExternalIdentityProviderEnv,
+	))
 	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc)
 	if err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
@@ -289,6 +302,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	if err = pluginSvc.RegisterSourcePluginProviderFactories(
 		tenantProviderManager,
 		orgProviderManager,
+		externalIdentityProviderManager,
 	); err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err

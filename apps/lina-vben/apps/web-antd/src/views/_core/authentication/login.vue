@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '@vben/common-ui';
 
-import { computed, reactive } from 'vue';
+import { computed, onMounted, reactive } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import {
   AuthenticationLogin,
@@ -10,6 +11,8 @@ import {
   z,
 } from '@vben/common-ui';
 import { $t } from '@vben/locales';
+
+import { notification } from 'ant-design-vue';
 
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
@@ -20,6 +23,67 @@ defineOptions({ name: 'Login' });
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
+const route = useRoute();
+const router = useRouter();
+
+/**
+ * consumeExternalLogin handles the `?externalLogin=1` outcome a protocol
+ * plugin callback encodes into the login-page query. Successful outcomes carry
+ * a single-use handoff code (never raw JWTs); the SPA exchanges it with the
+ * host and then reuses the password-login session bootstrap. Errors use a
+ * safe message code. The query is stripped afterwards so refreshes cannot
+ * replay the handoff.
+ */
+function resolveExternalLoginErrorMessage(message: string) {
+  const normalized = message.trim();
+  if (
+    normalized === 'PLUGIN_OIDC_GOOGLE_CONFIG_MISSING' ||
+    normalized === 'PLUGIN_OIDC_DISCORD_CONFIG_MISSING'
+  ) {
+    return $t('authentication.externalLoginConfigMissing');
+  }
+  return normalized || $t('authentication.loginFailed');
+}
+
+async function consumeExternalLogin() {
+  const query = route.query;
+  if (query.externalLogin !== '1') {
+    return;
+  }
+  const status = String(query.status ?? '');
+  const message = String(query.message ?? '');
+  const handoff = typeof query.handoff === 'string' ? query.handoff : '';
+  const redirectPath =
+    typeof query.redirect === 'string' ? query.redirect : '';
+  await router.replace({ path: route.path, query: {} });
+  if (status === 'error') {
+    notification.error({
+      description: resolveExternalLoginErrorMessage(message),
+      duration: 5,
+      message: $t('authentication.loginFailed'),
+    });
+    return;
+  }
+  if (!handoff) {
+    notification.error({
+      description: $t('authentication.externalLoginHandoffInvalid'),
+      duration: 5,
+      message: $t('authentication.loginFailed'),
+    });
+    return;
+  }
+  try {
+    await authStore.completeExternalLoginFromHandoff(handoff, redirectPath);
+  } catch {
+    notification.error({
+      description: $t('authentication.externalLoginHandoffInvalid'),
+      duration: 5,
+      message: $t('authentication.loginFailed'),
+    });
+  }
+}
+
+onMounted(consumeExternalLogin);
 const tenantOptions = computed(() =>
   tenantStore.tenants.map((tenant) => ({
     code: tenant.code,
@@ -179,6 +243,36 @@ async function handleSelectTenant() {
         {{ $t('pages.multiTenant.login.enterTenant') }}
       </VbenButton>
     </div>
-    <PluginSlotOutlet :slot-key="pluginSlotKeys.authLoginAfter" class="mt-4" />
+    <!--
+      第三方登录对齐 Vben5 AuthenticationLogin / ThirdPartyLogin：
+      「其他登录方式」分隔线 + 横向图标按钮行。
+      无插件注入时通过 :has(.plugin-slot-outlet) 整块隐藏。
+    -->
+    <div
+      class="login-external-auth w-full sm:mx-auto md:max-w-md"
+      data-testid="login-external-auth-region"
+    >
+      <div
+        class="mt-4 flex items-center justify-between"
+        data-testid="login-third-party-divider"
+      >
+        <span class="w-[35%] border-b border-input dark:border-gray-600"></span>
+        <span class="text-center text-xs text-muted-foreground uppercase">
+          {{ $t('authentication.thirdPartyLogin') }}
+        </span>
+        <span class="w-[35%] border-b border-input dark:border-gray-600"></span>
+      </div>
+      <PluginSlotOutlet
+        :slot-key="pluginSlotKeys.authLoginAfter"
+        class="mt-4 flex flex-wrap justify-center"
+        data-testid="login-external-auth-slot"
+      />
+    </div>
   </div>
 </template>
+
+<style scoped>
+.login-external-auth:not(:has(.plugin-slot-outlet)) {
+  display: none;
+}
+</style>

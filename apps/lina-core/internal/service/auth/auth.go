@@ -12,11 +12,24 @@ import (
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/authcap/extlogin/extidspi"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
 )
+
+// ClientType identifies the user-facing client that created an authenticated user session.
+type ClientType = tokencap.ClientType
+
+// ParseClientType validates one user-session client type value.
+func ParseClientType(value string) (ClientType, error) {
+	if clientType, ok := tokencap.ParseClientType(value); ok {
+		return clientType, nil
+	}
+	return "", bizerr.NewCode(CodeAuthClientTypeInvalid)
+}
 
 // Auth status constants used by login validation.
 const (
@@ -40,8 +53,12 @@ const (
 	authEventMessageTenantUnavailable = "Tenant is not available"
 	// authEventMessageLogoutSuccessful is the English fallback for successful logout messages.
 	authEventMessageLogoutSuccessful = "Logout successful"
+	// authEventMessageExternalNotProvisioned is the English fallback for unlinked external-identity messages.
+	authEventMessageExternalNotProvisioned = "No local account is linked to this external identity"
 	// authHookReasonTenantUnavailable identifies tenant service or membership failures.
 	authHookReasonTenantUnavailable = "tenant_unavailable"
+	// authHookReasonExternalNotProvisioned identifies external-identity logins with no linked local account.
+	authHookReasonExternalNotProvisioned = "external_not_provisioned"
 )
 
 // tokenKind identifies the intended use of one signed JWT. The underlying
@@ -71,6 +88,26 @@ type Service interface {
 	// for tenant selection. It persists session state and dispatches auth hooks;
 	// user-visible failures are returned as bizerr codes.
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
+	// BindExternalIdentityProvider attaches the source-plugin external-identity
+	// provider seam after startup wiring. The provider owns external-identity
+	// storage, resolution, and provisioning/bind policy; auth keeps token,
+	// session, and tenant minting. A nil provider keeps external login
+	// fail-closed: no linkage is resolved and no account is created.
+	BindExternalIdentityProvider(provider extidspi.Provider)
+	// LoginByExternalIdentity resolves a plugin-verified external identity
+	// (provider + immutable subject) to a linked local account and issues a
+	// host session, reusing the same login-IP policy, disabled-account check,
+	// tenant resolution, pre-login-token handoff, token issuance, session
+	// persistence, and auth hooks as password Login. Linkage storage and
+	// provisioning policy are provider-owned and fail-closed by default: an
+	// unlinked identity with no provider, or with auto-provisioning disallowed,
+	// returns CodeAuthExternalUserNotProvisioned without creating a user. Callers must
+	// have already verified the external identity; the host does not perform
+	// any OAuth or token exchange. An empty provider or subject returns
+	// CodeAuthExternalIdentityInvalid.
+	// SPA delivery of the minted session (one-time handoff codes) is owned by
+	// linapro-extid-core, not this host service.
+	LoginByExternalIdentity(ctx context.Context, in ExternalLoginInput) (*ExternalLoginOutput, error)
 	// Refresh validates a host refresh token, confirms the online session and
 	// tenant membership are still valid, primes role access cache, and returns a
 	// fresh access token while preserving the refresh token.
@@ -117,6 +154,11 @@ type serviceImpl struct {
 	sessionStore session.Store // Session store
 	preTokens    preTokenStore
 	revoked      revokeStore
+	// identityProvider is the source-plugin external-identity provider bound
+	// after startup through BindExternalIdentityProvider. Nil keeps external
+	// login fail-closed: LoginByExternalIdentity resolves no linkage and
+	// provisions no account.
+	identityProvider extidspi.Provider
 }
 
 // authHookService is the narrow plugin-hook surface required by auth. Auth
@@ -168,6 +210,35 @@ type LoginInput struct {
 	Username   string     // Username
 	Password   string     // Password
 	ClientType ClientType // User-session client type
+}
+
+// ExternalLoginInput defines input for LoginByExternalIdentity. The caller is
+// a source plugin that has already verified the external identity; PluginID is
+// stamped by the host-scoped capability adapter and must not be trusted from
+// unauthenticated request payloads.
+type ExternalLoginInput struct {
+	PluginID    string     // Source-plugin ID that owns Provider; stamped by the host adapter
+	Provider    string     // Stable external provider ID owned by PluginID
+	Subject     string     // Immutable provider-issued subject identifier
+	Email       string     // Verified email; used for provisioning/conflict checks only when AllowAutoProvision is set
+	DisplayName string     // Display name captured for audit/hook context only
+	ClientType  ClientType // User-session client type
+	// AllowAutoProvision declares that the calling plugin permits
+	// auto-provisioning for unlinked identities. The provisioning policy is
+	// provider-owned (linapro-extid-core): a same-email account conflict is
+	// rejected instead of silently linking, and account creation is delegated
+	// back to the host user owner's least-privilege provisioning path.
+	AllowAutoProvision bool
+}
+
+// ExternalLoginOutput defines output for LoginByExternalIdentity. It mirrors
+// LoginOutput: a token pair is set for 0/1 active tenants, otherwise a
+// pre-login token plus tenant candidates are returned for tenant selection.
+type ExternalLoginOutput struct {
+	AccessToken  string       // JWT access token
+	RefreshToken string       // JWT refresh token
+	PreToken     string       // Short-lived pre-login token for tenant selection
+	Tenants      []TenantInfo // Tenant candidates for two-stage login
 }
 
 // LogoutInput defines input for Logout function.

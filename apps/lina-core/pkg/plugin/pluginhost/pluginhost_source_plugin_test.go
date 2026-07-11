@@ -180,6 +180,33 @@ func TestProviderDeclarationsRejectMismatchedCapabilityOwner(t *testing.T) {
 	}
 }
 
+// TestProvideExternalIdentityStoresOwnershipAndRejectsInvalid verifies external
+// identity provider ownership is recorded, trimmed, and guarded against empty
+// and duplicate declarations.
+func TestProvideExternalIdentityStoresOwnershipAndRejectsInvalid(t *testing.T) {
+	plugin := NewDeclarations("test-plugin-external-identity")
+	providers := plugin.Providers()
+
+	if err := providers.ProvideExternalIdentity("  "); err == nil {
+		t.Fatalf("expected empty external identity provider to be rejected")
+	}
+	if err := providers.ProvideExternalIdentity(" google "); err != nil {
+		t.Fatalf("expected external identity provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideExternalIdentity("discord"); err != nil {
+		t.Fatalf("expected second distinct provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideExternalIdentity("google"); err == nil {
+		t.Fatalf("expected duplicate external identity provider declaration to fail")
+	}
+
+	definition := mustSourcePluginDefinition(t, plugin)
+	owned := definition.GetExternalIdentityProviderIDs()
+	if len(owned) != 2 || owned[0] != "google" || owned[1] != "discord" {
+		t.Fatalf("unexpected declared external identity providers: %#v", owned)
+	}
+}
+
 // TestProviderDeclarationsRejectNilFactories verifies provider facade validation
 // reports caller errors instead of storing unusable factories.
 func TestProviderDeclarationsRejectNilFactories(t *testing.T) {

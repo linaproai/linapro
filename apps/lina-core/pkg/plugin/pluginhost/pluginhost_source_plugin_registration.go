@@ -8,6 +8,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/pkg/plugin/capability/authcap/extlogin/extidspi"
 	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
@@ -268,6 +269,46 @@ func validateCapabilityDescriptorOwner(pluginID string, descriptor capregistry.D
 			strings.TrimSpace(descriptor.Version),
 		)
 	}
+	return nil
+}
+
+// registerExternalIdentityProvider records one external-identity provider ID
+// owned by this source plugin. It trims the ID, rejects empty values, and
+// rejects duplicate declarations of the same ID while allowing a plugin to own
+// multiple distinct providers.
+func (p *sourcePlugin) registerExternalIdentityProvider(providerID string) error {
+	if p == nil {
+		return gerror.New("pluginhost: source plugin is nil")
+	}
+	normalized := strings.TrimSpace(providerID)
+	if normalized == "" {
+		return gerror.New("pluginhost: external identity provider id is empty")
+	}
+	for _, existing := range p.externalIdentities {
+		if existing == normalized {
+			return gerror.Newf("pluginhost: external identity provider %q already declared", normalized)
+		}
+	}
+	p.externalIdentities = append(p.externalIdentities, normalized)
+	return nil
+}
+
+// registerExternalIdentityProviderFactory records the external-identity provider
+// engine factory declared by this source plugin (linapro-extid-core). It is
+// orthogonal to registerExternalIdentityProvider: the factory supplies the
+// resolve/provision engine, while the ID list stamps ownership for calling
+// plugins. Only one engine factory may be declared per plugin.
+func (p *sourcePlugin) registerExternalIdentityProviderFactory(factory extidspi.ProviderFactory) error {
+	if p == nil {
+		return gerror.New("pluginhost: source plugin is nil")
+	}
+	if factory == nil {
+		return gerror.New("pluginhost: external identity provider factory is nil")
+	}
+	if p.externalIdentityEngine != nil {
+		return gerror.New("pluginhost: external identity provider factory already declared")
+	}
+	p.externalIdentityEngine = factory
 	return nil
 }
 

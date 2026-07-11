@@ -475,9 +475,9 @@ func (s *testCapabilities) APIDoc() apidoccap.Service { return testNoopAPIDoc{} 
 // Auth returns a no-op auth namespace for plugin integration tests.
 func (s *testCapabilities) Auth() authcap.Service {
 	if s == nil {
-		return authcap.New(testNoopAuth{}, nil)
+		return authcap.New(testNoopAuth{}, nil, nil)
 	}
-	return authcap.New(testNoopAuth{}, s.authz)
+	return authcap.New(testNoopAuth{}, s.authz, nil)
 }
 
 // Users returns an empty user-domain service for plugin integration tests.
@@ -1267,6 +1267,11 @@ func (testUsersService) EnsureVisible(context.Context, []capabilityusercap.UserI
 
 // Create accepts user creation without mutating test state.
 func (testUsersService) Create(context.Context, capabilityusercap.CreateInput) (capabilityusercap.UserID, error) {
+	return "", nil
+}
+
+// CreateFromExternal accepts external-identity provisioning without mutating test state.
+func (testUsersService) CreateFromExternal(context.Context, capabilityusercap.CreateFromExternalInput) (capabilityusercap.UserID, error) {
 	return "", nil
 }
 

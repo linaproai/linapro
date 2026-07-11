@@ -225,7 +225,13 @@ function formatFailurePhase(phase?: string) {
       data-testid="plugin-detail-modal"
       class="flex flex-col gap-4"
     >
-      <Descriptions bordered size="small" :column="2">
+      <Descriptions
+        bordered
+        size="small"
+        :column="2"
+        class="plugin-detail-descriptions"
+        data-testid="plugin-detail-descriptions"
+      >
         <DescriptionsItem :label="$t('pages.system.plugin.fields.name')">
           {{ currentPlugin.name || '-' }}
         </DescriptionsItem>
@@ -405,3 +411,13 @@ function formatFailurePhase(phase?: string) {
     </div>
   </BasicModal>
 </template>
+
+<style scoped>
+/* Keep the left-hand label column on one line; multi-word English labels
+   (e.g. Authorization Status / Effective Version) otherwise wrap in the
+   two-column bordered Descriptions table. */
+:deep(.plugin-detail-descriptions .ant-descriptions-item-label) {
+  min-width: 112px;
+  white-space: nowrap;
+}
+</style>

@@ -1,4 +1,5 @@
-// This file verifies authentication service interface boundaries.
+// This file verifies auth.go public contract surfaces: Service method
+// boundaries and user-session ClientType parsing.
 
 package auth
 

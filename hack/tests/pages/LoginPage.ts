@@ -81,6 +81,18 @@ export class LoginPage {
     return this.page.getByText("其他登录方式", { exact: true }).first();
   }
 
+  /**
+   * Host chrome for Vben-style third-party login (divider + icon row).
+   * Hidden when no plugin injects into `auth.login.after`.
+   */
+  get externalAuthRegion() {
+    return this.page.getByTestId("login-external-auth-region");
+  }
+
+  get thirdPartyLoginDivider() {
+    return this.page.getByTestId("login-third-party-divider");
+  }
+
   get leftAuthPanel() {
     return this.page.locator('.side-content[data-side="left"]').first();
   }
@@ -113,6 +125,18 @@ export class LoginPage {
     // The main login button has aria-label="login", distinguishing it from
     // "手机号登录" and "扫码登录" buttons
     return this.page.locator('button[aria-label="login"]');
+  }
+
+  /**
+   * Host-owned outlet for plugin login extensions (`auth.login.after`).
+   * Protocol-plugin specific entries must not be hard-coded here.
+   */
+  get externalAuthSlot() {
+    return this.page.getByTestId("login-external-auth-slot");
+  }
+
+  get externalAuthSlotItems() {
+    return this.externalAuthSlot.locator(".plugin-slot-outlet__item");
   }
 
   get errorMessage() {

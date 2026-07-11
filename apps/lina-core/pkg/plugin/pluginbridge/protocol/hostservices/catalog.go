@@ -222,6 +222,8 @@ var catalog = []ServiceDescriptor{
 			hostMethod(HostServiceMethodAuthSwitchTenant, "HostServiceMethodAuthSwitchTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodAuthIssueImpersonationToken, "HostServiceMethodAuthIssueImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodAuthRevokeImpersonationToken, "HostServiceMethodAuthRevokeImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			// external_login uses resource refs as provider IDs for dynamic ownership.
+			hostMethod(HostServiceMethodAuthExternalLoginByVerifiedIdentity, "HostServiceMethodAuthExternalLoginByVerifiedIdentity", "host:auth:external_login", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodAuthzBatchGetPermissions, "HostServiceMethodAuthzBatchGetPermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodAuthzBatchHasPermissions, "HostServiceMethodAuthzBatchHasPermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodAuthzHasPermission, "HostServiceMethodAuthzHasPermission", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
@@ -239,6 +241,7 @@ var catalog = []ServiceDescriptor{
 			hostMethod(HostServiceMethodUsersList, "HostServiceMethodUsersList", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodUsersEnsureVisible, "HostServiceMethodUsersEnsureVisible", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodUsersCreate, "HostServiceMethodUsersCreate", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod(HostServiceMethodUsersCreateFromExternal, "HostServiceMethodUsersCreateFromExternal", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodUsersUpdate, "HostServiceMethodUsersUpdate", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodUsersDelete, "HostServiceMethodUsersDelete", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod(HostServiceMethodUsersSetStatus, "HostServiceMethodUsersSetStatus", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
