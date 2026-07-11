@@ -296,7 +296,9 @@ onUnmounted(() => {
         'form-is-required': shouldRequired,
         'flex-col': isVertical,
         'flex-row items-center': !isVertical,
-        'pb-4': !compact,
+        // Reserve a modest gap under absolute FormMessage (tighter than pb-7).
+        'pb-4': !compact && !isInValid,
+        'pb-5': !compact && isInValid,
         'pb-2': compact,
       }"
       class="relative flex"
@@ -324,7 +326,11 @@ onUnmounted(() => {
           <VbenRenderContent :content="label" />
         </template>
       </FormLabel>
-      <div class="flex-auto overflow-hidden p-px">
+      <!--
+        Use overflow-x-hidden (not overflow-hidden) so absolute FormMessage can
+        extend into the FormItem bottom padding without being clipped.
+      -->
+      <div class="flex-auto overflow-x-hidden p-px">
         <div :class="cn('relative flex w-full items-center', wrapperClass)">
           <FormControl :class="cn(controlClass)">
             <slot
@@ -387,7 +393,7 @@ onUnmounted(() => {
         </FormDescription>
 
         <Transition name="slide-up" v-if="!compact">
-          <FormMessage class="absolute" />
+          <FormMessage class="absolute left-0 right-0" />
         </Transition>
       </div>
     </FormItem>

@@ -77,20 +77,22 @@ export class LoginPage {
     return this.page.getByRole("button", { name: "扫码登录" });
   }
 
-  get thirdPartyLoginTitle() {
-    return this.page.getByText("其他登录方式", { exact: true }).first();
-  }
-
   /**
-   * Host chrome for Vben-style third-party login (divider + icon row).
-   * Hidden when no plugin injects into `auth.login.after`.
+   * Host region for full-width protocol / directory login buttons
+   * (`auth.login.after`: generic OIDC, LDAP, …).
+   * Hidden when no plugin injects into that slot.
    */
   get externalAuthRegion() {
     return this.page.getByTestId("login-external-auth-region");
   }
 
-  get thirdPartyLoginDivider() {
-    return this.page.getByTestId("login-third-party-divider");
+  /**
+   * Host region for platform social icon logins
+   * (`auth.login.social`: Google, Discord, …) under “其他登录方式”.
+   * Hidden when no plugin injects into that slot.
+   */
+  get socialAuthRegion() {
+    return this.page.getByTestId("login-social-auth-region");
   }
 
   get leftAuthPanel() {
@@ -128,8 +130,8 @@ export class LoginPage {
   }
 
   /**
-   * Host-owned outlet for plugin login extensions (`auth.login.after`).
-   * Protocol-plugin specific entries must not be hard-coded here.
+   * Host-owned outlet for protocol / directory login extensions
+   * (`auth.login.after`). Plugin-specific entries must not be hard-coded here.
    */
   get externalAuthSlot() {
     return this.page.getByTestId("login-external-auth-slot");
@@ -137,6 +139,18 @@ export class LoginPage {
 
   get externalAuthSlotItems() {
     return this.externalAuthSlot.locator(".plugin-slot-outlet__item");
+  }
+
+  /**
+   * Host-owned outlet for platform social icon extensions
+   * (`auth.login.social`). Plugin-specific entries must not be hard-coded here.
+   */
+  get socialAuthSlot() {
+    return this.page.getByTestId("login-social-auth-slot");
+  }
+
+  get socialAuthSlotItems() {
+    return this.socialAuthSlot.locator(".plugin-slot-outlet__item");
   }
 
   get errorMessage() {

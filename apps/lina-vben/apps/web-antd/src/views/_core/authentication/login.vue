@@ -244,35 +244,46 @@ async function handleSelectTenant() {
       </VbenButton>
     </div>
     <!--
-      第三方登录对齐 Vben5 AuthenticationLogin / ThirdPartyLogin：
-      「其他登录方式」分隔线 + 横向图标按钮行。
+      协议 / 目录登录（通用 OIDC、LDAP 等）：全宽单行按钮纵向排列。
       无插件注入时通过 :has(.plugin-slot-outlet) 整块隐藏。
     -->
     <div
       class="login-external-auth w-full sm:mx-auto md:max-w-md"
       data-testid="login-external-auth-region"
     >
-      <div
-        class="mt-4 flex items-center justify-between"
-        data-testid="login-third-party-divider"
-      >
+      <PluginSlotOutlet
+        :slot-key="pluginSlotKeys.authLoginAfter"
+        class="mt-4 flex w-full flex-col gap-3"
+        data-testid="login-external-auth-slot"
+      />
+    </div>
+    <!--
+      第三方平台账号（Google / Discord / QQ 等）：Vben 同构分隔线 + 横向图标行。
+      无插件注入时整块隐藏。
+    -->
+    <div
+      class="login-social-auth w-full sm:mx-auto md:max-w-md"
+      data-testid="login-social-auth-region"
+    >
+      <div class="mt-4 flex items-center justify-between">
         <span class="w-[35%] border-b border-input dark:border-gray-600"></span>
-        <span class="text-center text-xs text-muted-foreground uppercase">
+        <span class="text-center text-xs uppercase text-muted-foreground">
           {{ $t('authentication.thirdPartyLogin') }}
         </span>
         <span class="w-[35%] border-b border-input dark:border-gray-600"></span>
       </div>
       <PluginSlotOutlet
-        :slot-key="pluginSlotKeys.authLoginAfter"
+        :slot-key="pluginSlotKeys.authLoginSocial"
         class="mt-4 flex flex-wrap justify-center"
-        data-testid="login-external-auth-slot"
+        data-testid="login-social-auth-slot"
       />
     </div>
   </div>
 </template>
 
 <style scoped>
-.login-external-auth:not(:has(.plugin-slot-outlet)) {
+.login-external-auth:not(:has(.plugin-slot-outlet)),
+.login-social-auth:not(:has(.plugin-slot-outlet)) {
   display: none;
 }
 </style>

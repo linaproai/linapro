@@ -71,6 +71,11 @@
 
 ## Feedback
 
+- [x] **FB-12**: 登录页第三方入口区分展示形态——平台账号（Google/Discord 等）用图标行聚合，通用 OIDC/LDAP 保持全宽按钮
+  - **根因**：FB-9 曾对齐 Vben 图标行，但后续通用 OIDC/LDAP 落地时把所有外部登录统一成 `auth.login.after` 全宽按钮；平台账号（Google/Discord）与协议/目录登录（OIDC/LDAP）语义不同却共用同一布局，不符合 Vben「其他登录方式」图标聚合约定
+  - **修复**：宿主新增 `auth.login.social` 槽位；`login.vue` 拆为协议全宽按钮区 +「其他登录方式」图标区（各自无注入时 `:has` 隐藏）；Google/Discord 迁入 `auth.login.social` 并以圆形 `type="text"` 图标 + Tooltip 呈现；OIDC Generic/LDAP 仍留在 `auth.login.after` 全宽按钮
+  - **影响分析**：i18n=无新增键（复用 `authentication.thirdPartyLogin` 与插件 `login.button` 作 tooltip）；缓存=无；数据权限=无；开发工具=无；测试=宿主 TC006 TC-2e/2f + Google/Discord TC001e + 回归 Generic OIDC/LDAP 全宽按钮 E2E；DI=无；文档=两插件双语 README 槽位路径同步；OpenSpec=新增 `login-external-auth-presentation` 增量规范 + design FB-12 校正
+  - **验证**：`openspec validate refactor-external-identity-to-provider-plugin --strict` 通过；TC006 6 passed；Google/Discord TC001 10 passed；Generic OIDC/LDAP TC001 登录按钮子测此前同批通过
 - [x] **FB-11**: `linapro-extid-core` 插件私有表名不符合项目规范（应为 `plugin_<plugin-id>_*`）
   - **根因**：实现/设计把宿主 `sys_user_external_identity` 迁出时仅去掉 `sys_`，写成裸表名 `user_external_identity`；与全仓插件私有表约定 `plugin_<plugin-id-with-underscores>_<entity>`（如 `plugin_linapro_org_core_dept`、`plugin_linapro_tenant_core_user_membership`）不一致
   - **修复**：表重命名为 `plugin_linapro_extid_core_user_external_identity`；索引缩短为 `uk_plugin_linapro_extid_core_identity_provider_subject` / `idx_plugin_linapro_extid_core_identity_user`（规避 PG 63 字符标识符上限）；同步安装/卸载 SQL、`hack/config.yaml`（`removePrefix`）、DAO/DO/Entity、identity 单测建表、插件 README、OpenSpec D2/spec/proposal

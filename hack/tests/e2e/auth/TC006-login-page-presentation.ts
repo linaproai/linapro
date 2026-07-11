@@ -31,9 +31,8 @@ test.describe("TC-2 登录页展示收口与布局", () => {
     await expect(loginPage.createAccountEntry).toBeHidden();
     await expect(loginPage.mobileLoginButton).toBeHidden();
     await expect(loginPage.qrCodeLoginButton).toBeHidden();
-    // 「其他登录方式」由宿主在 auth.login.after 有插件注入时展示（对齐 Vben
-    // ThirdPartyLogin 分隔线），不再视为未实现入口。无插件时整块区域隐藏；
-    // 有插件时可见——此处不强制 hidden，由 TC-2e 覆盖布局契约。
+    // 外部登录双区域：auth.login.after（协议全宽按钮）与 auth.login.social
+    // （平台图标行）。无插件时各自整块隐藏。布局契约见 TC-2e / TC-2f。
 
     for (const path of [
       "/auth/code-login",
@@ -84,15 +83,14 @@ test.describe("TC-2 登录页展示收口与布局", () => {
     );
   });
 
-  test("TC-2e: 外部登录插槽对齐 Vben5 横向图标行与分隔线", async ({
+  test("TC-2e: 协议登录插槽为全宽单行按钮纵向排列", async ({
     loginPage,
     page,
   }) => {
     await loginPage.goto();
 
-    // 宿主契约：login.vue 对齐 Vben ThirdPartyLogin —
-    // 分隔线「其他登录方式」+ flex-wrap justify-center 横向图标行。
-    // 使用与生产一致的 class 注入多入口夹具，不绑定具体 OIDC 插件。
+    // 宿主契约：login.vue 对 auth.login.after 使用 flex-col 全宽纵向按钮栈。
+    // 使用与生产一致的 class 注入多入口夹具，不绑定具体插件。
     const fixture = page.getByTestId("login-external-auth-slot-fixture");
     await page.evaluate(() => {
       const region =
@@ -109,53 +107,119 @@ test.describe("TC-2 登录页展示收口与布局", () => {
           return el;
         })();
 
-      // Ensure the Vben-style divider is present for the fixture.
-      if (!region.querySelector('[data-testid="login-third-party-divider"]')) {
-        const divider = document.createElement("div");
-        divider.className = "mt-4 flex items-center justify-between";
-        divider.setAttribute("data-testid", "login-third-party-divider");
-        divider.innerHTML = `
-          <span class="w-[35%] border-b border-input"></span>
-          <span class="text-center text-xs text-muted-foreground uppercase">其他登录方式</span>
-          <span class="w-[35%] border-b border-input"></span>
-        `;
-        region.prepend(divider);
-      }
-
       let host = region.querySelector(
         '[data-testid="login-external-auth-slot"]',
       ) as HTMLElement | null;
       if (!host) {
         host = document.createElement("div");
         // Mirror apps/web-antd login.vue PluginSlotOutlet classes.
-        host.className =
-          "mt-4 flex flex-wrap justify-center plugin-slot-outlet";
+        host.className = "mt-4 flex w-full flex-col gap-3 plugin-slot-outlet";
         host.setAttribute("data-testid", "login-external-auth-slot");
         region.appendChild(host);
       }
 
       host.setAttribute("data-testid", "login-external-auth-slot-fixture");
-      host.className =
-        "mt-4 flex flex-wrap justify-center plugin-slot-outlet";
+      host.className = "mt-4 flex w-full flex-col gap-3 plugin-slot-outlet";
       host.innerHTML = `
-        <div class="plugin-slot-outlet__item" style="height:40px;width:40px;background:#e5e7eb;margin:0 4px"></div>
-        <div class="plugin-slot-outlet__item" style="height:40px;width:40px;background:#d1d5db;margin:0 4px"></div>
+        <div class="plugin-slot-outlet__item w-full" style="height:40px;width:100%;background:#e5e7eb"></div>
+        <div class="plugin-slot-outlet__item w-full" style="height:40px;width:100%;background:#d1d5db"></div>
       `;
     });
 
     await expect(fixture).toBeVisible();
-    await expect(page.getByTestId("login-third-party-divider")).toBeVisible();
-    await expect(loginPage.thirdPartyLoginTitle).toBeVisible();
 
     const display = await fixture.evaluate((el) => {
       const style = getComputedStyle(el);
       return {
         display: style.display,
+        flexDirection: style.flexDirection,
+      };
+    });
+    expect(display.display).toBe("flex");
+    expect(display.flexDirection).toBe("column");
+
+    const items = fixture.locator(".plugin-slot-outlet__item");
+    expect(await items.count()).toBe(2);
+    const firstBox = await items.nth(0).boundingBox();
+    const secondBox = await items.nth(1).boundingBox();
+    expect(firstBox).not.toBeNull();
+    expect(secondBox).not.toBeNull();
+    // Vertical stack: second item is below the first (same column).
+    expect(secondBox!.y).toBeGreaterThan(firstBox!.y + firstBox!.height - 1);
+    const horizontalDelta = Math.abs(secondBox!.x - firstBox!.x);
+    expect(horizontalDelta).toBeLessThanOrEqual(8);
+  });
+
+  test("TC-2f: 平台社交登录插槽为横向图标行", async ({ loginPage, page }) => {
+    await loginPage.goto();
+
+    // 宿主契约：login.vue 对 auth.login.social 使用 flex-wrap 横向图标行，
+    // 并带「其他登录方式」分隔线。夹具不绑定具体平台插件。
+    const fixture = page.getByTestId("login-social-auth-slot-fixture");
+    await page.evaluate(() => {
+      const region =
+        document.querySelector('[data-testid="login-social-auth-region"]') ??
+        (() => {
+          const el = document.createElement("div");
+          el.className = "login-social-auth w-full sm:mx-auto md:max-w-md";
+          el.setAttribute("data-testid", "login-social-auth-region");
+          const formRoot =
+            document.querySelector("form")?.parentElement ?? document.body;
+          formRoot.appendChild(el);
+          return el;
+        })();
+
+      // Ensure divider markup exists when injecting fixture into a synthetic region.
+      if (!region.querySelector(".text-muted-foreground")) {
+        const divider = document.createElement("div");
+        divider.className = "mt-4 flex items-center justify-between";
+        divider.innerHTML = `
+          <span class="w-[35%] border-b border-input"></span>
+          <span class="text-center text-xs uppercase text-muted-foreground">其他登录方式</span>
+          <span class="w-[35%] border-b border-input"></span>
+        `;
+        region.appendChild(divider);
+      }
+
+      let host = region.querySelector(
+        '[data-testid="login-social-auth-slot"]',
+      ) as HTMLElement | null;
+      if (!host) {
+        host = document.createElement("div");
+        host.className =
+          "mt-4 flex flex-wrap justify-center plugin-slot-outlet";
+        host.setAttribute("data-testid", "login-social-auth-slot");
+        region.appendChild(host);
+      }
+
+      host.setAttribute("data-testid", "login-social-auth-slot-fixture");
+      host.className =
+        "mt-4 flex flex-wrap justify-center plugin-slot-outlet";
+      host.innerHTML = `
+        <div class="plugin-slot-outlet__item" style="height:36px;width:36px;background:#e5e7eb;border-radius:9999px"></div>
+        <div class="plugin-slot-outlet__item" style="height:36px;width:36px;background:#d1d5db;border-radius:9999px"></div>
+      `;
+    });
+
+    await expect(fixture).toBeVisible();
+    await expect(
+      page.getByText("其他登录方式", { exact: true }).first(),
+    ).toBeVisible();
+
+    const display = await fixture.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        display: style.display,
+        flexDirection: style.flexDirection,
         flexWrap: style.flexWrap,
         justifyContent: style.justifyContent,
       };
     });
     expect(display.display).toBe("flex");
+    // Default flex-direction is row when not set to column.
+    expect(display.flexDirection === "row" || display.flexDirection === "").toBe(
+      true,
+    );
     expect(display.flexWrap).toBe("wrap");
     expect(display.justifyContent).toBe("center");
 

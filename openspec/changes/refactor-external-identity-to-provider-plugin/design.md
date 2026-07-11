@@ -27,8 +27,11 @@
 
 - 不改动 token 铸造、会话、租户解析、pre-token、登录 hook 等核心 auth 编排——这是硬边界。
 - 不把 external login 能力开放给动态插件（继续 fail-closed stub，安全论证见 PR #54）。
-- 不引入新的前端页面结构变化（登录按钮仍走 `auth.login.after` 槽位）。
 - 不做存量数据迁移（新项目，插件安装建表 + 宿主删表即可）。
+- **（FB-12 校正）** 登录页外部登录入口按形态拆分两个宿主槽位，不再把平台账号与协议/企业登录混在同一纵向按钮栈：
+  - `auth.login.after`：通用协议/目录登录（OIDC Generic、LDAP 等）→ 全宽单行按钮纵向排列。
+  - `auth.login.social`：第三方平台账号（Google、Discord、QQ 等）→ Vben「其他登录方式」分隔线 + 横向圆形图标按钮。
+  - 两区域各自在无插件注入时整块隐藏；互不影响。
 
 ## Decisions
 
