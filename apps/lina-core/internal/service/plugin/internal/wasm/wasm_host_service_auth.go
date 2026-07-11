@@ -11,9 +11,9 @@ import (
 	"lina-core/pkg/plugin/capability/authcap/authz"
 	"lina-core/pkg/plugin/capability/authcap/extlogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
-	"lina-core/pkg/plugin/pluginhost"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // dispatchAuthHostService routes auth token host-service calls.
