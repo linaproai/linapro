@@ -71,6 +71,11 @@
 
 ## Feedback
 
+- [x] **FB-10**: Google/Discord 插件介绍描述去技术化，改为产品化官方插件文案
+  - **根因**：`plugin.yaml` / `plugin.json` 仍写 “external-identity seam / 外部身份接缝 / 参考源码插件”，与 `linapro-extid-core` 及内容/监控类官方插件「Official source plugin for … / 提供…的官方源码插件」风格不一致
+  - **修复**：重写 en-US 源文本与 zh-CN 翻译；同步插件清单 README 与插件 README 首段；名称保持不变
+  - **影响分析**：i18n=有（`plugin.linapro-oidc-*.description` en/zh）；缓存=无；数据权限=无；开发工具=无；测试=JSON 键与 en 对齐 `plugin.yaml` 静态校验；DI=无
+  - **验证**：JSON 解析 + en-US 与 `plugin.yaml` description 一致
 - [x] **FB-9**: 登录页第三方登录入口对齐 Vben5 样式（分隔线 + 横向图标按钮）
   - **根因**：宿主 `auth.login.after` 使用纵向全宽 Ant Design 按钮；与 Vben5 `ThirdPartyLogin`（「其他登录方式」分隔线 + 横向圆形图标按钮）不一致
   - **修复**：宿主 `login.vue` 增加 Vben 同构分隔线与 `flex-wrap justify-center` 图标行（无插件时 `:has` 隐藏）；Google/Discord 入口改为圆形 `type="text"` 图标按钮 + Tooltip；复用既有 i18n 键作 tooltip
