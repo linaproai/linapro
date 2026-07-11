@@ -429,7 +429,7 @@ function resolveRuntimeErrorMessage(error: unknown) {
 
         <div class="grid gap-3 lg:grid-cols-2">
           <div
-            class="rounded-md border border-[var(--ant-color-border)] p-3"
+            class="rounded-xl border border-[var(--ant-color-border)] p-3"
             data-testid="plugin-upgrade-from-manifest"
           >
             <div
@@ -455,7 +455,7 @@ function resolveRuntimeErrorMessage(error: unknown) {
           </div>
 
           <div
-            class="rounded-md border border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg)] p-3"
+            class="rounded-xl border border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg)] p-3"
             data-testid="plugin-upgrade-to-manifest"
           >
             <div

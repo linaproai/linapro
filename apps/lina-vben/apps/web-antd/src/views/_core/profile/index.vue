@@ -45,7 +45,7 @@ async function handleProfileUpdated() {
       <ProfilePanel :profile="profile" @upload-finish="handleUploadFinish" />
       <!-- 右侧 -->
       <div
-        class="bg-background rounded-[var(--radius)] px-[16px] pt-[4px] lg:flex-1"
+        class="bg-background rounded-xl px-[16px] pt-[4px] lg:flex-1"
       >
         <Tabs default-active-key="basic">
           <TabPane key="basic" :tab="$t('pages.profile.tabs.basic')">

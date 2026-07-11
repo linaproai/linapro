@@ -534,7 +534,7 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
 
       <div
         v-if="showInstallModeOption"
-        class="bg-muted/40 flex flex-col gap-3 rounded-md border border-dashed p-3"
+        class="bg-muted/40 flex flex-col gap-3 rounded-xl border border-dashed p-3"
         data-testid="plugin-install-mode-section"
       >
         <div
@@ -582,7 +582,7 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
 
       <div
         v-if="showMockDataOption"
-        class="bg-muted/40 flex items-center gap-2 rounded-md border border-dashed p-3"
+        class="bg-muted/40 flex items-center gap-2 rounded-xl border border-dashed p-3"
         data-testid="plugin-install-mock-data-section"
       >
         <Checkbox

@@ -103,7 +103,7 @@ function formatBlocker(blocker: PluginDependencyBlocker) {
 <template>
   <div
     v-if="shouldRender"
-    class="flex flex-col gap-3 rounded-md border border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] p-3"
+    class="flex flex-col gap-3 rounded-xl border border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] p-3"
     data-testid="plugin-dependency-summary"
   >
     <Alert

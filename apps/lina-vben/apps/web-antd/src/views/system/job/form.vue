@@ -789,7 +789,7 @@ async function handleConfirm() {
 
       <div
         v-if="!isBuiltin"
-        class="rounded-md border border-border px-4 py-4"
+        class="rounded-xl border border-border px-4 py-4"
       >
         <div class="mb-3 flex items-center justify-between">
           <div>
@@ -827,7 +827,7 @@ async function handleConfirm() {
 
       <div
         v-if="isBuiltin"
-        class="rounded-md border border-border px-4 py-4"
+        class="rounded-xl border border-border px-4 py-4"
         data-testid="job-builtin-detail-card"
       >
         <div class="mb-3 flex items-center justify-between">
@@ -874,7 +874,7 @@ async function handleConfirm() {
 
       <div
         v-else
-        class="rounded-md border border-border px-4 py-4"
+        class="rounded-xl border border-border px-4 py-4"
       >
         <div class="mb-3 flex items-center justify-between">
           <div>

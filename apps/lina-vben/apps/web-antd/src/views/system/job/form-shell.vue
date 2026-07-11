@@ -187,7 +187,7 @@ defineExpose({
     </div>
     <Form />
 
-    <div class="rounded-md border border-border px-4 py-4">
+    <div class="rounded-xl border border-border px-4 py-4">
       <div class="mb-3 flex items-center justify-between">
         <div>
           <div class="text-sm font-medium">
