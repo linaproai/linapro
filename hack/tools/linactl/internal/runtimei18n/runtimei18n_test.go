@@ -154,9 +154,9 @@ func TestScanRuntimeI18NReportsAllowlistAndExcludedStats(t *testing.T) {
 	}
 }
 
-// TestValidateHostBizerrMessageKeysReportsMissingCatalogEntry verifies host
-// bizerr MustDefine keys are checked against host error.json catalogs only.
-func TestValidateHostBizerrMessageKeysReportsMissingCatalogEntry(t *testing.T) {
+// TestValidateBizerrMessageKeysReportsHostMissingCatalogEntry verifies host
+// bizerr MustDefine keys are checked against host error.json catalogs.
+func TestValidateBizerrMessageKeysReportsHostMissingCatalogEntry(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
@@ -189,7 +189,7 @@ var CodeDemoMissing = bizerr.MustDefine(
 `,
 	)
 
-	errors, err := validateHostBizerrMessageKeys(repoRoot)
+	errors, err := validateBizerrMessageKeys(repoRoot)
 	if err != nil {
 		t.Fatalf("expected host bizerr validation to run, got error: %v", err)
 	}

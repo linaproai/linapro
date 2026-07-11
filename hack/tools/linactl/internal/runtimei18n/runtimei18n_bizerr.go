@@ -247,13 +247,3 @@ func pluginI18nEnabled(pluginYAMLPath string) (bool, error) {
 	}
 	return payload.I18n != nil && payload.I18n.Enabled, nil
 }
-
-// validateHostBizerrMessageKeys is retained as a thin alias for tests and
-// call sites that only care about the host module.
-func validateHostBizerrMessageKeys(repoRoot string) ([]string, error) {
-	hostRoot := filepath.Join(repoRoot, "apps", "lina-core")
-	if info, err := os.Stat(hostRoot); err != nil || !info.IsDir() {
-		return nil, nil
-	}
-	return validateModuleBizerrMessageKeys("host:core", hostRoot, filepath.Join(hostRoot, "manifest", "i18n"))
-}
