@@ -8,7 +8,7 @@
 
 - [x] 1b.1 `ExternalProvisionInput`（`auth.go`）与用户域 `ProvisionExternalInput` 增加可选 `UsernameAnchor` 字段；`ProvisionExternalUser` 放宽 `@` 校验为"邮箱为空且 anchor 提供 → 允许"，anchor 存在时用 `resolveProvisionUsernameFromAnchor` 派生用户名；startup adapter 透传 anchor
 - [x] 1b.2 建号幂等以链接表 `(provider,subject)` 唯一索引为权威锚点（`sys_user` 仅 `username` 唯一、`email` 无唯一索引，MUST NOT 假设 email 唯一）；无邮箱 anchor 派生用户名须**确定性可复现**（去掉 `resolveProvisionUsername` 的数字后缀去重对 anchor 路径的干扰，同 anchor 命中已有 username 即复用对应账号），MUST NOT 对同一外部身份重复建立有效链接；唯一索引冲突捕获不冒泡 500。**anchor 须碰撞抗性**：从 `(provider,subject)` 取足够熵派生（username `VARCHAR(64)`、provision 上限 30 字符有余量），或在 username 冲突复用前二次校验 re-resolve 的 `(provider,subject)` 链接一致，避免不同 subject 短哈希碰撞导致账号误合并/接管
-  - **落地（插件侧，组 5）**：权威锚点=`user_external_identity` 的 `(provider,subject)` 部分唯一索引（`WHERE deleted_at IS NULL`，解绑释放键）；anchor 由插件 `deriveUsernameAnchor` 从 `sha256(provider+"\x00"+subject)` 取 16 hex（64 bit 碰撞抗性，`oidc-` 前缀共 21 字符 < 30 上限）确定性派生；插件 `Provision` 幂等快路径 + 插入冲突后 re-resolve 复用胜出链接不冒泡 500。宿主侧确定性 anchor→username 复用（1b.1）已就位。测试：`TestProvisionEmaillessDerivesDeterministicAnchor`、`TestProvisionAbsorbsConcurrentUniqueConflict`、`TestProvisionReusesExistingLinkageIdempotently`
+  - **落地（插件侧，组 5）**：权威锚点=`plugin_linapro_extid_core_user_external_identity` 的 `(provider,subject)` 部分唯一索引（`WHERE deleted_at IS NULL`，解绑释放键）；anchor 由插件 `deriveUsernameAnchor` 从 `sha256(provider+"\x00"+subject)` 取 16 hex（64 bit 碰撞抗性，`oidc-` 前缀共 21 字符 < 30 上限）确定性派生；插件 `Provision` 幂等快路径 + 插入冲突后 re-resolve 复用胜出链接不冒泡 500。宿主侧确定性 anchor→username 复用（1b.1）已就位。测试：`TestProvisionEmaillessDerivesDeterministicAnchor`、`TestProvisionAbsorbsConcurrentUniqueConflict`、`TestProvisionReusesExistingLinkageIdempotently`
 - [x] 1b.3 在 `usercap` 宽接口新增插件可调的最小权限外部建号方法 `ProvisionExternal`（区别于 `usercap.Create` 操作员建号），宿主适配器 `user_capability.go` 委托 `ProvisionExternalUser`。**作用域：源码插件专用**（唯一消费者 `linapro-extid-core` 为 `type: source`）——动态插件侧按 `Auth.ExternalLogin()` 先例提供 **fail-closed guest stub**（`domainhostcall_users.go`），**不**登记 protocol 常量 / descriptor / WASM dispatcher case（设计见 D6a，安全依据见 Non-Goal）。补 `TestUsersProvisionExternalFailsClosed` 断言动态路径 fail-closed 且不触达 transport
   - **DI 来源检查**：无新增运行期依赖。`usercap.Service` 契约新增方法，宿主实现落在既有 `userCapabilityAdapter`（owner=`usersvc.Service`，启动期 `httpstartup_runtime.go` 构造并注入，本任务未改构造函数签名）；guest stub 无依赖。9 处测试 fake（host 5 + 插件 4）新增 no-op 方法以维持接口一致性
   - **影响分析**：i18n=无影响（未新增用户可见文案/错误码，fail-closed stub 用 `gerror` 非 bizerr，不进入本地化响应载荷，与既有 `ExternalLogin` stub 一致）；缓存一致性=无影响（无缓存/派生状态）；数据权限=无影响（建号原语 operator-less，去重锚点由插件侧 `(provider,subject)` 负责，非本任务）；开发工具跨平台=无影响（未改脚本/Makefile）；测试策略=新增 1 个 fail-closed 单测，改动 `usercap`/user service/domainhostcall 3 包 69 测试全通过
@@ -31,7 +31,7 @@
 
 - [x] 4.1 创建 `apps/lina-plugins/linapro-extid-core/` 目录结构（`plugin.yaml`、`plugin_embed.go`、`go.mod`/`go.sum`、`Makefile`、`hack/config.yaml`、`backend/plugin.go`、`manifest/`），参照 `linapro-demo-source`；无 `frontend/`（capability-only，embed 仅 `plugin.yaml manifest`）
 - [x] 4.2 `plugin.yaml` 声明 `type: source`、`distribution: builtin`、`platform_only`/`global`、`i18n` 配置（en-US 默认 + zh-CN）；无独立菜单（仅提供能力 + 自隔离 API）
-- [x] 4.3 建表 SQL 与卸载 SQL 落地：`user_external_identity`（字段按 D2；软删 `deleted_at` + **部分唯一索引** `WHERE deleted_at IS NULL`，解绑释放 `(provider,subject)` 键以支持重绑；`idx_user_external_identity_user` 支撑 List/Unbind；全部 `IF NOT EXISTS` 幂等；无自增 id 显式写入；无 Seed DML）。卸载 SQL 仅 `DROP TABLE`，**不级联删除** `sys_user` 孤儿账号（7.5 语义，注释记录）
+- [x] 4.3 建表 SQL 与卸载 SQL 落地：`plugin_linapro_extid_core_user_external_identity`（字段按 D2；软删 `deleted_at` + **部分唯一索引** `WHERE deleted_at IS NULL`，解绑释放 `(provider,subject)` 键以支持重绑；`idx_plugin_linapro_extid_core_identity_user` 支撑 List/Unbind；全部 `IF NOT EXISTS` 幂等；无自增 id 显式写入；无 Seed DML）。卸载 SQL 仅 `DROP TABLE`，**不级联删除** `sys_user` 孤儿账号（7.5 语义，注释记录）
 - [x] 4.4 插件 `hack/config.yaml` DAO 生成配置 + `make dao dir=apps/lina-plugins/linapro-extid-core/backend` 生成 DAO/DO/Entity（先经临时 SQL 执行器建表，执行后即删）
 
 ## 5. 插件实现 provider SPI
@@ -71,6 +71,11 @@
 
 ## Feedback
 
+- [x] **FB-11**: `linapro-extid-core` 插件私有表名不符合项目规范（应为 `plugin_<plugin-id>_*`）
+  - **根因**：实现/设计把宿主 `sys_user_external_identity` 迁出时仅去掉 `sys_`，写成裸表名 `user_external_identity`；与全仓插件私有表约定 `plugin_<plugin-id-with-underscores>_<entity>`（如 `plugin_linapro_org_core_dept`、`plugin_linapro_tenant_core_user_membership`）不一致
+  - **修复**：表重命名为 `plugin_linapro_extid_core_user_external_identity`；索引缩短为 `uk_plugin_linapro_extid_core_identity_provider_subject` / `idx_plugin_linapro_extid_core_identity_user`（规避 PG 63 字符标识符上限）；同步安装/卸载 SQL、`hack/config.yaml`（`removePrefix`）、DAO/DO/Entity、identity 单测建表、插件 README、OpenSpec D2/spec/proposal
+  - **影响分析**：i18n=无；缓存=无；数据权限=无（仅物理表名，自隔离语义不变）；开发工具=无；测试=identity 单测；DI=无；文档=插件 README 双语文档同步
+  - **验证**：`GOWORK=off go test ./backend/internal/service/identity/...` 通过；`openspec validate refactor-external-identity-to-provider-plugin --strict` 通过；静态检索无裸表名 `user_external_identity` 残留（历史宿主 `sys_*` 引用除外）
 - [x] **FB-10**: Google/Discord 插件介绍描述去技术化，改为产品化官方插件文案
   - **根因**：`plugin.yaml` / `plugin.json` 仍写 “external-identity seam / 外部身份接缝 / 参考源码插件”，与 `linapro-extid-core` 及内容/监控类官方插件「Official source plugin for … / 提供…的官方源码插件」风格不一致
   - **修复**：重写 en-US 源文本与 zh-CN 翻译；同步插件清单 README 与插件 README 首段；名称保持不变

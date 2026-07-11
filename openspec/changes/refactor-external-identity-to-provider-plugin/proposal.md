@@ -6,7 +6,7 @@
 
 ## What Changes
 
-- 新增 `linapro-extid-core` 源码插件（`distribution: builtin`），承载外部身份链接存储与开户/绑定编排：拥有插件私有表 `user_external_identity`（去 `sys_` 前缀）、链接记录 CRUD、`Resolve(provider, subject) → userID`、开户策略与绑定/解绑逻辑。
+- 新增 `linapro-extid-core` 源码插件（`distribution: builtin`），承载外部身份链接存储与开户/绑定编排：拥有插件私有表 `plugin_linapro_extid_core_user_external_identity`（`plugin_linapro_extid_core_*` 前缀）、链接记录 CRUD、`Resolve(provider, subject) → userID`、开户策略与绑定/解绑逻辑。
 - 宿主新增 `ExternalIdentityProvider` SPI（`pkg/plugin/capability/authcap/extlogin/extidspi`），定义"外部身份 → 本地用户"解析与开户的稳定能力接缝；仿照既有 `orgspi`/`tenantspi` 的 provider 管理与注入模式。宿主 provider 缺失时 `extlogin` 走 fail-closed，与 tenant/org 能力缺失返回中性值的处理一致。
 - 宿主 `LoginByExternalIdentity` 重构：把"查链接表 + `tryAutoProvision`"替换为调用注入的 `ExternalIdentityProvider`；**token 铸造、会话持久化、租户解析、pre-token、登录 hook、IP 黑名单与禁用账号检查等核心 auth 编排全部留在宿主不变**（这是硬边界——任何登录路径都由宿主铸 token）。
 - 宿主移除 `sys_user_external_identity` 相关：DAO/DO/Entity 生成工件、`013-auth-external-identity.sql`、`user_provision_external.go` 中的外部身份链接写入，迁移到插件；宿主仅保留 `ProvisionExternalUser` 这一"最小权限建号"的用户域能力（供 provider 反向调用建号）。
@@ -18,7 +18,7 @@
 ### New Capabilities
 
 - `external-identity-provider-seam`: 宿主侧 `ExternalIdentityProvider` SPI 契约——定义外部身份解析、开户、绑定/解绑的稳定能力接缝，provider 由源码插件实现、宿主持有 manager 并注入；覆盖 fail-closed 语义、provider ownership 治理、与 `extlogin` 登录路径的协作边界，以及 token/session 铸造留在宿主的硬约束。
-- `oidc-core-identity-store`: `linapro-extid-core` 插件能力——插件私有表 `user_external_identity` 的存储与生命周期、`(provider, subject)` 解析、host-owned 最小权限开户编排、无邮箱开户策略、已登录用户绑定/解绑外部身份，以及数据权限与卸载清理边界。
+- `oidc-core-identity-store`: `linapro-extid-core` 插件能力——插件私有表 `plugin_linapro_extid_core_user_external_identity` 的存储与生命周期、`(provider, subject)` 解析、host-owned 最小权限开户编排、无邮箱开户策略、已登录用户绑定/解绑外部身份，以及数据权限与卸载清理边界。
 
 ### Modified Capabilities
 
@@ -29,6 +29,6 @@
 - **宿主 `apps/lina-core`**：`internal/service/auth/auth_external_identity.go`（重构为调用 provider）、`auth_provisioner_bind.go`、`internal/service/user/user_provision_external.go`（收敛为纯建号）；移除 `sys_user_external_identity` DAO/DO/Entity 与 `013-auth-external-identity.sql`；新增 `extidspi` 包与宿主装配注入；`hack/config.yaml` DAO 生成清单移除该表。
 - **新插件 `apps/lina-plugins/linapro-extid-core`**：新建完整源码插件（`plugin.yaml`、`backend/`、`manifest/sql/`、`manifest/i18n/`、`plugin_embed.go`、`hack/config.yaml`），实现 provider SPI。
 - **既有插件**：`linapro-oidc-google`、`linapro-oidc-discord` 新增对 `linapro-extid-core` 的依赖声明；登录调用路径不变（仍走 `extlogin` seam）。
-- **数据库**：`sys_user_external_identity` → 插件私有表 `user_external_identity`；需数据迁移策略（新项目无历史负担，采用插件安装 SQL 建表 + 宿主删表，无存量数据迁移）。
+- **数据库**：`sys_user_external_identity` → 插件私有表 `plugin_linapro_extid_core_user_external_identity`；需数据迁移策略（新项目无历史负担，采用插件安装 SQL 建表 + 宿主删表，无存量数据迁移）。
 - **数据权限**：链接表读写与绑定/解绑动作须按 `.agents/rules/data-permission.md` 评估——外部身份链接属用户自隔离资源，绑定/解绑仅作用于当前会话用户，登录解析走 `(provider, subject)` 唯一键不泄露他账号存在性。
 - **文档**：`pkg/plugin/README.md` Auth 域条目、`apps/lina-plugins/README.md` 插件清单、新插件 README 双语。

@@ -65,7 +65,7 @@
 ### 4 — 新建 linapro-extid-core 插件（在 apps/lina-plugins 子仓库）
 
 - 参照 `apps/lina-plugins/linapro-demo-source/` 结构：`plugin.yaml`（type: source, distribution: builtin, 无菜单、仅能力）、`plugin_embed.go`、`go.mod`、`Makefile`、`hack/config.yaml`（DAO 生成）、`backend/plugin.go`。
-- 私有表 `user_external_identity`（**去 sys_ 前缀**）：字段 `user_id`、`provider`、`subject`、`plugin_id`、`email_snapshot`、`created_at`、`updated_at`、`deleted_at`，**`(provider, subject)` 唯一索引**。建表 SQL 放 `manifest/sql/`，卸载 SQL 放 `manifest/sql/uninstall/`。遵守 `.agents/rules/database.md` 软删+时间字段。
+- 私有表 `plugin_linapro_extid_core_user_external_identity`（**`plugin_linapro_extid_core_*` 前缀**）：字段 `user_id`、`provider`、`subject`、`plugin_id`、`email_snapshot`、`created_at`、`updated_at`、`deleted_at`，**`(provider, subject)` 唯一索引**。建表 SQL 放 `manifest/sql/`，卸载 SQL 放 `manifest/sql/uninstall/`。遵守 `.agents/rules/database.md` 软删+时间字段。
 - 在插件目录跑 `make dao` 生成 DAO/DO/Entity。
 - **验收硬证据**：`apps/lina-plugins/linapro-extid-core/plugin.yaml` 必须存在于磁盘。
 

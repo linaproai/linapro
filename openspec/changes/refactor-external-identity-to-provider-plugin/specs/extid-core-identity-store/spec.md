@@ -2,12 +2,12 @@
 
 ### Requirement: linapro-extid-core 插件拥有外部身份链接存储
 
-`linapro-extid-core` SHALL 是随宿主编译交付的源码插件（`distribution: builtin`），拥有插件私有表 `user_external_identity`（去 `sys_` 前缀），存储 `(provider, subject) → userID` 链接、发起插件 ID 与邮箱快照。该表 SHALL 通过插件安装 SQL 建表、卸载 SQL 清理，插件 MUST 维护自身 `hack/config.yaml` 的 DAO 生成配置，MUST NOT 依赖宿主的 `dao`/`do`/`entity` 生成工件。宿主 SHALL 移除 `sys_user_external_identity` 表及其生成工件与 `013-auth-external-identity.sql`。
+`linapro-extid-core` SHALL 是随宿主编译交付的源码插件（`distribution: builtin`），拥有插件私有表 `plugin_linapro_extid_core_user_external_identity`（`plugin_linapro_extid_core_*` 前缀），存储 `(provider, subject) → userID` 链接、发起插件 ID 与邮箱快照。该表 SHALL 通过插件安装 SQL 建表、卸载 SQL 清理，插件 MUST 维护自身 `hack/config.yaml` 的 DAO 生成配置，MUST NOT 依赖宿主的 `dao`/`do`/`entity` 生成工件。宿主 SHALL 移除 `sys_user_external_identity` 表及其生成工件与 `013-auth-external-identity.sql`。
 
 #### Scenario: 链接表随插件安装与卸载
 
 - **WHEN** 安装 `linapro-extid-core`
-- **THEN** 插件 SHALL 通过安装 SQL 创建 `user_external_identity` 表；卸载时 SHALL 通过卸载 SQL 清理该表
+- **THEN** 插件 SHALL 通过安装 SQL 创建 `plugin_linapro_extid_core_user_external_identity` 表；卸载时 SHALL 通过卸载 SQL 清理该表
 
 #### Scenario: 宿主不再持有外部身份表
 
@@ -16,7 +16,7 @@
 
 ### Requirement: 插件实现外部身份解析与开户编排
 
-`linapro-extid-core` SHALL 实现宿主 `ExternalIdentityProvider` SPI，提供 `(provider, subject)` 解析为本地 userID 的能力，以及 host-owned 最小权限开户编排。因建号（宿主 `sys_user`）与链接写入（插件 `user_external_identity`）跨模块无法共享单一事务，开户 SHALL 采用"先建号 → 再写链接"顺序，并以链接表 `(provider, subject)` 唯一索引作为权威去重锚点；建号 SHALL 幂等，链接写入失败或并发冲突时不重复建立有效链接。开户策略（含邮箱冲突判定）SHALL 闭环在插件内，宿主不再承载具体开户策略。
+`linapro-extid-core` SHALL 实现宿主 `ExternalIdentityProvider` SPI，提供 `(provider, subject)` 解析为本地 userID 的能力，以及 host-owned 最小权限开户编排。因建号（宿主 `sys_user`）与链接写入（插件 `plugin_linapro_extid_core_user_external_identity`）跨模块无法共享单一事务，开户 SHALL 采用"先建号 → 再写链接"顺序，并以链接表 `(provider, subject)` 唯一索引作为权威去重锚点；建号 SHALL 幂等，链接写入失败或并发冲突时不重复建立有效链接。开户策略（含邮箱冲突判定）SHALL 闭环在插件内，宿主不再承载具体开户策略。
 
 #### Scenario: 已链接身份解析为本地用户
 
@@ -63,7 +63,7 @@
 
 ### Requirement: 并发开户与链接的正确性
 
-权威去重锚点是 `user_external_identity` 的 `(provider, subject)` 唯一索引（`sys_user` 仅 `username` 唯一、`email` 无唯一索引，因此不能以 email 唯一性做去重）。当同一 `(provider, subject)` 的多个登录请求并发到达且身份未链接时，为避免竞态产生游离 `sys_user`，实现 SHOULD 先以 `(provider, subject)` 抢占链接（如先插入占位链接或使用唯一索引冲突语义）再补建号，或在补偿路径中容忍未链接的建号孤儿。系统 SHALL 保证同一 `(provider, subject)` 最终只有**一条有效链接、指向一个账号**；唯一索引冲突 SHALL 被捕获并转为复用已链接账号或返回冲突错误，MUST NOT 冒泡为 500。无邮箱开户的用户名 anchor 派生 SHALL 确定性可复现（同一 anchor 复用同一账号），MUST NOT 因数字后缀去重导致同一外部身份重复建号。并发竞态下可能出现的未链接建号孤儿 SHALL 按插件禁用与卸载数据处置规则容忍（不影响有效链接唯一性）。
+权威去重锚点是 `plugin_linapro_extid_core_user_external_identity` 的 `(provider, subject)` 唯一索引（`sys_user` 仅 `username` 唯一、`email` 无唯一索引，因此不能以 email 唯一性做去重）。当同一 `(provider, subject)` 的多个登录请求并发到达且身份未链接时，为避免竞态产生游离 `sys_user`，实现 SHOULD 先以 `(provider, subject)` 抢占链接（如先插入占位链接或使用唯一索引冲突语义）再补建号，或在补偿路径中容忍未链接的建号孤儿。系统 SHALL 保证同一 `(provider, subject)` 最终只有**一条有效链接、指向一个账号**；唯一索引冲突 SHALL 被捕获并转为复用已链接账号或返回冲突错误，MUST NOT 冒泡为 500。无邮箱开户的用户名 anchor 派生 SHALL 确定性可复现（同一 anchor 复用同一账号），MUST NOT 因数字后缀去重导致同一外部身份重复建号。并发竞态下可能出现的未链接建号孤儿 SHALL 按插件禁用与卸载数据处置规则容忍（不影响有效链接唯一性）。
 
 #### Scenario: 并发未链接登录只产生一条有效链接
 
@@ -77,7 +77,7 @@
 
 ### Requirement: 插件禁用与卸载的数据处置
 
-`linapro-extid-core` 被**禁用**时，`user_external_identity` 表 SHALL 保留，external login 走 fail-closed，重新启用后链接 SHALL 恢复可用。被**卸载**时，卸载 SQL SHALL 清理 `user_external_identity` 表，但 MUST NOT 级联删除宿主 `sys_user` 中经外部登录建立的账号——这些账号 SHALL 作为无外部链接的孤儿账号保留，可由管理员重置密码后以密码登录。
+`linapro-extid-core` 被**禁用**时，`plugin_linapro_extid_core_user_external_identity` 表 SHALL 保留，external login 走 fail-closed，重新启用后链接 SHALL 恢复可用。被**卸载**时，卸载 SQL SHALL 清理 `plugin_linapro_extid_core_user_external_identity` 表，但 MUST NOT 级联删除宿主 `sys_user` 中经外部登录建立的账号——这些账号 SHALL 作为无外部链接的孤儿账号保留，可由管理员重置密码后以密码登录。
 
 #### Scenario: 禁用保留链接数据
 
@@ -87,7 +87,7 @@
 #### Scenario: 卸载断开链接但保留账号
 
 - **WHEN** 插件被卸载
-- **THEN** 卸载 SQL SHALL 删除 `user_external_identity` 表，宿主 `sys_user` 中对应账号 SHALL 保留且不被级联删除
+- **THEN** 卸载 SQL SHALL 删除 `plugin_linapro_extid_core_user_external_identity` 表，宿主 `sys_user` 中对应账号 SHALL 保留且不被级联删除
 
 ### Requirement: 外部身份链接数据权限边界
 

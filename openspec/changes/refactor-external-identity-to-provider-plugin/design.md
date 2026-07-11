@@ -48,9 +48,9 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 
 理由：满足架构规则「新增抽象须隔离已确认变化点」——微信/QQ/SAML 的存储与开户差异都收敛在 provider 后面；宿主契约按「以当前稳定职责为中心保持简洁」只暴露解析/开户/绑定，不泄露 token 内部。
 
-### D2. 链接表迁为插件私有表 `user_external_identity`
+### D2. 链接表迁为插件私有表 `plugin_linapro_extid_core_user_external_identity`
 
-去 `sys_` 前缀（插件私有表约定），字段沿用：`user_id`、`provider`、`subject`、`plugin_id`、`email_snapshot`、时间/软删字段按 `database.md`。`(provider, subject)` 唯一索引。建表走插件安装 SQL，卸载走 uninstall SQL。插件维护自身 `hack/config.yaml` DAO 生成，宿主移除该表全部工件。
+按插件私有表约定使用 `plugin_<plugin-id-with-underscores>_<entity>` 前缀（与 org-core/tenant-core 等一致），字段沿用：`user_id`、`provider`、`subject`、`plugin_id`、`email_snapshot`、时间/软删字段按 `database.md`。`(provider, subject)` 唯一索引。建表走插件安装 SQL，卸载走 uninstall SQL。插件维护自身 `hack/config.yaml` DAO 生成，宿主移除该表全部工件。
 
 理由：`plugin.md`「禁止插件重新依赖宿主的 dao/do/entity 生成工件」+「插件 SQL 遵守 database.md」。
 
@@ -85,7 +85,7 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 
 - **扩展建号原语接受用户名 anchor**：`ProvisionExternalInput`/`usercap` provision DTO 增加可选 `UsernameAnchor` 字段。邮箱为空时用 anchor 派生用户名（如 `wechat-<subject 短哈希>`），并把 `:45-46` 的 `@` 校验放宽为"邮箱为空且 anchor 提供 → 允许"。邮箱非空仍走原派生。"用户如何被 shape"仍留宿主用户域（`user_provision_external.go:1-8` 职责声明不变），只是 shape 输入锚点从"仅邮箱"扩展为"邮箱或 anchor"。**这是必须的 host 契约变更**，不是 task 2.3 之前误写的"只保留纯建号"。
 - **新增插件可调的 provisioning seam**：在 `usercap`（宽接口）新增最小权限外部建号方法（区别于 `usercap.Create` 的操作员建号——后者带租户/角色/创建边界校验，非 provisioning 的 operator-less 语义）。插件 provider 通过注入的 `usercap.Service` 调用它建号，宿主内部仍委托 `ProvisionExternalUser`。
-- **事务契约与去重锚点**：provision（宿主 `sys_user` 写）+ 链接写入（插件 `user_external_identity` 写）跨模块，无法共享单 GoFrame TX。权威去重锚点是**链接表 `(provider,subject)` 唯一索引**——不是 `sys_user` 的 email/username（核对 `001-user-auth-bootstrap.sql`：仅 `uk_sys_user_username` 唯一，`email` 无唯一索引且默认 `''`，且 `resolveProvisionUsername` 遇冲突加数字后缀，天然不会触发"冲突复用")。因此正确性保证收敛为"**同一 `(provider,subject)` 最终只有一条有效链接、指向一个账号**"，而非"只建一个 `sys_user`"。实现顺序两选一：① 先以 `(provider,subject)` 抢占链接（先插占位或用唯一索引冲突）再补建号，避免游离账号；② 先建号→再写链接，链接唯一索引冲突时复用已链接账号，竞态下可能留下未链接建号孤儿（按 D7 容忍）。无邮箱 anchor 派生用户名**必须确定性可复现**，使同一 anchor 命中同一 username → 复用同一账号。
+- **事务契约与去重锚点**：provision（宿主 `sys_user` 写）+ 链接写入（插件 `plugin_linapro_extid_core_user_external_identity` 写）跨模块，无法共享单 GoFrame TX。权威去重锚点是**链接表 `(provider,subject)` 唯一索引**——不是 `sys_user` 的 email/username（核对 `001-user-auth-bootstrap.sql`：仅 `uk_sys_user_username` 唯一，`email` 无唯一索引且默认 `''`，且 `resolveProvisionUsername` 遇冲突加数字后缀，天然不会触发"冲突复用")。因此正确性保证收敛为"**同一 `(provider,subject)` 最终只有一条有效链接、指向一个账号**"，而非"只建一个 `sys_user`"。实现顺序两选一：① 先以 `(provider,subject)` 抢占链接（先插占位或用唯一索引冲突）再补建号，避免游离账号；② 先建号→再写链接，链接唯一索引冲突时复用已链接账号，竞态下可能留下未链接建号孤儿（按 D7 容忍）。无邮箱 anchor 派生用户名**必须确定性可复现**，使同一 anchor 命中同一 username → 复用同一账号。
 
 ### D6a. provisioning seam 的插件作用域：源码插件专用 + 动态 fail-closed stub
 
@@ -102,12 +102,12 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 
 ### D7. disable 与 uninstall 的数据处置（回应 Momus #2 场景缺口）
 
-- **disable（保留数据）**：`linapro-extid-core` 被禁用时，`ExternalIdentityProvider` 注入视为缺失 → external login fail-closed（D4），但 `user_external_identity` 表**保留**，重新启用后链接恢复可用。
+- **disable（保留数据）**：`linapro-extid-core` 被禁用时，`ExternalIdentityProvider` 注入视为缺失 → external login fail-closed（D4），但 `plugin_linapro_extid_core_user_external_identity` 表**保留**，重新启用后链接恢复可用。
 - **uninstall（清理表 + 孤儿处置）**：卸载 SQL 删表后，宿主 `sys_user` 中经外部登录建的账号成为**无外部链接的孤儿账号**——它们有独立 userID、可被管理员重置密码后用密码登录，因此**不级联删除 sys_user**（避免误删真实用户）。卸载语义 = "断开所有外部身份链接，账号保留"，须在插件 README 与 uninstall SQL 注释写明。
 
 ### D8. 并发正确性（回应 Momus #2 TOCTOU）
 
-现状 email/username 均为 `Count`-then-`Insert` 的 TOCTOU（`auth_external_identity.go:52-60`、`user_provision_external.go:108-120`）。迁移后 `user_external_identity` 的 `(provider,subject)` 唯一索引是最终防线：并发下两请求同时 resolve 未命中 → 都尝试 provision+link，其一因唯一索引冲突失败。设计规定：**唯一索引冲突必须被捕获并转为 not-provisioned 复用路径或冲突错误，MUST NOT 冒泡为 500**，须有单测覆盖。
+现状 email/username 均为 `Count`-then-`Insert` 的 TOCTOU（`auth_external_identity.go:52-60`、`user_provision_external.go:108-120`）。迁移后 `plugin_linapro_extid_core_user_external_identity` 的 `(provider,subject)` 唯一索引是最终防线：并发下两请求同时 resolve 未命中 → 都尝试 provision+link，其一因唯一索引冲突失败。设计规定：**唯一索引冲突必须被捕获并转为 not-provisioned 复用路径或冲突错误，MUST NOT 冒泡为 500**，须有单测覆盖。
 
 ## Risks / Trade-offs
 
