@@ -179,7 +179,7 @@ func (p *sourcePlugin) GetCapabilityDescriptors() []capregistry.Descriptor {
 // GetExternalIdentityProviderFactory returns the declared external-identity
 // provider engine factory. It is distinct from GetExternalIdentityProviderIDs:
 // the factory supplies the resolve/provision engine (declared by
-// linapro-extid-core), while the ID list stamps ownership for calling plugins.
+// linapro-extlogin-core), while the ID list stamps ownership for calling plugins.
 func (p *sourcePlugin) GetExternalIdentityProviderFactory() extidspi.ProviderFactory {
 	if p == nil {
 		return nil

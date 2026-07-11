@@ -28,7 +28,7 @@ import (
 var ErrProviderUnavailable = errors.New("extidspi: no external-identity provider is available")
 
 // Provider is the external-identity capability implemented by a source plugin
-// (for example linapro-extid-core). The host holds at most one active provider
+// (for example linapro-extlogin-core). The host holds at most one active provider
 // and injects it into the auth service at startup. A nil provider keeps
 // external login fail-closed.
 type Provider interface {

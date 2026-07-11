@@ -2,11 +2,11 @@
 
 ### Requirement: 插件标识、分发与依赖
 
-系统 SHALL 提供 managed 源码插件 `linapro-oidc-generic`。该插件 MUST 在 `plugin.yaml` 中声明对 `linapro-extid-core` 的版本依赖（`>=0.1.0`）。未满足依赖时 MUST 无法成功启用。插件 MUST NOT 作为宿主 builtin 强制安装。
+系统 SHALL 提供 managed 源码插件 `linapro-oidc-generic`。该插件 MUST 在 `plugin.yaml` 中声明对 `linapro-extlogin-core` 的版本依赖（`>=0.1.0`）。未满足依赖时 MUST 无法成功启用。插件 MUST NOT 作为宿主 builtin 强制安装。
 
-#### Scenario: 缺少 extid-core 时无法启用
+#### Scenario: 缺少 extlogin-core 时无法启用
 
-- **WHEN** 管理员尝试启用 `linapro-oidc-generic` 且 `linapro-extid-core` 未安装或未启用
+- **WHEN** 管理员尝试启用 `linapro-oidc-generic` 且 `linapro-extlogin-core` 未安装或未启用
 - **THEN** 宿主依赖治理 MUST 阻止启用并给出依赖提示
 
 #### Scenario: 按需安装
@@ -35,7 +35,7 @@
 - `GET /portal/linapro-oidc-generic/login`
 - `GET /portal/linapro-oidc-generic/callback`
 
-登录流 MUST 使用 Authorization Code + PKCE (S256)。插件 MUST 通过 OIDC Discovery 解析授权/令牌/JWKS 端点（基于已配置 issuer）。回调 MUST 校验 state、nonce，并用 JWKS 验证 `id_token` 的签名及 `iss`/`aud`/`exp`（及实现要求的标准声明）。验签成功后 MUST 调用宿主 `ExternalLogin().LoginByVerifiedIdentity`，再经 `linapro-extid-core` handoff 将**一次性 handoff 码**回跳 SPA；回跳 URL MUST NOT 包含 access/refresh JWT。
+登录流 MUST 使用 Authorization Code + PKCE (S256)。插件 MUST 通过 OIDC Discovery 解析授权/令牌/JWKS 端点（基于已配置 issuer）。回调 MUST 校验 state、nonce，并用 JWKS 验证 `id_token` 的签名及 `iss`/`aud`/`exp`（及实现要求的标准声明）。验签成功后 MUST 调用宿主 `ExternalLogin().LoginByVerifiedIdentity`，再经 `linapro-extlogin-core` handoff 将**一次性 handoff 码**回跳 SPA；回跳 URL MUST NOT 包含 access/refresh JWT。
 
 #### Scenario: 未配置凭证 fail-closed
 
@@ -54,7 +54,7 @@
 
 ### Requirement: 自动开户默认关闭
 
-插件 SHALL 将 `AllowAutoProvision` 暴露为管理员可配置项，**默认关闭**。仅当配置显式开启时，调用 `LoginByVerifiedIdentity` 才允许 `AllowAutoProvision=true`。未链接身份且未开启自动开户时，行为 MUST 与宿主/extid-core 既有未开户拒绝语义一致。邮箱冲突防接管策略 MUST 继续由宿主/core 执行，插件不得静默绑定同邮箱他人账号。
+插件 SHALL 将 `AllowAutoProvision` 暴露为管理员可配置项，**默认关闭**。仅当配置显式开启时，调用 `LoginByVerifiedIdentity` 才允许 `AllowAutoProvision=true`。未链接身份且未开启自动开户时，行为 MUST 与宿主/extlogin-core 既有未开户拒绝语义一致。邮箱冲突防接管策略 MUST 继续由宿主/core 执行，插件不得静默绑定同邮箱他人账号。
 
 #### Scenario: 默认不自动开户
 
@@ -77,8 +77,8 @@
 
 #### Scenario: 菜单挂载
 
-- **WHEN** `linapro-extid-core` 与本插件均已安装启用
-- **THEN** 设置菜单 MUST 出现在 `plugin:linapro-extid-core:auth-login` 目录下，并具备 view/update 权限点
+- **WHEN** `linapro-extlogin-core` 与本插件均已安装启用
+- **THEN** 设置菜单 MUST 出现在 `plugin:linapro-extlogin-core:auth-login` 目录下，并具备 view/update 权限点
 
 ### Requirement: 登录入口与降级
 
@@ -101,16 +101,16 @@
 
 ### Requirement: 协议边界
 
-插件 MUST 只负责 OIDC 协议交互与已验证身份提交。插件 MUST NOT 铸造宿主 JWT、MUST NOT 直接写 `sys_user` 链接表、MUST NOT 在公开 HTTP 上接受客户端自报的裸 `provider`+`subject` 绑定。绑定已有用户 MUST 走 extid-core ticket 体系（若本变更提供绑定入口；否则可不暴露绑定 HTTP，仅登录路径）。
+插件 MUST 只负责 OIDC 协议交互与已验证身份提交。插件 MUST NOT 铸造宿主 JWT、MUST NOT 直接写 `sys_user` 链接表、MUST NOT 在公开 HTTP 上接受客户端自报的裸 `provider`+`subject` 绑定。绑定已有用户 MUST 走 extlogin-core ticket 体系（若本变更提供绑定入口；否则可不暴露绑定 HTTP，仅登录路径）。
 
 #### Scenario: 无链接表
 
 - **WHEN** 审查插件 SQL/DAO
-- **THEN** 插件 MUST NOT 新增外部身份链接业务表；链接归属仍为 `linapro-extid-core`
+- **THEN** 插件 MUST NOT 新增外部身份链接业务表；链接归属仍为 `linapro-extlogin-core`
 
 ### Requirement: 国际化与文档
 
-插件 `i18n.enabled` 为 true 时 MUST 提供 en-US 与 zh-CN 的 plugin/menu/error（及所需 apidoc）资源。MUST 提供双语 README，说明依赖 `linapro-extid-core`、安装顺序、provider 编码 `oidc:default`、回调 URL、安全约束与审查清单。
+插件 `i18n.enabled` 为 true 时 MUST 提供 en-US 与 zh-CN 的 plugin/menu/error（及所需 apidoc）资源。MUST 提供双语 README，说明依赖 `linapro-extlogin-core`、安装顺序、provider 编码 `oidc:default`、回调 URL、安全约束与审查清单。
 
 #### Scenario: 中英文菜单
 

@@ -6,11 +6,11 @@
 
 ## 一句话状态
 
-**重构主体已完成**：组 1、1b、2、3、4、5、6、8 全部落地，组 7 除 7.7 端到端探测（deferred，见 tasks 7.7）外完成。tasks.md 当前 37/38 勾选。宿主 login 已切到 manager-backed provider seam（fail-closed），旧表 `sys_user_external_identity` 及全部工件已删除，插件 `linapro-extid-core` 已创建并进入插件完整聚合（14 manifests）。验证基线：宿主 `go build`/`go vet ./...` 全绿（含修复组 1 遗留的 2 处 `authcap.New` 三参）、auth 外部登录 9 测试 + SPI manager 3 测试 + 插件 identity 7 测试全过、聚合 `go build` 通过、`make i18n.check` exit 0。**关键设计决议见 design D5b**（manager-backed lazy 注入，非 raw push；task 1.2 记述已校正）。唯一遗留：7.7 需运行完整宿主栈做真实登录链路探测（OAuth stub verifier 可离线走通），完成后勾选即可归档。注意：`TestLoginRejectsBlacklistedIP` 与 lint gofmt 告警均为预存在环境问题（工作目录 i18n 资源路径 / Windows CRLF checkout），已在 tasks 7.6 记录。
+**重构主体已完成**：组 1、1b、2、3、4、5、6、8 全部落地，组 7 除 7.7 端到端探测（deferred，见 tasks 7.7）外完成。tasks.md 当前 37/38 勾选。宿主 login 已切到 manager-backed provider seam（fail-closed），旧表 `sys_user_external_identity` 及全部工件已删除，插件 `linapro-extlogin-core` 已创建并进入插件完整聚合（14 manifests）。验证基线：宿主 `go build`/`go vet ./...` 全绿（含修复组 1 遗留的 2 处 `authcap.New` 三参）、auth 外部登录 9 测试 + SPI manager 3 测试 + 插件 identity 7 测试全过、聚合 `go build` 通过、`make i18n.check` exit 0。**关键设计决议见 design D5b**（manager-backed lazy 注入，非 raw push；task 1.2 记述已校正）。唯一遗留：7.7 需运行完整宿主栈做真实登录链路探测（OAuth stub verifier 可离线走通），完成后勾选即可归档。注意：`TestLoginRejectsBlacklistedIP` 与 lint gofmt 告警均为预存在环境问题（工作目录 i18n 资源路径 / Windows CRLF checkout），已在 tasks 7.6 记录。
 
 ## 目标（为什么做这个重构）
 
-把外部身份的**存储与开户策略**从宿主核心抽离到新源码插件 `linapro-extid-core`，宿主只保留：
+把外部身份的**存储与开户策略**从宿主核心抽离到新源码插件 `linapro-extlogin-core`，宿主只保留：
 1. 薄消费契约 `extlogin.Service`（已存在，不变）
 2. 新增 provider SPI `extidspi.Provider`（组 1 已建）
 3. **token/session/tenant 铸造留在宿主**（硬边界，任何登录路径都由宿主铸 token）
@@ -62,12 +62,12 @@
 - 新增 `domainhostcall_users_test.go::TestUsersProvisionExternalFailsClosed`（断言 fail-closed 且不触达 transport）。tasks 1b.3 已记 DI/影响/验证。
 - **⚠️ 预存在阻塞（非本任务，需组 2 附近顺手修）**：`go vet ./...` 有 2 个 `authcap.New` arity 错误——`wasm_host_service_test.go:664`、`integration_test.go:125`。组 1 auth SPI 给 `authcap.New` 加了第三参 `extlogin.Service`，但这两个测试文件的 `authcap.New(...)` 调用点未同步（`git stash` 对照证明与 1b.3 无关）。
 
-### 4 — 新建 linapro-extid-core 插件（在 apps/lina-plugins 子仓库）
+### 4 — 新建 linapro-extlogin-core 插件（在 apps/lina-plugins 子仓库）
 
 - 参照 `apps/lina-plugins/linapro-demo-source/` 结构：`plugin.yaml`（type: source, distribution: builtin, 无菜单、仅能力）、`plugin_embed.go`、`go.mod`、`Makefile`、`hack/config.yaml`（DAO 生成）、`backend/plugin.go`。
-- 私有表 `plugin_linapro_extid_core_user_external_identity`（**`plugin_linapro_extid_core_*` 前缀**）：字段 `user_id`、`provider`、`subject`、`plugin_id`、`email_snapshot`、`created_at`、`updated_at`、`deleted_at`，**`(provider, subject)` 唯一索引**。建表 SQL 放 `manifest/sql/`，卸载 SQL 放 `manifest/sql/uninstall/`。遵守 `.agents/rules/database.md` 软删+时间字段。
+- 私有表 `plugin_linapro_extlogin_core_user_external_identity`（**`plugin_linapro_extlogin_core_*` 前缀**）：字段 `user_id`、`provider`、`subject`、`plugin_id`、`email_snapshot`、`created_at`、`updated_at`、`deleted_at`，**`(provider, subject)` 唯一索引**。建表 SQL 放 `manifest/sql/`，卸载 SQL 放 `manifest/sql/uninstall/`。遵守 `.agents/rules/database.md` 软删+时间字段。
 - 在插件目录跑 `make dao` 生成 DAO/DO/Entity。
-- **验收硬证据**：`apps/lina-plugins/linapro-extid-core/plugin.yaml` 必须存在于磁盘。
+- **验收硬证据**：`apps/lina-plugins/linapro-extlogin-core/plugin.yaml` 必须存在于磁盘。
 
 ### 5 — 插件实现 provider SPI + Bind/Unbind/List 交付面 + i18n
 
@@ -99,7 +99,7 @@
 
 ### 6 — google/discord 依赖
 
-- `linapro-oidc-google`、`linapro-oidc-discord` 的 `plugin.yaml` 声明依赖 `linapro-extid-core`。
+- `linapro-oidc-google`、`linapro-oidc-discord` 的 `plugin.yaml` 声明依赖 `linapro-extlogin-core`。
 - 确认两者登录路径不变（仍走 `extlogin` seam），core 未启用时 external login fail-closed。
 
 ### 7 — 测试
@@ -114,7 +114,7 @@
 ### 8 — 文档
 
 - `apps/lina-core/pkg/plugin/README.md` + `README.zh-CN.md`：Auth 域 external-login + 新 provider SPI 边界 + fail-closed。**注意**：现有 README 文本还写着 "host-owned sys_user_external_identity linkages"，需改为经插件 provider 解析。
-- `apps/lina-plugins/README.md` 插件清单加 `linapro-extid-core`。
+- `apps/lina-plugins/README.md` 插件清单加 `linapro-extlogin-core`。
 - 新插件 `README.md` + `README.zh-CN.md` 双语。
 
 ## Momus 审查确认的关键契约（实现时必须遵守）

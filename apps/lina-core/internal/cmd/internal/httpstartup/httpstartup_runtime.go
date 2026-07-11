@@ -215,7 +215,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	)
 	// Bind the manager-backed external-identity provider seam. The bound value
 	// is the host manager-backed service (lazy, gated by plugin enablement), not
-	// a plugin's raw provider: disabling the provider plugin (linapro-extid-core)
+	// a plugin's raw provider: disabling the provider plugin (linapro-extlogin-core)
 	// immediately fails external login closed, and re-enabling restores it. The
 	// plugin only registers its factory at declaration time via
 	// RegisterSourcePluginProviderFactories below.

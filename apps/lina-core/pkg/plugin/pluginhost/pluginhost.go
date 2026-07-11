@@ -244,7 +244,7 @@ type ProviderDeclarations interface {
 	// ProvideExternalIdentityProvider declares this source plugin's
 	// external-identity provider engine factory (resolve/provision/link). It is
 	// orthogonal to ProvideExternalIdentity ownership stamping: the engine
-	// plugin (linapro-extid-core) supplies resolution and provisioning, while
+	// plugin (linapro-extlogin-core) supplies resolution and provisioning, while
 	// calling plugins (google/discord) still declare provider-ID ownership. Only
 	// one engine factory may be declared per plugin.
 	ProvideExternalIdentityProvider(factory extidspi.ProviderFactory) error

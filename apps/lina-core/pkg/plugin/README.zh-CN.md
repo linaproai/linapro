@@ -27,7 +27,7 @@ plugin-owned 非核心能力不归属`capability.Services`。owner 插件在`app
 | 领域能力 | 职责边界 | 运行期与校验路径 |
 | --- | --- | --- |
 | `APIDoc` | 解析本地化 API 文档中的路由文本和标题 operation key。 | 通过能力目录或`apidoc`host call 提供；校验关注路由和 operation key 载荷。 |
-| `Auth` | 通过`Token()`、`Authz()`和`ExternalLogin()`子能力处理租户 token 选择或切换、代用户 token、权限投影与外部身份登录。**安装授权后源码与动态插件同权同信**：宿主盖章调用方 pluginID；源码 ownership 用`ProvideExternalIdentity`，动态用`hostServices`下`auth`的`resources.ref`（provider ID）；方法 wire 为`external_login.login_by_verified_identity`。token/session 铸造仍在宿主。SPA handoff 由`linapro-extid-core`闭环。 | 运行期检查启用、方法授权与 provider ownership。外部身份引擎为`linapro-extid-core`；未装引擎时登录 fail-closed。 |
+| `Auth` | 通过`Token()`、`Authz()`和`ExternalLogin()`子能力处理租户 token 选择或切换、代用户 token、权限投影与外部身份登录。**安装授权后源码与动态插件同权同信**：宿主盖章调用方 pluginID；源码 ownership 用`ProvideExternalIdentity`，动态用`hostServices`下`auth`的`resources.ref`（provider ID）；方法 wire 为`external_login.login_by_verified_identity`。token/session 铸造仍在宿主。SPA handoff 由`linapro-extlogin-core`闭环。 | 运行期检查启用、方法授权与 provider ownership。外部身份引擎为`linapro-extlogin-core`；未装引擎时登录 fail-closed。 |
 | `AI` | 由`linapro-ai-core`以 plugin-owned 方式拥有；聚合文本、图片、向量、音频、视觉、文档、安全审核和视频等类型化 AI 子能力，并提供方法级状态投影。 | 源码插件 import `linapro-ai-core/backend/cap/aicap`；动态插件声明`owner: linapro-ai-core`、`service: ai`和`version: v1`。`lina-core`只治理 descriptor 发现、依赖检查、授权快照、owner-aware 路由、审计和缓存失效。 |
 | `Users` | 提供用户基础读取、有界列表、可见性、受治理写入、状态与凭证，以及`CreateFromExternal`（从外部身份最小权限建号）。动态`users`含`users.create_from_external`等已发布方法。 | 宿主保持可见性边界。`CreateFromExternal`无操作员、最小权限；需在`hostServices`中声明授权后可用。 |
 | `BizCtx` | 投影当前业务请求上下文。 | 作为只读运行期上下文桥接当前用户、租户、语言和请求元数据。 |

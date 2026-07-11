@@ -14,7 +14,7 @@ import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
 import { getUserInfoApi, loginApi, logoutApi } from '#/api';
-import { exchangeExternalLoginHandoffApi } from '#/api/extid';
+import { exchangeExternalLoginHandoffApi } from '#/api/extlogin';
 import { authSelectTenant } from '#/api/tenant';
 import { $t } from '#/locales';
 import { useTenantStore } from '#/store/tenant';

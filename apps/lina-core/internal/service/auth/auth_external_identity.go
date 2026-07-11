@@ -6,7 +6,7 @@
 // disabled-account check, tenant resolution, pre-login-token handoff, token
 // issuance, session persistence, and auth hooks owned by the auth service so
 // external login and password login stay behavior-compatible. Linkage storage
-// and provisioning policy are provider-owned (linapro-extid-core); when no
+// and provisioning policy are provider-owned (linapro-extlogin-core); when no
 // provider plugin is installed and enabled, external login is fail-closed: no
 // linkage resolves, no account is created, and no session is issued.
 //
@@ -39,7 +39,7 @@ import (
 // BindExternalIdentityProvider attaches the source-plugin external-identity
 // provider seam. It is called once from runtime assembly with the host
 // manager-backed service, which lazily resolves the enabled provider plugin
-// (linapro-extid-core) per call. A nil provider keeps external login
+// (linapro-extlogin-core) per call. A nil provider keeps external login
 // fail-closed.
 func (s *serviceImpl) BindExternalIdentityProvider(provider extidspi.Provider) {
 	if s == nil {

@@ -1,8 +1,8 @@
 ## 1. 骨架与清单
 
-- [x] 1.1 创建 `linapro-auth-ldap` 骨架：plugin.yaml（managed、依赖 extid-core）、go.mod、Makefile、plugin_embed、菜单 settings
+- [x] 1.1 创建 `linapro-auth-ldap` 骨架：plugin.yaml（managed、依赖 extlogin-core）、go.mod、Makefile、plugin_embed、菜单 settings
 - [x] 1.2 双语 i18n（plugin/menu/error/apidoc）+ embed 菜单单测
-- [x] 1.3 更新 plugins README 与 extid-core 协议插件列举
+- [x] 1.3 更新 plugins README 与 extlogin-core 协议插件列举
 
 ## 2. Settings
 

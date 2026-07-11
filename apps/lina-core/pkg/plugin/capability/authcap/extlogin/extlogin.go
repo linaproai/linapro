@@ -25,7 +25,7 @@ type Service interface {
 	// verification; the host performs no OAuth or token exchange. Requests for a
 	// provider the calling plugin does not own, or from a disabled plugin, are
 	// rejected. An unlinked identity is rejected without provisioning.
-	// Protocol plugins SHOULD hand the outcome to linapro-extid-core (extidcap
+	// Protocol plugins SHOULD hand the outcome to linapro-extlogin-core (extidcap
 	// CreateLoginHandoff) and redirect the SPA with only the handoff code; the
 	// host never puts JWTs into browser redirects and does not own handoff HTTP.
 	LoginByVerifiedIdentity(ctx context.Context, in LoginInput) (*LoginOutput, error)

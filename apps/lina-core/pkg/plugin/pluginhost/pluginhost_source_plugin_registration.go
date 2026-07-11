@@ -294,7 +294,7 @@ func (p *sourcePlugin) registerExternalIdentityProvider(providerID string) error
 }
 
 // registerExternalIdentityProviderFactory records the external-identity provider
-// engine factory declared by this source plugin (linapro-extid-core). It is
+// engine factory declared by this source plugin (linapro-extlogin-core). It is
 // orthogonal to registerExternalIdentityProvider: the factory supplies the
 // resolve/provision engine, while the ID list stamps ownership for calling
 // plugins. Only one engine factory may be declared per plugin.

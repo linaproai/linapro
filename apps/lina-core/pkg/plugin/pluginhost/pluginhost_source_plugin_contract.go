@@ -152,7 +152,7 @@ func (r *sourcePluginProviders) ProvideExternalIdentity(providerID string) error
 }
 
 // ProvideExternalIdentityProvider declares this source plugin's external-identity
-// provider engine factory (linapro-extid-core). It is distinct from
+// provider engine factory (linapro-extlogin-core). It is distinct from
 // ProvideExternalIdentity, which stamps provider-ID ownership for calling
 // plugins. A plugin that supplies the engine need not own any provider ID.
 func (r *sourcePluginProviders) ProvideExternalIdentityProvider(factory extidspi.ProviderFactory) error {

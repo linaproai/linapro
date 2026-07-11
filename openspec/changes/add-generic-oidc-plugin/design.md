@@ -3,7 +3,7 @@
 工作区已具备：
 
 - 宿主 `authcap.ExternalLogin.LoginByVerifiedIdentity`：协议插件提交已验证身份 → 会话/pre-token
-- `extidspi` + manager：链接解析/开户委托 `linapro-extid-core`，未启用 fail-closed
+- `extidspi` + manager：链接解析/开户委托 `linapro-extlogin-core`，未启用 fail-closed
 - 协议参考实现 `linapro-oidc-google` / `linapro-oidc-discord`：portal 登录/回调、settings 经 `sys_config`、slot 登录入口、handoff 回跳
 - `extidcap`：catalog 注册、`CreateLoginHandoffFromHost`、SPA `handoff/exchange`
 
@@ -24,7 +24,7 @@
 - 交付可安装启用的 `linapro-oidc-generic` 源码插件，完成真实 OIDC 授权码登录（非 stub verifier）。
 - 单 connection 配置：Issuer（Discovery）、Client ID/Secret、可选 Redirect URL、scopes、显示名/图标、AllowAutoProvision。
 - 安全：PKCE、state（HMAC）、nonce、`iss`/`aud`/`exp`/签名校验；secret 设置页脱敏。
-- 与现有协议插件同构集成：`ProvideExternalIdentity`、extid-core 依赖、handoff、catalog、菜单目录、slot。
+- 与现有协议插件同构集成：`ProvideExternalIdentity`、extlogin-core 依赖、handoff、catalog、菜单目录、slot。
 - 凭证未配置时 fail-closed（不 302 到伪造 client_id）。
 
 **Non-Goals:**
@@ -41,8 +41,8 @@
 
 - ID：`linapro-oidc-generic`
 - `type: source`，`distribution: managed`，`scope_nature: platform_only`，`default_install_mode: global`
-- `dependencies.plugins: [{ id: linapro-extid-core, version: ">=0.1.0" }]`
-- 菜单 `parent_key: plugin:linapro-extid-core:auth-login`
+- `dependencies.plugins: [{ id: linapro-extlogin-core, version: ">=0.1.0" }]`
+- 菜单 `parent_key: plugin:linapro-extlogin-core:auth-login`
 
 **替代**：builtin 强制安装——否决，与「第三方登录可装卸」一致。
 
@@ -140,13 +140,13 @@ PROTECTED /x/.../api/v1/settings                GET/PUT  权限 linapro-oidc-gen
 | connection key 日后多连接改名断链 | v1 固定 `default` 且文档声明 key 不可变 |
 | Client secret 进日志 | 禁止打印 secret；错误日志只记 provider/subject 哈希级信息 |
 | 与 google 设置项/SSO 规则不一致导致体验分裂 | v1 明确裁剪 backend_redirects；文档写清差异 |
-| 用户未装 extid-core | 依赖治理阻止启用；README 安装顺序 |
+| 用户未装 extlogin-core | 依赖治理阻止启用；README 安装顺序 |
 | IdP 不返回 email | 允许 email 空，走无邮箱开户策略（若开 JIT）或仅已绑定用户登录 |
 
 ## Migration Plan
 
 - 新插件，无历史数据迁移
-- 安装：`linapro-extid-core` → `linapro-oidc-generic` → 配置 issuer/凭证 → 启用
+- 安装：`linapro-extlogin-core` → `linapro-oidc-generic` → 配置 issuer/凭证 → 启用
 - 回滚：禁用/卸载插件；链接表中 `provider=oidc:default` 行随 core 表保留，不级联删用户
 - 卸载清数据策略跟随插件 SQL uninstall（若有 settings 种子则清理 sys_config 键）
 

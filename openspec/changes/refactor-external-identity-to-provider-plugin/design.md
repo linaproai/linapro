@@ -11,17 +11,17 @@
 - **A. 天生属于核心 auth（占 ~90%，不可下放）**：IP 黑名单、禁用账号检查、登录 hook 派发、租户解析（`loginTenants`）、多租户 pre-token（`preTokens.Create`）、**token 铸造（`generateTokenPair`）**、会话持久化（`createSession`）、登录时间更新。这些是 auth 服务私有方法，与密码登录共用同一 seam。
 - **B. 可下放（仅两块）**：`(provider, subject)` 链接表存储与解析、开户策略。
 
-框架已有 provider SPI 先例：`orgspi`、`tenantspi` 都是"插件实现 provider、宿主持有 manager 并注入、provider 缺失返回中性值/降级"。本设计照抄该模式，把 B 部分迁到 `linapro-extid-core` 插件，A 部分原地不动。项目为全新项目，无历史数据负担。
+框架已有 provider SPI 先例：`orgspi`、`tenantspi` 都是"插件实现 provider、宿主持有 manager 并注入、provider 缺失返回中性值/降级"。本设计照抄该模式，把 B 部分迁到 `linapro-extlogin-core` 插件，A 部分原地不动。项目为全新项目，无历史数据负担。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- 宿主核心只保留"薄领域接口 + SPI 定义"：`extlogin.Service`（不变）+ 新增 `ExternalIdentityProvider` SPI；链接表与开户策略随 `linapro-extid-core` 装卸。
+- 宿主核心只保留"薄领域接口 + SPI 定义"：`extlogin.Service`（不变）+ 新增 `ExternalIdentityProvider` SPI；链接表与开户策略随 `linapro-extlogin-core` 装卸。
 - provider 缺失时 `extlogin` fail-closed，语义与 tenant/org 能力缺失一致。
 - provider ownership 治理（`ProvideExternalIdentity` 盖章、拒绝未拥有 provider 与禁用插件）保持不变。
 - 顺带在插件内收敛两个 follow-up：无邮箱开户、绑定/解绑外部身份。
-- Google/Discord 插件登录调用路径不变（仍走 `extlogin` seam），仅新增对 `linapro-extid-core` 的运行时依赖。
+- Google/Discord 插件登录调用路径不变（仍走 `extlogin` seam），仅新增对 `linapro-extlogin-core` 的运行时依赖。
 
 **Non-Goals:**
 
@@ -51,7 +51,7 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 
 理由：满足架构规则「新增抽象须隔离已确认变化点」——微信/QQ/SAML 的存储与开户差异都收敛在 provider 后面；宿主契约按「以当前稳定职责为中心保持简洁」只暴露解析/开户/绑定，不泄露 token 内部。
 
-### D2. 链接表迁为插件私有表 `plugin_linapro_extid_core_user_external_identity`
+### D2. 链接表迁为插件私有表 `plugin_linapro_extlogin_core_user_external_identity`
 
 按插件私有表约定使用 `plugin_<plugin-id-with-underscores>_<entity>` 前缀（与 org-core/tenant-core 等一致），字段沿用：`user_id`、`provider`、`subject`、`plugin_id`、`email_snapshot`、时间/软删字段按 `database.md`。`(provider, subject)` 唯一索引。建表走插件安装 SQL，卸载走 uninstall SQL。插件维护自身 `hack/config.yaml` DAO 生成，宿主移除该表全部工件。
 
@@ -63,11 +63,11 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 
 ### D4. fail-closed 通过 provider 缺失实现
 
-宿主 auth 注入的 provider 为 nil（`linapro-extid-core` 未安装/未启用）时，`LoginByVerifiedIdentity` 返回 not-provisioned，不建号不铸 token。与 `orgspi`/`tenantspi` 的"provider 不在返回中性值"同构，但外部登录的中性值就是 fail-closed 拒绝。
+宿主 auth 注入的 provider 为 nil（`linapro-extlogin-core` 未安装/未启用）时，`LoginByVerifiedIdentity` 返回 not-provisioned，不建号不铸 token。与 `orgspi`/`tenantspi` 的"provider 不在返回中性值"同构，但外部登录的中性值就是 fail-closed 拒绝。
 
 ### D5. 插件依赖关系
 
-`linapro-oidc-google`/`linapro-oidc-discord` 声明对 `linapro-extid-core` 的依赖。core 为 `distribution: builtin`（宿主启动自动安装启用，保证依赖可满足）；google/discord 维持现状 `distribution: managed`——它们是带占位凭证的 OAuth 参考实现，不应被宿主启动强制安装，由用户按需启用（对原「三者均 builtin」表述的实施校正）。core 提供存储与 provider 实现，google/discord 仍只负责 OAuth 协议验签 + 调 `extlogin` seam。
+`linapro-oidc-google`/`linapro-oidc-discord` 声明对 `linapro-extlogin-core` 的依赖。core 为 `distribution: builtin`（宿主启动自动安装启用，保证依赖可满足）；google/discord 维持现状 `distribution: managed`——它们是带占位凭证的 OAuth 参考实现，不应被宿主启动强制安装，由用户按需启用（对原「三者均 builtin」表述的实施校正）。core 提供存储与 provider 实现，google/discord 仍只负责 OAuth 协议验签 + 调 `extlogin` seam。
 
 ### D5b. provider 注册与注入：manager-backed lazy service，非 raw push（校正 task 1.2 记述漂移）
 
@@ -76,7 +76,7 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 **落地形态**（最小 surface，复刻 tenant）：
 
 - `extidspi` 包新增 `ProviderEnv{PluginID, Users usercap.Service, BizCtx bizctxcap.Service}`、`ProviderFactory`、`Manager`/`NewManager`/`RegisterFactory`、`New(manager, enablement, envFactory) Provider`——`New(...)` 返回的 `Provider` 惰性解析已启用 factory，无启用 provider 时 fail-closed（`Resolve`→`found=false`；`Provision`/`Bind`/`Unbind`/`List`→not-provisioned 错误）。新增能力键常量 `CapabilityExternalIdentityV1`。
-- `pluginhost.ProviderDeclarations` 新增 `ProvideExternalIdentityProvider(factory)`——与既有**字符串** `ProvideExternalIdentity(providerID)`（google/discord 的 ownership 盖章）**并存且正交**：字符串 API 门禁"调用方插件是否拥有该 provider ID"，factory API 声明"谁提供 resolve/provision 引擎"。`linapro-extid-core` 只注册 factory、不声明任何 provider ID 字符串（它从不调用 `LoginByVerifiedIdentity`）。google/discord 的字符串 ownership 与测试**零改动**。
+- `pluginhost.ProviderDeclarations` 新增 `ProvideExternalIdentityProvider(factory)`——与既有**字符串** `ProvideExternalIdentity(providerID)`（google/discord 的 ownership 盖章）**并存且正交**：字符串 API 门禁"调用方插件是否拥有该 provider ID"，factory API 声明"谁提供 resolve/provision 引擎"。`linapro-extlogin-core` 只注册 factory、不声明任何 provider ID 字符串（它从不调用 `LoginByVerifiedIdentity`）。google/discord 的字符串 ownership 与测试**零改动**。
 - `httpstartup_runtime.go`：新增 `externalIdentityProviderManager = extidspi.NewManager()`；`externalIdentitySvc = extidspi.New(externalIdentityProviderManager, pluginRuntime, pluginRuntime.ExternalIdentityProviderEnv)`；在 `BindExternalProvisioner` 邻近调用 `authSvc.BindExternalIdentityProvider(externalIdentitySvc)`（注入的是 **manager-backed service**，非插件 raw provider）；`RegisterSourcePluginProviderFactories` 增加第 4 个 manager 参数。
 - **task 1.2 记述校正**：task 1.2 已实现的 `BindExternalIdentityProvider` seam 与 `identityProvider` 字段**保留不变**（复用），但其"沿用 `BindExternalProvisioner` 直注入范式"的措辞仅指"post-construction 绑定这一动作"，注入值必须是 manager-backed lazy service；HANDOFF 旧述"插件从 `backend/plugin.go` 调 `authSvc.BindExternalIdentityProvider`"作废——插件只在声明期注册 factory，绑定由宿主启动装配完成，插件不得直达 `authSvc`。此为记述校正，非设计分叉：与 Context 行 14/D4 一致。
 
@@ -88,11 +88,11 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 
 - **扩展建号原语接受用户名 anchor**：`ProvisionExternalInput`/`usercap` provision DTO 增加可选 `UsernameAnchor` 字段。邮箱为空时用 anchor 派生用户名（如 `wechat-<subject 短哈希>`），并把 `:45-46` 的 `@` 校验放宽为"邮箱为空且 anchor 提供 → 允许"。邮箱非空仍走原派生。"用户如何被 shape"仍留宿主用户域（`user_provision_external.go:1-8` 职责声明不变），只是 shape 输入锚点从"仅邮箱"扩展为"邮箱或 anchor"。**这是必须的 host 契约变更**，不是 task 2.3 之前误写的"只保留纯建号"。
 - **新增插件可调的 provisioning seam**：在 `usercap`（宽接口）新增最小权限外部建号方法（区别于 `usercap.Create` 的操作员建号——后者带租户/角色/创建边界校验，非 provisioning 的 operator-less 语义）。插件 provider 通过注入的 `usercap.Service` 调用它建号，宿主内部仍委托 `ProvisionExternalUser`。
-- **事务契约与去重锚点**：provision（宿主 `sys_user` 写）+ 链接写入（插件 `plugin_linapro_extid_core_user_external_identity` 写）跨模块，无法共享单 GoFrame TX。权威去重锚点是**链接表 `(provider,subject)` 唯一索引**——不是 `sys_user` 的 email/username（核对 `001-user-auth-bootstrap.sql`：仅 `uk_sys_user_username` 唯一，`email` 无唯一索引且默认 `''`，且 `resolveProvisionUsername` 遇冲突加数字后缀，天然不会触发"冲突复用")。因此正确性保证收敛为"**同一 `(provider,subject)` 最终只有一条有效链接、指向一个账号**"，而非"只建一个 `sys_user`"。实现顺序两选一：① 先以 `(provider,subject)` 抢占链接（先插占位或用唯一索引冲突）再补建号，避免游离账号；② 先建号→再写链接，链接唯一索引冲突时复用已链接账号，竞态下可能留下未链接建号孤儿（按 D7 容忍）。无邮箱 anchor 派生用户名**必须确定性可复现**，使同一 anchor 命中同一 username → 复用同一账号。
+- **事务契约与去重锚点**：provision（宿主 `sys_user` 写）+ 链接写入（插件 `plugin_linapro_extlogin_core_user_external_identity` 写）跨模块，无法共享单 GoFrame TX。权威去重锚点是**链接表 `(provider,subject)` 唯一索引**——不是 `sys_user` 的 email/username（核对 `001-user-auth-bootstrap.sql`：仅 `uk_sys_user_username` 唯一，`email` 无唯一索引且默认 `''`，且 `resolveProvisionUsername` 遇冲突加数字后缀，天然不会触发"冲突复用")。因此正确性保证收敛为"**同一 `(provider,subject)` 最终只有一条有效链接、指向一个账号**"，而非"只建一个 `sys_user`"。实现顺序两选一：① 先以 `(provider,subject)` 抢占链接（先插占位或用唯一索引冲突）再补建号，避免游离账号；② 先建号→再写链接，链接唯一索引冲突时复用已链接账号，竞态下可能留下未链接建号孤儿（按 D7 容忍）。无邮箱 anchor 派生用户名**必须确定性可复现**，使同一 anchor 命中同一 username → 复用同一账号。
 
 ### D6a. provisioning seam 的插件作用域：源码插件专用 + 动态 fail-closed stub
 
-新增的 `usercap` 外部建号方法（`usercap.Service.ProvisionExternal`）为**源码插件专用**。唯一消费者 `linapro-extid-core` 为 `type: source`，通过注入的 `usercap.Service` 直接调用。动态（WASM）插件通过 `usercap.Service` guest 契约得到 **fail-closed stub**（`domainhostcall_users.go` 的 `usersService.ProvisionExternal` 直接返回错误，不发 host call），与 `authcap` 的 `ExternalLogin()`（`domainhostcall_auth.go:43-63` 的 `externalLoginService`）同构；**不**登记 protocol 常量、host-service descriptor 或 WASM dispatcher case，即不发布为动态 `users` host service。
+新增的 `usercap` 外部建号方法（`usercap.Service.ProvisionExternal`）为**源码插件专用**。唯一消费者 `linapro-extlogin-core` 为 `type: source`，通过注入的 `usercap.Service` 直接调用。动态（WASM）插件通过 `usercap.Service` guest 契约得到 **fail-closed stub**（`domainhostcall_users.go` 的 `usersService.ProvisionExternal` 直接返回错误，不发 host call），与 `authcap` 的 `ExternalLogin()`（`domainhostcall_auth.go:43-63` 的 `externalLoginService`）同构；**不**登记 protocol 常量、host-service descriptor 或 WASM dispatcher case，即不发布为动态 `users` host service。
 
 理由：
 
@@ -105,12 +105,12 @@ List(ctx, UserID(当前会话)) ([]BoundIdentity, err error)
 
 ### D7. disable 与 uninstall 的数据处置（回应 Momus #2 场景缺口）
 
-- **disable（保留数据）**：`linapro-extid-core` 被禁用时，`ExternalIdentityProvider` 注入视为缺失 → external login fail-closed（D4），但 `plugin_linapro_extid_core_user_external_identity` 表**保留**，重新启用后链接恢复可用。
+- **disable（保留数据）**：`linapro-extlogin-core` 被禁用时，`ExternalIdentityProvider` 注入视为缺失 → external login fail-closed（D4），但 `plugin_linapro_extlogin_core_user_external_identity` 表**保留**，重新启用后链接恢复可用。
 - **uninstall（清理表 + 孤儿处置）**：卸载 SQL 删表后，宿主 `sys_user` 中经外部登录建的账号成为**无外部链接的孤儿账号**——它们有独立 userID、可被管理员重置密码后用密码登录，因此**不级联删除 sys_user**（避免误删真实用户）。卸载语义 = "断开所有外部身份链接，账号保留"，须在插件 README 与 uninstall SQL 注释写明。
 
 ### D8. 并发正确性（回应 Momus #2 TOCTOU）
 
-现状 email/username 均为 `Count`-then-`Insert` 的 TOCTOU（`auth_external_identity.go:52-60`、`user_provision_external.go:108-120`）。迁移后 `plugin_linapro_extid_core_user_external_identity` 的 `(provider,subject)` 唯一索引是最终防线：并发下两请求同时 resolve 未命中 → 都尝试 provision+link，其一因唯一索引冲突失败。设计规定：**唯一索引冲突必须被捕获并转为 not-provisioned 复用路径或冲突错误，MUST NOT 冒泡为 500**，须有单测覆盖。
+现状 email/username 均为 `Count`-then-`Insert` 的 TOCTOU（`auth_external_identity.go:52-60`、`user_provision_external.go:108-120`）。迁移后 `plugin_linapro_extlogin_core_user_external_identity` 的 `(provider,subject)` 唯一索引是最终防线：并发下两请求同时 resolve 未命中 → 都尝试 provision+link，其一因唯一索引冲突失败。设计规定：**唯一索引冲突必须被捕获并转为 not-provisioned 复用路径或冲突错误，MUST NOT 冒泡为 500**，须有单测覆盖。
 
 ## Risks / Trade-offs
 

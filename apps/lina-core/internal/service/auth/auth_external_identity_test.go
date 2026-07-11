@@ -2,7 +2,7 @@
 // linked local accounts through the bound provider seam, stays fail-closed
 // without a provider, reuses the shared login policy, and delegates
 // auto-provisioning through the provider. Linkage storage is provider-owned
-// (linapro-extid-core), so these tests bind a mock extidspi.Provider; only
+// (linapro-extlogin-core), so these tests bind a mock extidspi.Provider; only
 // sys_user fixtures touch the database. Assertions use stable bizerr codes
 // rather than localized text so they do not depend on i18n resource loading.
 

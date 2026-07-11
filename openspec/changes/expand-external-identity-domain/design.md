@@ -1,13 +1,13 @@
 ## Context
 
-工作区已具备：宿主 `extlogin` + `extidspi`、插件 `linapro-extid-core`（链接表与 Resolve/Provision/Bind）、google/discord 协议插件、Vben `completeExternalLogin`。缺口：core 误标 builtin、Bind 无证明、token 进 URL、领域接口按现状裁剪、无 Provider 目录/统一编排模型。
+工作区已具备：宿主 `extlogin` + `extidspi`、插件 `linapro-extlogin-core`（链接表与 Resolve/Provision/Bind）、google/discord 协议插件、Vben `completeExternalLogin`。缺口：core 误标 builtin、Bind 无证明、token 进 URL、领域接口按现状裁剪、无 Provider 目录/统一编排模型。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- 插件 ID 固定 `linapro-extid-core`；`distribution: managed`；未装/未启用 fail-closed + UI 隐藏。
-- 协议插件独立，`dependencies.plugins` 硬依赖 `linapro-extid-core`。
+- 插件 ID 固定 `linapro-extlogin-core`；`distribution: managed`；未装/未启用 fail-closed + UI 隐藏。
+- 协议插件独立，`dependencies.plugins` 硬依赖 `linapro-extlogin-core`。
 - 完整领域 cap `extidcap`：ticket、LoginPrepare、链接生命周期、catalog、policy、profile sync、admin 投影；接口全、实现分优先级。
 - 绑定仅 ticket；登录回跳仅 handoff code。
 - 宿主仍独占 token/session 铸造。
@@ -25,7 +25,7 @@
 
 1. **Host `authcap.ExternalLogin`**：已验证身份 → 会话；新增 handoff 创建/交换（或并列 auth API）。
 2. **Host `extidspi`**：宿主登录路径用 Resolve/Provision（可委托 LoginPrepare）；manager + enablement 不变。
-3. **Plugin-owned `extidcap`**（`linapro-extid-core/backend/cap/extidcap`）：完整领域面；协议插件与 HTTP API 消费。
+3. **Plugin-owned `extidcap`**（`linapro-extlogin-core/backend/cap/extidcap`）：完整领域面；协议插件与 HTTP API 消费。
 
 ### D2. managed + 降级
 
@@ -40,11 +40,11 @@
 - `BindByTicket` / `LoginPrepare` 只吃 ticket 或已盖章 VerifiedIdentity（服务端路径）。
 - 公开 HTTP 禁止裸 provider+subject 绑定。
 
-### D4. Login handoff（闭环在 linapro-extid-core）
+### D4. Login handoff（闭环在 linapro-extlogin-core）
 
 - 宿主仅铸造会话（`LoginByVerifiedIdentity`）；**不**暴露 handoff HTTP。
-- 协议插件拿到 `LoginOutput` 后调用 `extidcap.CreateLoginHandoffFromHost`；`linapro-extid-core` 持有一次性码。
-- SPA 调用 core 公开 API `POST /x/linapro-extid-core/api/v1/handoff/exchange` 兑换（插件 `g.Meta path` 仅声明业务相对路径 `/handoff/exchange`，不得再嵌套 `/plugins/{pluginId}/`）。
+- 协议插件拿到 `LoginOutput` 后调用 `extidcap.CreateLoginHandoffFromHost`；`linapro-extlogin-core` 持有一次性码。
+- SPA 调用 core 公开 API `POST /x/linapro-extlogin-core/api/v1/handoff/exchange` 兑换（插件 `g.Meta path` 仅声明业务相对路径 `/handoff/exchange`，不得再嵌套 `/plugins/{pluginId}/`）。
 - 错误回跳仅安全错误码/本地化消息，禁止 `err.Error()` 原文。
 
 ### D5. VerifiedIdentity 扩展字段

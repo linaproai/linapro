@@ -1,7 +1,7 @@
 ## 1. 插件骨架与清单
 
-- [x] 1.1 创建 `apps/lina-plugins/linapro-oidc-generic/` 骨架：`plugin.yaml`（managed、platform_only、依赖 `linapro-extid-core >=0.1.0`）、`go.mod`、`Makefile`、`plugin_embed.go`、目录结构对齐 google 协议插件
-- [x] 1.2 声明菜单 `settings` + `settings-update`，`parent_key: plugin:linapro-extid-core:auth-login`；权限码 `linapro-oidc-generic:settings:view|update`
+- [x] 1.1 创建 `apps/lina-plugins/linapro-oidc-generic/` 骨架：`plugin.yaml`（managed、platform_only、依赖 `linapro-extlogin-core >=0.1.0`）、`go.mod`、`Makefile`、`plugin_embed.go`、目录结构对齐 google 协议插件
+- [x] 1.2 声明菜单 `settings` + `settings-update`，`parent_key: plugin:linapro-extlogin-core:auth-login`；权限码 `linapro-oidc-generic:settings:view|update`
 - [x] 1.3 双语 i18n：`plugin.json` / `menu.json` / `error.json`（及 apidoc 占位）；embed 菜单本地化单测（对齐 google/discord）
 - [x] 1.4 将插件纳入源码插件聚合/构建路径（与现有 oidc 插件同一登记方式）；`GOWORK=off go build` 插件包通过
 
@@ -37,7 +37,7 @@
 
 - [x] 6.1 双语 `README.md` / `README.zh-CN.md`：能力边界、依赖、provider 编码、安装顺序、安全清单、审查清单
 - [x] 6.2 更新 `apps/lina-plugins/README.md` 与 `README.zh-CN.md` 插件清单行
-- [x] 6.3 同步 `linapro-extid-core` README 中「协议插件」列举加入 generic（一句）
+- [x] 6.3 同步 `linapro-extlogin-core` README 中「协议插件」列举加入 generic（一句）
 - [x] 6.4 影响分析记录：i18n（有）、缓存（Discovery/JWKS 进程内短缓存说明）、数据权限（登录无 actor；settings 管理权限）、开发工具（无跨平台脚本变更则记无）、测试策略、DI（无新增宿主运行期依赖则记无；插件内 OIDC 客户端依赖说明）
 - [x] 6.5 `openspec validate add-generic-oidc-plugin --strict` 通过；任务完成后执行 `lina-review`
 
@@ -50,7 +50,7 @@
 | --- | --- |
 | i18n | **有**：插件 plugin/menu/error 双语 + apidoc 占位；登录/设置文案 |
 | 缓存 | **有（插件内）**：OIDC Discovery 进程内 TTL 15m；JWKS 按 URL 缓存 1h；非集群共享；失败不永久缓存 |
-| 数据权限 | **无新增列表数据域**：登录路径无 actor；settings 走管理权限码；链接解析仍在 extid-core |
+| 数据权限 | **无新增列表数据域**：登录路径无 actor；settings 走管理权限码；链接解析仍在 extlogin-core |
 | 开发工具 | **无**：未改 Makefile/CI 跨平台脚本 |
 | 测试 | 单元：authorize fail-closed、PKCE RFC 例、scopes、auto-provision 默认 false、sanitizeReturnTo；embed menu 单测；E2E TC001 |
 | DI | **无新增宿主运行期依赖**；插件依赖 host `Auth.ExternalLogin` + `HostConfig.SysConfig` 构造期注入；OIDC 出站为标准库 `net/http` + `golang-jwt` |

@@ -106,7 +106,7 @@ type Service interface {
 	// any OAuth or token exchange. An empty provider or subject returns
 	// CodeAuthExternalIdentityInvalid.
 	// SPA delivery of the minted session (one-time handoff codes) is owned by
-	// linapro-extid-core, not this host service.
+	// linapro-extlogin-core, not this host service.
 	LoginByExternalIdentity(ctx context.Context, in ExternalLoginInput) (*ExternalLoginOutput, error)
 	// Refresh validates a host refresh token, confirms the online session and
 	// tenant membership are still valid, primes role access cache, and returns a
@@ -225,7 +225,7 @@ type ExternalLoginInput struct {
 	ClientType  ClientType // User-session client type
 	// AllowAutoProvision declares that the calling plugin permits
 	// auto-provisioning for unlinked identities. The provisioning policy is
-	// provider-owned (linapro-extid-core): a same-email account conflict is
+	// provider-owned (linapro-extlogin-core): a same-email account conflict is
 	// rejected instead of silently linking, and account creation is delegated
 	// back to the host user owner's least-privilege provisioning path.
 	AllowAutoProvision bool
