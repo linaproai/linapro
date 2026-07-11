@@ -979,13 +979,29 @@
           "requested": "Requested Scope"
         },
         "service": {
+          "ai": "AI",
+          "apidoc": "API Doc",
+          "auth": "Auth",
+          "bizctx": "Business Context",
+          "cache": "Cache",
           "data": "Data",
+          "dict": "Dictionary",
+          "files": "Files",
+          "hostconfig": "Host Config",
           "jobs": "Jobs",
+          "lock": "Distributed Lock",
+          "manifest": "Manifest",
           "network": "Network",
           "notifications": "Notifications",
+          "org": "Organization",
           "plugins": "Plugins",
+          "route": "Route",
           "runtime": "Runtime",
-          "storage": "Storage"
+          "sessions": "Sessions",
+          "storage": "Storage",
+          "tenant": "Tenant",
+          "unknown": "Unknown Service ({service})",
+          "users": "Users"
         },
         "summary": {
           "path": "Path",

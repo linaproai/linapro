@@ -979,13 +979,29 @@
           "requested": "申请范围"
         },
         "service": {
+          "ai": "AI",
+          "apidoc": "接口文档",
+          "auth": "认证授权",
+          "bizctx": "业务上下文",
+          "cache": "缓存",
           "data": "数据",
+          "dict": "字典",
+          "files": "文件",
+          "hostconfig": "宿主配置",
           "jobs": "任务",
+          "lock": "分布式锁",
+          "manifest": "资源清单",
           "network": "网络",
           "notifications": "通知",
+          "org": "组织",
           "plugins": "插件",
+          "route": "路由",
           "runtime": "运行时",
-          "storage": "存储"
+          "sessions": "会话",
+          "storage": "存储",
+          "tenant": "租户",
+          "unknown": "未知服务 ({service})",
+          "users": "用户"
         },
         "summary": {
           "path": "路径",
