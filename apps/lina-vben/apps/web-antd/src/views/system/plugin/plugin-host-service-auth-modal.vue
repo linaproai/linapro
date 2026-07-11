@@ -499,7 +499,13 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
         :message="currentBannerMessage"
       />
 
-      <Descriptions bordered size="small" :column="2">
+      <Descriptions
+        bordered
+        size="small"
+        :column="2"
+        class="plugin-install-descriptions"
+        data-testid="plugin-install-descriptions"
+      >
         <DescriptionsItem :label="$t('pages.system.plugin.fields.name')">
           {{ currentPlugin.name || '-' }}
         </DescriptionsItem>
@@ -626,3 +632,12 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
     </div>
   </BasicModal>
 </template>
+
+<style scoped>
+/* Keep the left-hand label column on one line; multi-word English labels
+   otherwise wrap in the two-column bordered Descriptions table. */
+:deep(.plugin-install-descriptions .ant-descriptions-item-label) {
+  min-width: 112px;
+  white-space: nowrap;
+}
+</style>
