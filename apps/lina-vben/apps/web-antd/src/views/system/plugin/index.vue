@@ -933,11 +933,16 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
       </template>
 
       <template #name="{ row }">
+        <!--
+          Constrain the name cell to the column width so long titles truncate
+          and badge tooltips stay hoverable. min-w-max + shrink-0 name previously
+          spilled into the description column and intercepted pointer events.
+        -->
         <div
-          class="inline-flex min-w-max max-w-full items-center gap-1.5 whitespace-nowrap"
+          class="flex w-full min-w-0 max-w-full items-center gap-1.5 overflow-hidden whitespace-nowrap"
           :data-testid="`plugin-name-cell-${row.id}`"
         >
-          <span class="shrink-0 whitespace-nowrap">{{ row.name }}</span>
+          <span class="min-w-0 truncate" :title="row.name">{{ row.name }}</span>
           <Tooltip
             v-if="isBuiltinPlugin(row)"
             :title="buildBuiltinPluginTooltip(row)"
