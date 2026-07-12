@@ -211,5 +211,47 @@
       "reason": "Settings-owned user tests validate user labels and batch edits against shared user and role data."
     }
   ],
-  "parallelIsolationAllowlist": []
+  "parallelIsolationAllowlist": [],
+  "ciShards": {
+    "defaults": {
+      "parallelWorkers": 2
+    },
+    "host": [
+      {
+        "name": "core",
+        "entries": ["e2e/auth", "e2e/dashboard", "e2e/about"]
+      },
+      {
+        "name": "iam",
+        "entries": ["e2e/iam"]
+      },
+      {
+        "name": "settings",
+        "entries": ["e2e/settings"]
+      },
+      {
+        "name": "scheduler",
+        "entries": ["e2e/scheduler"]
+      },
+      {
+        "name": "i18n",
+        "entries": ["e2e/i18n"]
+      },
+      {
+        "name": "extension-plugin",
+        "entries": ["e2e/extension/plugin"]
+      }
+    ],
+    "plugin": {
+      "targetShardCount": 8,
+      "packing": "file-count-binpack",
+      "weightOverrides": {}
+    },
+    "pluginFullExtra": [
+      {
+        "name": "extension-plugin",
+        "scope": "extension:plugin"
+      }
+    ]
+  }
 }

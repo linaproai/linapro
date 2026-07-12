@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
+import { validateCiShards } from './ci-shards.mjs';
 import {
   allowlistCategoriesForFile,
   detectRiskCategories,
@@ -476,6 +477,16 @@ for (const entry of unresolvedSmokeEntries) {
   addError(`Smoke entry does not resolve to any TC file: ${entry}`);
 }
 
+if (!manifest.ciShards || typeof manifest.ciShards !== 'object') {
+  addError('execution-manifest.json must declare ciShards for CI E2E shard governance.');
+} else {
+  for (const error of validateCiShards(manifest, {
+    requireWorkspace: pluginWorkspaceReady,
+  })) {
+    addError(error);
+  }
+}
+
 if (errors.length > 0) {
   console.error('E2E suite validation failed:');
   for (const error of errors) {
@@ -490,5 +501,6 @@ console.log(
     `across ${Object.keys(manifest.moduleScopes).length} scopes.`,
     `Smoke files: ${resolvedSmoke.length}.`,
     `Serial files: ${serialFiles.size}.`,
+    'CI shards: ok.',
   ].join(' '),
 );

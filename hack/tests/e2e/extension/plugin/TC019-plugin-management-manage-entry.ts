@@ -8,6 +8,9 @@ import { PluginPage } from '../../../pages/PluginPage';
 
 // Uses real source-plugin ids that ship navigable frontend pages so the
 // build-time page-registry can enable the Manage button when installed.
+// Host-only (`plugins=0`) excludes this file via hostOnlyExcludedEntries —
+// page-registry is empty without official plugin discovery. Covered by the
+// plugin-full extension:plugin suite instead.
 const managedPluginID = 'linapro-monitor-loginlog';
 const managedPluginName = 'Login Log Management';
 const notInstalledManagedPluginID = 'linapro-content-notice';

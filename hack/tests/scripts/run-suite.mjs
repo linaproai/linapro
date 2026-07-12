@@ -2,6 +2,12 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 
 import {
+  findHostShard,
+  findPluginFullExtraShard,
+  findPluginShard,
+  defaultParallelWorkers,
+} from './ci-shards.mjs';
+import {
   listTcFiles,
   loadManifest,
   moduleHasPluginWorkspaceEntries,
@@ -21,8 +27,10 @@ const manifest = loadManifest();
 
 const mode = process.argv[2] ?? 'full';
 const extraArgs = normalizePassthroughArgs(process.argv.slice(3));
+const configuredDefaultWorkers = defaultParallelWorkers(manifest);
 const parallelWorkers = Number.parseInt(
-  process.env.E2E_PARALLEL_WORKERS ?? `${Math.min(Math.max(os.cpus().length - 1, 2), 4)}`,
+  process.env.E2E_PARALLEL_WORKERS ??
+    `${process.env.CI ? configuredDefaultWorkers : Math.min(Math.max(os.cpus().length - 1, 2), 4)}`,
   10,
 );
 
@@ -146,6 +154,43 @@ if (mode === 'full') {
   exitCode = runHostMode(['e2e'], 'host');
 } else if (mode === 'smoke') {
   exitCode = runMode(manifest.smoke ?? [], 'smoke');
+} else if (mode === 'ci-shard') {
+  const kind = process.argv[3];
+  const name = process.argv[4];
+  const passthroughArgs = normalizePassthroughArgs(process.argv.slice(5));
+  extraArgs.splice(0, extraArgs.length, ...passthroughArgs);
+  if (!kind || !name) {
+    console.error(
+      'Usage: node ./scripts/run-suite.mjs ci-shard <host|plugin|plugin-full-extra> <shard-name>',
+    );
+    process.exit(1);
+  }
+  try {
+    if (kind === 'host') {
+      const shard = findHostShard(name, manifest);
+      console.log(`[ci-shard:host:${name}] entries=${shard.entries.join(',')} files=${shard.files.length}`);
+      exitCode = runHostMode(shard.entries, `ci-shard:host:${name}`);
+    } else if (kind === 'plugin') {
+      requirePluginWorkspace();
+      const shard = findPluginShard(name, manifest);
+      console.log(
+        `[ci-shard:plugin:${name}] plugins=${shard.pluginIds.join(',')} files=${shard.files.length} weight=${shard.weight}`,
+      );
+      exitCode = runMode(shard.entries, `ci-shard:plugin:${name}`);
+    } else if (kind === 'plugin-full-extra') {
+      const shard = findPluginFullExtraShard(name, manifest);
+      console.log(
+        `[ci-shard:plugin-full-extra:${name}] scope=${shard.scope} files=${shard.files.length}`,
+      );
+      exitCode = runMode(shard.entries, `ci-shard:plugin-full-extra:${name}`);
+    } else {
+      console.error(`Unknown ci-shard kind: ${kind}`);
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 } else if (mode === 'module' || mode === 'host-module') {
   const rawModuleArgs = process.argv.slice(3);
   const moduleArgs = normalizePassthroughArgs(rawModuleArgs);

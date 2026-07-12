@@ -255,16 +255,56 @@ jobs:
       artifact-name: ${{ inputs.artifact-prefix }}-host-only-build-smoke-log
       retention-days: ${{ inputs.retention-days }}
 
-  # Runs host-only browser E2E when the caller enables E2E verification.
-  # 当调用方启用 E2E 验证时运行宿主模式浏览器 E2E。
+  # Plans host/plugin E2E CI shards from execution-manifest (single source of truth).
+  # 从 execution-manifest 规划 host/plugin E2E CI 分片（单一事实来源）。
+  plan-e2e-shards:
+    name: Plan E2E CI shards
+    if: ${{ inputs.include-host-only-e2e-tests || inputs.include-plugin-full-e2e-tests }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      host-shards: ${{ steps.emit.outputs.host-shards }}
+      plugin-full-shards: ${{ steps.emit.outputs.plugin-full-shards }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          # Plugin packing discovers apps/lina-plugins; recursive only when plugin-full E2E is enabled.
+          # 插件装箱需要发现 apps/lina-plugins；仅在启用 plugin-full E2E 时递归检出。
+          submodules: ${{ inputs.include-plugin-full-e2e-tests && 'recursive' || 'false' }}
+
+      - name: Verify Official Plugin Workspace
+        if: ${{ inputs.include-plugin-full-e2e-tests }}
+        uses: ./.github/actions/verify-official-plugin-workspace
+        with:
+          require-e2e: "true"
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+
+      - name: Emit CI shard matrices
+        id: emit
+        working-directory: hack/tests
+        run: node ./scripts/emit-ci-shards.mjs --format github-output
+
+  # Runs host-only browser E2E shards when the caller enables E2E verification.
+  # 当调用方启用 E2E 验证时按能力边界运行宿主模式浏览器 E2E 分片。
   host-only-e2e-tests:
-    name: E2E tests (host-only)
+    name: E2E tests (host-only / ${{ matrix.shard.name }})
     if: ${{ inputs.include-host-only-e2e-tests }}
+    needs:
+      - plan-e2e-shards
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.plan-e2e-shards.outputs.host-shards) }}
     uses: ./.github/workflows/reusable-e2e-tests.yml
     with:
       start-command: make dev plugins=0
-      test-command: pnpm test:host
-      artifact-name: ${{ inputs.artifact-prefix }}-host-only-e2e-report
+      test-command: ${{ matrix.shard.command }}
+      artifact-name: ${{ inputs.artifact-prefix }}-host-only-e2e-${{ matrix.shard.name }}-report
       retention-days: ${{ inputs.retention-days }}
       parallel-workers: ${{ inputs.e2e-parallel-workers }}
 
@@ -273,22 +313,12 @@ jobs:
   plugin-full-e2e-tests:
     name: E2E tests (plugin-full / ${{ matrix.shard.name }})
     if: ${{ inputs.include-plugin-full-e2e-tests }}
+    needs:
+      - plan-e2e-shards
     strategy:
       fail-fast: false
       matrix:
-        shard:
-          - name: extension-plugin
-            command: pnpm test:module -- extension:plugin
-          - name: plugins-1-of-5
-            command: pnpm test:module -- plugins -- --shard=1/5
-          - name: plugins-2-of-5
-            command: pnpm test:module -- plugins -- --shard=2/5
-          - name: plugins-3-of-5
-            command: pnpm test:module -- plugins -- --shard=3/5
-          - name: plugins-4-of-5
-            command: pnpm test:module -- plugins -- --shard=4/5
-          - name: plugins-5-of-5
-            command: pnpm test:module -- plugins -- --shard=5/5
+        shard: ${{ fromJson(needs.plan-e2e-shards.outputs.plugin-full-shards) }}
     uses: ./.github/workflows/reusable-e2e-tests.yml
     with:
       submodules: recursive
