@@ -321,8 +321,17 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
 
 async function listPlugins(
   adminApi: APIRequestContext,
+  options?: { id?: string },
 ): Promise<PluginListItem[]> {
-  const response = await adminApi.get("plugins");
+  // pageSize + optional id keep lookups reliable once multi-cloud storage
+  // plugins push the official workspace past the default page size of 20.
+  const response = await adminApi.get("plugins", {
+    params: {
+      pageNum: 1,
+      pageSize: 100,
+      ...(options?.id ? { id: options.id } : {}),
+    },
+  });
   const payload = await expectApiSuccess<{ list?: PluginListItem[] }>(
     response,
     "查询插件列表失败",
@@ -331,7 +340,7 @@ async function listPlugins(
 }
 
 async function findPlugin(adminApi: APIRequestContext, pluginID: string) {
-  const list = await listPlugins(adminApi);
+  const list = await listPlugins(adminApi, { id: pluginID });
   return list.find((item) => item.id === pluginID) ?? null;
 }
 

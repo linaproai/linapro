@@ -3,7 +3,7 @@ import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../../../fixtures/auth';
 import { DictPage } from '../../../pages/DictPage';
 import { MainLayout } from '../../../pages/MainLayout';
-import { MenuPage } from '../../../pages/MenuPage';
+import { UserPage } from '../../../pages/UserPage';
 import { createAdminApiContext, expectSuccess } from '../../../support/api/job';
 import { waitForRouteReady } from '../../../support/ui';
 
@@ -143,7 +143,10 @@ test.describe('TC-10 字典标签同步与 Tab 分页保持', () => {
     await api.dispose();
   });
 
-  test('TC-10a: 修改字典标签后已打开菜单列表同步显示最新标签', async ({
+  // Menu status switches use static i18n labels after the cascade-status UI
+  // change. User management still binds status switch text to
+  // sys_normal_disable, so it is the correct surface for dict label sync.
+  test('TC-10a: 修改字典标签后已打开用户列表同步显示最新标签', async ({
     adminPage,
   }) => {
     const dictList = await listDictData(api, 'sys_normal_disable');
@@ -152,26 +155,25 @@ test.describe('TC-10 字典标签同步与 Tab 分页保持', () => {
 
     const originalLabel = normalData!.label;
     const updatedLabel = `同步后_${Date.now()}`;
-    const menuPage = new MenuPage(adminPage);
+    const userPage = new UserPage(adminPage);
     const dictPage = new DictPage(adminPage);
+    const userStatusSwitch = (label: string) =>
+      adminPage.locator('.ant-switch').filter({ hasText: label });
 
     try {
-      await menuPage.goto();
-      await expect(
-        adminPage.locator('#system-menu-table').getByText(originalLabel).first(),
-      ).toBeVisible();
+      await userPage.goto();
+      await expect(userStatusSwitch(originalLabel).first()).toBeVisible();
 
       await dictPage.goto();
       await dictPage.clickTypeRow('sys_normal_disable');
       await dictPage.editData(originalLabel, { label: updatedLabel });
       await expect(adminPage.getByText(/更新成功|success/i)).toBeVisible();
 
-      await new MainLayout(adminPage).tabTitle('菜单管理').click();
+      await new MainLayout(adminPage).tabTitle(/用户管理|Users/i).click();
       await waitForRouteReady(adminPage);
 
-      const menuTable = adminPage.locator('#system-menu-table');
-      await expect(menuTable.getByText(updatedLabel).first()).toBeVisible();
-      await expect(menuTable.getByText(originalLabel).first()).toHaveCount(0);
+      await expect(userStatusSwitch(updatedLabel).first()).toBeVisible();
+      await expect(userStatusSwitch(originalLabel)).toHaveCount(0);
     } finally {
       const latest = await listDictData(api, 'sys_normal_disable');
       const current = latest.list.find((item) => item.value === '1');

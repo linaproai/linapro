@@ -132,13 +132,17 @@ export async function syncPlugins(adminApi: APIRequestContext) {
 
 export async function listPlugins(
   adminApi: APIRequestContext,
+  options?: { id?: string; pageSize?: number },
 ): Promise<PluginListItem[]> {
   // Request a large page so findPlugin/prepareSourcePluginsBaseline remain
   // reliable as official source plugins grow past the API default page size.
+  // Prefer id filter when looking up one plugin so multi-cloud storage plugins
+  // cannot push target rows past the first page.
   const response = await adminApi.get('plugins', {
     params: {
-      page: 1,
-      pageSize: 100,
+      pageNum: 1,
+      pageSize: options?.pageSize ?? 100,
+      ...(options?.id ? { id: options.id } : {}),
     },
   });
   assertOk(response, '查询插件列表失败');
@@ -150,7 +154,7 @@ export async function findPlugin(
   adminApi: APIRequestContext,
   pluginId: string,
 ) {
-  const items = await listPlugins(adminApi);
+  const items = await listPlugins(adminApi, { id: pluginId });
   return items.find((item) => item.id === pluginId) ?? null;
 }
 

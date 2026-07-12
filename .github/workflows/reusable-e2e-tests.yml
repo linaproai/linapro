@@ -200,7 +200,9 @@ jobs:
           E2E_BASE_URL: "http://127.0.0.1:5666"
           E2E_API_BASE_URL: "http://127.0.0.1:9120/api/v1/"
           E2E_PUBLIC_BASE_URL: "http://127.0.0.1:9120"
-          E2E_FRONTEND_PROXY_BACKEND_ORIGIN: "http://localhost:9120"
+          # Must match linactl LINAPRO_BACKEND_PROXY_TARGET (127.0.0.1) so
+          # OpenAPI servers[0].url equals the Host seen through vite proxy.
+          E2E_FRONTEND_PROXY_BACKEND_ORIGIN: "http://127.0.0.1:9120"
           E2E_PARALLEL_WORKERS: ${{ inputs.parallel-workers }}
         run: ${{ inputs.test-command }}
 

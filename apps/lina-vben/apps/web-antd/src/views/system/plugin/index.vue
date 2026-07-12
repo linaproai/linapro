@@ -165,7 +165,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
         align: 'left',
         field: 'id',
         headerAlign: 'center',
-        minWidth: 220,
+        // Keep wider than name so long plugin IDs (e.g. multi-cloud storage)
+        // remain readable without clipping relative to display names + badges.
+        minWidth: 280,
         title: $t('pages.system.plugin.fields.id'),
       },
       {
@@ -173,6 +175,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
         className: 'plugin-name-column',
         field: 'name',
         headerAlign: 'center',
+        // Room for display name plus optional builtin / auto-enable badges.
         minWidth: 260,
         showOverflow: false,
         slots: { default: 'name' },
