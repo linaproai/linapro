@@ -211,9 +211,49 @@ test.describe('TC-13 插件管理列表布局', () => {
     await expect(pluginPage.pluginDetailModal()).toBeVisible();
     await expect(pluginPage.pluginDetailDescriptions()).toBeVisible();
     // Multi-character / multi-word field names are the ones that used to wrap.
-    await expect(pluginPage.pluginDetailModal()).toContainText('授权状态');
-    await expect(pluginPage.pluginDetailModal()).toContainText('有效版本');
-    await expect(pluginPage.pluginDetailModal()).toContainText('发现版本');
+    await expect(pluginPage.pluginDetailModal()).toContainText('启动管理');
+    // Detail no longer surfaces host-service authorization snapshot status.
+    await expect(pluginPage.pluginDetailDescriptions()).not.toContainText(
+      '授权状态',
+    );
+    // Detail collapses installed / enabled / runtimeState into one primary status.
+    await expect(pluginPage.pluginDetailDescriptions()).toContainText(
+      '插件状态',
+    );
+    await expect(
+      pluginPage.pluginDetailModal().getByTestId('plugin-detail-plugin-status'),
+    ).toContainText('待升级');
+    await expect(pluginPage.pluginDetailDescriptions()).not.toContainText(
+      '安装状态',
+    );
+    await expect(pluginPage.pluginDetailDescriptions()).not.toContainText(
+      '运行时状态',
+    );
+    // scopeNature + installMode collapse into one operator-facing scope label.
+    await expect(pluginPage.pluginDetailDescriptions()).toContainText(
+      '插件作用域',
+    );
+    await expect(
+      pluginPage.pluginDetailModal().getByTestId('plugin-detail-plugin-scope'),
+    ).toContainText('全局');
+    await expect(pluginPage.pluginDetailDescriptions()).not.toContainText(
+      '作用域性质',
+    );
+    await expect(pluginPage.pluginDetailDescriptions()).not.toContainText(
+      '安装模式',
+    );
+    // Version dual-model: keep effective + discovered only; drop redundant 版本号.
+    await expect(pluginPage.pluginDetailDescriptions()).toContainText(
+      '有效版本',
+    );
+    await expect(pluginPage.pluginDetailDescriptions()).toContainText(
+      '发现版本',
+    );
+    await expect(pluginPage.pluginDetailDescriptions()).toContainText('v0.1.0');
+    await expect(pluginPage.pluginDetailDescriptions()).toContainText('v0.2.0');
+    await expect(pluginPage.pluginDetailDescriptions()).not.toContainText(
+      '版本号',
+    );
     await pluginPage.expectPluginDetailLabelsNoWrap();
   });
 

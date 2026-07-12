@@ -555,6 +555,14 @@ export class PluginPage {
     return this.page.getByTestId("plugin-detail-install-mode").last();
   }
 
+  pluginDetailPluginScope(): Locator {
+    return this.page.getByTestId("plugin-detail-plugin-scope").last();
+  }
+
+  pluginDetailPluginStatus(): Locator {
+    return this.page.getByTestId("plugin-detail-plugin-status").last();
+  }
+
   pluginAutoEnableTag(pluginId: string): Locator {
     return this.page.getByTestId(`plugin-auto-enable-tag-${pluginId}`).first();
   }

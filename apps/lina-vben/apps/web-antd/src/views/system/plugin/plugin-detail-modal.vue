@@ -55,6 +55,14 @@ const isBuiltinPlugin = computed(() => {
   return currentPlugin.value?.distribution === 'builtin';
 });
 
+const pluginPrimaryStatus = computed(() => {
+  return resolvePluginPrimaryStatus(currentPlugin.value);
+});
+
+const pluginScope = computed(() => {
+  return resolvePluginScope(currentPlugin.value);
+});
+
 async function handleOpenChange(open: boolean) {
   if (!open) {
     return;
@@ -78,48 +86,73 @@ function formatPluginType(type: string) {
   return type || '-';
 }
 
-function formatInstalledStatus(installed: number) {
-  return installed === 1
-    ? $t('pages.system.plugin.installed.connected')
-    : $t('pages.system.plugin.installed.notInstalled');
-}
+// Detail-only projection: collapse installed / enabled / runtimeState into one
+// primary lifecycle status so operators are not asked to reconcile three labels.
+type PluginPrimaryStatus =
+  | 'not_installed'
+  | 'disabled'
+  | 'enabled'
+  | 'pending_upgrade'
+  | 'upgrade_running'
+  | 'upgrade_failed'
+  | 'abnormal';
 
-function getInstalledStatusColor(installed: number) {
-  return installed === 1 ? 'green' : 'default';
-}
-
-function formatEnabledStatus(enabled: number) {
-  return enabled === 1 ? $t('pages.status.enabled') : $t('pages.status.disabled');
-}
-
-function getEnabledStatusColor(enabled: number) {
-  return enabled === 1 ? 'green' : 'default';
-}
-
-function formatAuthorizationStatus(status: string) {
-  switch (status) {
-    case 'confirmed': {
-      return $t('pages.system.plugin.authorization.confirmed');
-    }
-    case 'not_required': {
-      return $t('pages.system.plugin.authorization.notRequired');
-    }
-    case 'pending': {
-      return $t('pages.system.plugin.authorization.pending');
+function resolvePluginPrimaryStatus(
+  plugin: SystemPlugin | null | undefined,
+): PluginPrimaryStatus {
+  if (!plugin || plugin.installed !== 1) {
+    return 'not_installed';
+  }
+  switch (plugin.runtimeState) {
+    case 'upgrade_running':
+    case 'upgrade_failed':
+    case 'abnormal':
+    case 'pending_upgrade': {
+      return plugin.runtimeState;
     }
     default: {
-      return status || '-';
+      return plugin.enabled === 1 ? 'enabled' : 'disabled';
     }
   }
 }
 
-function getAuthorizationStatusColor(status: string) {
+function formatPluginPrimaryStatus(status: PluginPrimaryStatus) {
   switch (status) {
-    case 'confirmed': {
-      return 'green';
+    case 'not_installed': {
+      return $t('pages.system.plugin.pluginStatus.notInstalled');
     }
-    case 'pending': {
+    case 'disabled': {
+      return $t('pages.system.plugin.pluginStatus.disabled');
+    }
+    case 'enabled': {
+      return $t('pages.system.plugin.pluginStatus.enabled');
+    }
+    case 'pending_upgrade':
+    case 'upgrade_running':
+    case 'upgrade_failed':
+    case 'abnormal': {
+      return $t(`pages.system.plugin.runtimeState.${status}`);
+    }
+    default: {
+      return '-';
+    }
+  }
+}
+
+function getPluginPrimaryStatusColor(status: PluginPrimaryStatus) {
+  switch (status) {
+    case 'pending_upgrade': {
       return 'gold';
+    }
+    case 'upgrade_failed':
+    case 'abnormal': {
+      return 'red';
+    }
+    case 'upgrade_running': {
+      return 'blue';
+    }
+    case 'enabled': {
+      return 'green';
     }
     default: {
       return 'default';
@@ -159,65 +192,56 @@ function getBooleanColor(value: boolean) {
   return value ? 'green' : 'default';
 }
 
-function formatScopeNature(scopeNature?: string) {
-  switch (scopeNature) {
-    case 'platform_only': {
-      return $t('pages.system.plugin.scopeNature.platformOnly');
-    }
-    case 'tenant_aware': {
-      return $t('pages.system.plugin.scopeNature.tenantAware');
-    }
-    default: {
-      return scopeNature || '-';
-    }
+// Detail-only projection: installMode is the operational truth; scopeNature
+// only distinguishes platform-only capability when the plugin runs globally.
+type PluginScope =
+  | 'platform_only'
+  | 'global'
+  | 'tenant_scoped';
+
+function resolvePluginScope(
+  plugin: SystemPlugin | null | undefined,
+): PluginScope | '' {
+  if (!plugin) {
+    return '';
   }
+  if (plugin.installMode === 'tenant_scoped') {
+    return 'tenant_scoped';
+  }
+  if (plugin.scopeNature === 'platform_only') {
+    return 'platform_only';
+  }
+  if (
+    plugin.installMode === 'global' ||
+    plugin.scopeNature === 'tenant_aware'
+  ) {
+    return 'global';
+  }
+  return '';
 }
 
-function getScopeNatureColor(scopeNature?: string) {
-  return scopeNature === 'tenant_aware' ? 'green' : 'blue';
-}
-
-function formatInstallMode(installMode?: string) {
-  switch (installMode) {
+function formatPluginScope(scope: PluginScope | '') {
+  switch (scope) {
+    case 'platform_only': {
+      return $t('pages.system.plugin.pluginScope.platformOnly');
+    }
     case 'global': {
-      return $t('pages.multiTenant.plugin.installModes.global');
+      return $t('pages.system.plugin.pluginScope.global');
     }
     case 'tenant_scoped': {
-      return $t('pages.multiTenant.plugin.installModes.tenant_scoped');
+      return $t('pages.system.plugin.pluginScope.tenantScoped');
     }
     default: {
-      return installMode || '-';
+      return '-';
     }
   }
 }
 
-function getInstallModeColor(installMode?: string) {
-  return installMode === 'tenant_scoped' ? 'green' : 'blue';
+function getPluginScopeColor(scope: PluginScope | '') {
+  return scope === 'tenant_scoped' ? 'green' : 'blue';
 }
 
-function formatRuntimeState(state?: string) {
-  const key = `pages.system.plugin.runtimeState.${state || 'normal'}`;
-  const label = $t(key);
-  return label === key ? state || '-' : label;
-}
 
-function getRuntimeStateColor(state?: string) {
-  switch (state) {
-    case 'pending_upgrade': {
-      return 'gold';
-    }
-    case 'upgrade_failed':
-    case 'abnormal': {
-      return 'red';
-    }
-    case 'upgrade_running': {
-      return 'blue';
-    }
-    default: {
-      return 'green';
-    }
-  }
-}
 
 function formatAbnormalReason(reason?: string) {
   const key = `pages.system.plugin.abnormalReason.${reason || 'unknown'}`;
@@ -261,32 +285,23 @@ function formatFailurePhase(phase?: string) {
             {{ formatPluginType(currentPlugin.type) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
-          {{ currentPlugin.version || '-' }}
-        </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.runtimeState')">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.pluginStatus')">
           <Tag
-            :color="getRuntimeStateColor(currentPlugin.runtimeState)"
-            data-testid="plugin-detail-runtime-state"
+            :color="getPluginPrimaryStatusColor(pluginPrimaryStatus)"
+            data-testid="plugin-detail-plugin-status"
           >
-            {{ formatRuntimeState(currentPlugin.runtimeState) }}
+            {{ formatPluginPrimaryStatus(pluginPrimaryStatus) }}
           </Tag>
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.effectiveVersion')">
-          {{ currentPlugin.effectiveVersion || '-' }}
+          {{
+            currentPlugin.effectiveVersion || currentPlugin.version || '-'
+          }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.discoveredVersion')">
-          {{ currentPlugin.discoveredVersion || '-' }}
-        </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.installed')">
-          <Tag :color="getInstalledStatusColor(currentPlugin.installed)">
-            {{ formatInstalledStatus(currentPlugin.installed) }}
-          </Tag>
-        </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.common.status')">
-          <Tag :color="getEnabledStatusColor(currentPlugin.enabled)">
-            {{ formatEnabledStatus(currentPlugin.enabled) }}
-          </Tag>
+          {{
+            currentPlugin.discoveredVersion || currentPlugin.version || '-'
+          }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.distribution')">
           <Tag
@@ -299,15 +314,6 @@ function formatFailurePhase(phase?: string) {
         <DescriptionsItem :label="$t('pages.system.plugin.fields.startupManagement')">
           <Tag :color="getAutoEnableManagedColor(isAutoEnableManaged)">
             {{ formatAutoEnableManaged(isAutoEnableManaged) }}
-          </Tag>
-        </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.authorizationStatus')">
-          <Tag
-            :color="
-              getAuthorizationStatusColor(currentPlugin.authorizationStatus)
-            "
-          >
-            {{ formatAuthorizationStatus(currentPlugin.authorizationStatus) }}
           </Tag>
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.hasMockData')">
@@ -338,20 +344,12 @@ function formatFailurePhase(phase?: string) {
             }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.scopeNature')">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.pluginScope')">
           <Tag
-            :color="getScopeNatureColor(currentPlugin.scopeNature)"
-            data-testid="plugin-detail-scope-nature"
+            :color="getPluginScopeColor(pluginScope)"
+            data-testid="plugin-detail-plugin-scope"
           >
-            {{ formatScopeNature(currentPlugin.scopeNature) }}
-          </Tag>
-        </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.installMode')">
-          <Tag
-            :color="getInstallModeColor(currentPlugin.installMode)"
-            data-testid="plugin-detail-install-mode"
-          >
-            {{ formatInstallMode(currentPlugin.installMode) }}
+            {{ formatPluginScope(pluginScope) }}
           </Tag>
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.installedAt')">

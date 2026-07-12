@@ -858,13 +858,25 @@
         "tenantProvisioning": "新租户启用",
         "scopeNature": "作用域性质",
         "installMode": "安装模式",
+        "pluginScope": "插件作用域",
         "runtimeState": "运行时状态",
+        "pluginStatus": "插件状态",
         "effectiveVersion": "有效版本",
         "discoveredVersion": "发现版本"
       },
       "type": {
         "source": "源码插件",
         "dynamic": "动态插件"
+      },
+      "pluginStatus": {
+        "notInstalled": "未安装",
+        "disabled": "已停用",
+        "enabled": "已启用"
+      },
+      "pluginScope": {
+        "platformOnly": "仅平台",
+        "global": "全局",
+        "tenantScoped": "租户级"
       },
       "installed": {
         "connected": "已安装",

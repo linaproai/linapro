@@ -858,13 +858,25 @@
         "tenantProvisioning": "New Tenants",
         "scopeNature": "Scope Nature",
         "installMode": "Install Mode",
+        "pluginScope": "Plugin Scope",
         "runtimeState": "Runtime State",
+        "pluginStatus": "Plugin Status",
         "effectiveVersion": "Effective Version",
         "discoveredVersion": "Discovered Version"
       },
       "type": {
         "source": "Source Plugin",
         "dynamic": "Dynamic Plugin"
+      },
+      "pluginStatus": {
+        "notInstalled": "Not Installed",
+        "disabled": "Disabled",
+        "enabled": "Enabled"
+      },
+      "pluginScope": {
+        "platformOnly": "Platform Only",
+        "global": "Global",
+        "tenantScoped": "Tenant Scoped"
       },
       "installed": {
         "connected": "Installed",
