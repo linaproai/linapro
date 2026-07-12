@@ -166,7 +166,7 @@ jobs:
       # Cache Playwright browser downloads across E2E shards to cut install time.
       # 跨 E2E 分片缓存 Playwright 浏览器下载，降低安装耗时。
       - name: Cache Playwright Browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('hack/tests/pnpm-lock.yaml') }}
