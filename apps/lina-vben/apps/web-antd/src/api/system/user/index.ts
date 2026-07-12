@@ -121,9 +121,12 @@ export function userDelete(id: number) {
 
 /** 批量删除用户 */
 export function userBatchDelete(ids: number[]) {
-  const params = new URLSearchParams();
-  ids.forEach((id) => params.append('ids', String(id)));
-  return requestClient.delete(`/user?${params.toString()}`);
+  // Query arrays must use brackets form (ids[]=1&ids[]=2) so GoFrame binds []int.
+  // Related issue: https://github.com/linaproai/linapro/issues/89
+  return requestClient.delete('/user', {
+    params: { ids },
+    paramsSerializer: 'brackets',
+  });
 }
 
 /** 批量编辑用户 */
@@ -161,6 +164,8 @@ export function updateProfile(data: {
 export function userExport(params?: { ids?: number[] }) {
   return requestClient.download<Blob>('/user/export', {
     params,
+    // ids must serialize as ids[]=... for GoFrame []int query binding.
+    paramsSerializer: 'brackets',
   });
 }
 

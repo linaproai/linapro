@@ -91,7 +91,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="bg-background w-full rounded-lg border-[1px] p-[12px]">
+  <div class="bg-background w-full rounded-xl border-[1px] p-[12px]">
     <div class="flex items-center justify-between gap-2 border-b-[1px] pb-2">
       <div class="opacity-75">
         <span>{{ $t('pages.tree.nodeStatus') }}: </span>

@@ -368,7 +368,7 @@ test.describe("TC-17 owner 能力授权与依赖阻断", () => {
 
     await expect(pluginPage.pluginDependencyBlockers()).toBeVisible();
     await expect(pluginPage.pluginDependencyBlockers()).toContainText(
-      "请先处理依赖阻断项",
+      "依赖条件未满足，请根据下方提示处理后再安装。",
     );
     await expect(pluginPage.pluginDependencyBlockers()).toContainText(
       "依赖插件缺失",
@@ -408,7 +408,7 @@ test.describe("TC-17 owner 能力授权与依赖阻断", () => {
 
     await expect(pluginPage.pluginDependencyBlockers()).toBeVisible();
     await expect(pluginPage.pluginDependencyBlockers()).toContainText(
-      "请先处理依赖阻断项",
+      "依赖条件未满足，请根据下方提示处理后再安装。",
     );
     await expect(pluginPage.pluginDependencyBlockers()).toContainText(
       "依赖版本不满足",

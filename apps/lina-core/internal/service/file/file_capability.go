@@ -380,11 +380,7 @@ func (a *fileCapabilityAdapter) DeleteMany(ctx context.Context, ids []capability
 		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
 	}
 	if a != nil && a.owner != nil {
-		idValues := make([]string, 0, len(parsedIDs))
-		for _, id := range parsedIDs {
-			idValues = append(idValues, fmt.Sprintf("%d", id))
-		}
-		return a.owner.Delete(ctx, strings.Join(idValues, ","))
+		return a.owner.Delete(ctx, parsedIDs)
 	}
 	model := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, parsedIDs)
 	if a != nil && a.tenantFilter != nil {

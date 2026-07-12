@@ -15,10 +15,12 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap/extlogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/i18ncap"
 	"lina-core/pkg/plugin/capability/routecap"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // apiDocAdapter bridges the internal apidoc service into the published plugin contract.
@@ -170,6 +172,136 @@ func tenantTokenOutput(out *auth.TenantTokenOutput) *token.TenantTokenOutput {
 		return nil
 	}
 	return &token.TenantTokenOutput{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken}
+}
+
+// pluginBoundExternalLogin extends the public extlogin.Service with host-only
+// per-plugin binding. directory stores auth as authcap.Service (wide
+// interface); scopedDirectory type-asserts ExternalLogin() to this interface
+// instead of holding a concrete *externalLoginAdapter field.
+type pluginBoundExternalLogin interface {
+	extlogin.Service
+	forPlugin(pluginID string) extlogin.Service
+}
+
+// externalLoginAdapter bridges the host auth service into the plugin-facing
+// external-login contract. It is plugin-scoped: the base adapter is unbound and
+// fail-closed, and forPlugin returns a copy bound to one plugin identity.
+// Provider ownership and plugin enablement are enforced here so the published
+// contract never trusts a plugin-supplied plugin identity.
+type externalLoginAdapter struct {
+	authSvc     auth.Service
+	pluginState pluginStateLookup
+	pluginID    string
+}
+
+// Ensure externalLoginAdapter implements the public contract and host binder.
+var (
+	_ extlogin.Service         = (*externalLoginAdapter)(nil)
+	_ pluginBoundExternalLogin = (*externalLoginAdapter)(nil)
+)
+
+// newExternalLoginAdapter creates the unbound base external-login adapter. The
+// base adapter fail-closes on every call because it is not bound to a plugin;
+// callers reach a usable service only through the plugin-scoped directory.
+func newExternalLoginAdapter(authSvc auth.Service, pluginState pluginStateLookup) *externalLoginAdapter {
+	return &externalLoginAdapter{authSvc: authSvc, pluginState: pluginState}
+}
+
+// forPlugin returns an external-login service bound to one source plugin.
+func (s *externalLoginAdapter) forPlugin(pluginID string) extlogin.Service {
+	if s == nil {
+		return nil
+	}
+	return &externalLoginAdapter{
+		authSvc:     s.authSvc,
+		pluginState: s.pluginState,
+		pluginID:    strings.TrimSpace(pluginID),
+	}
+}
+
+// LoginByVerifiedIdentity enforces plugin binding, provider ownership, and
+// plugin enablement before delegating to the host auth service. The host-owned
+// pluginID is stamped onto the host input so the plugin cannot spoof it.
+func (s *externalLoginAdapter) LoginByVerifiedIdentity(
+	ctx context.Context,
+	in extlogin.LoginInput,
+) (*extlogin.LoginOutput, error) {
+	if s == nil || s.authSvc == nil {
+		return nil, bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
+	}
+	pluginID := strings.TrimSpace(s.pluginID)
+	if pluginID == "" {
+		return nil, bizerr.NewCode(CodePluginHostExternalLoginPluginRequired)
+	}
+	provider := strings.TrimSpace(in.Provider)
+	if !s.ownsProvider(pluginID, provider) {
+		return nil, bizerr.NewCode(CodePluginHostExternalLoginProviderForbidden)
+	}
+	if s.pluginState == nil || !s.pluginState.IsEnabled(ctx, pluginID) {
+		return nil, bizerr.NewCode(CodePluginHostExternalLoginPluginDisabled)
+	}
+	out, err := s.authSvc.LoginByExternalIdentity(ctx, auth.ExternalLoginInput{
+		PluginID:           pluginID,
+		Provider:           provider,
+		Subject:            in.Subject,
+		Email:              in.Email,
+		DisplayName:        in.DisplayName,
+		ClientType:         token.ClientTypeWeb,
+		AllowAutoProvision: in.AllowAutoProvision,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return nil, bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
+	}
+	return externalLoginOutput(out), nil
+}
+
+// ownsProvider reports whether pluginID owns providerID. Source plugins declare
+// ownership via ProvideExternalIdentity. Dynamic plugins are same-trust after
+// install authorization: ownership is enforced at the WASM host-service layer
+// (auth resources.ref == provider ID) before calls reach this adapter; here an
+// enabled non-source plugin is allowed so both paths share one mint seam.
+func (s *externalLoginAdapter) ownsProvider(pluginID string, providerID string) bool {
+	if providerID == "" {
+		return false
+	}
+	definition, ok := pluginhost.GetSourcePlugin(pluginID)
+	if ok && definition != nil {
+		for _, owned := range definition.GetExternalIdentityProviderIDs() {
+			if owned == providerID {
+				return true
+			}
+		}
+		return false
+	}
+	if s.pluginState == nil {
+		return false
+	}
+	return s.pluginState.IsEnabled(context.Background(), pluginID)
+}
+
+// externalLoginOutput maps host external-login output into the published contract.
+func externalLoginOutput(out *auth.ExternalLoginOutput) *extlogin.LoginOutput {
+	if out == nil {
+		return nil
+	}
+	candidates := make([]extlogin.TenantCandidate, 0, len(out.Tenants))
+	for _, tenant := range out.Tenants {
+		candidates = append(candidates, extlogin.TenantCandidate{
+			ID:     tenant.Id,
+			Code:   tenant.Code,
+			Name:   tenant.Name,
+			Status: tenant.Status,
+		})
+	}
+	return &extlogin.LoginOutput{
+		AccessToken:      out.AccessToken,
+		RefreshToken:     out.RefreshToken,
+		PreToken:         out.PreToken,
+		TenantCandidates: candidates,
+	}
 }
 
 // bizCtxAdapter bridges the internal bizctx service into the published plugin contract.

@@ -67,7 +67,10 @@ Source-plugin-owned business coverage lives in each plugin directory instead of 
 | `pnpm test:host:module -- <scope>` | Run one host-only module scope with plugin-environment exclusions. |
 | `pnpm test:smoke` | Run the curated high-value smoke pack. |
 | `pnpm test:module -- <scope>` | Run a module scope from the execution manifest. |
-| `pnpm test:validate` | Validate `TC` uniqueness, directory ownership, and manifest references. |
+| `pnpm test:ci-shard -- <kind> <name>` | Run one CI shard (`host`, `plugin`, or `plugin-full-extra`). |
+| `pnpm test:ci-shards` | Print the host/plugin CI shard plan used by Nightly. |
+| `pnpm test:ci-shards:unit` | Run CI shard planner unit tests. |
+| `pnpm test:validate` | Validate `TC` uniqueness, directory ownership, manifest references, and CI shard coverage. |
 | `pnpm report` | Open the Playwright HTML report. |
 
 Example module scopes:
@@ -88,8 +91,9 @@ The suite uses `config/execution-manifest.json` as the single source of truth fo
 - smoke file selection
 - serial execution boundaries for shared-state scenarios
 - serial isolation categories and documented parallel exceptions
+- CI shard governance (`ciShards`) for Nightly/full browser regression
 
-`pnpm test`, `pnpm test:full`, `pnpm test:smoke`, and `pnpm test:module` all run through `scripts/run-suite.mjs`.
+`pnpm test`, `pnpm test:full`, `pnpm test:smoke`, `pnpm test:module`, and `pnpm test:ci-shard` all run through `scripts/run-suite.mjs`.
 The runner splits the selected files into a parallel pool and a serial pool so global-state heavy scenarios still execute safely.
 Every run prints the selected file count, parallel file count, serial file count, parallel worker count, and the isolation categories represented in the serial pool.
 Full-suite runs include plugin-owned tests through the generic `plugins` entry.
@@ -100,6 +104,18 @@ Individual source plugins can be run without editing the manifest:
 ```bash
 pnpm test:module -- plugin:<plugin-id>
 ```
+
+### CI shard governance
+
+Nightly full E2E does not run the entire host suite in one job. Instead:
+
+- **Host shards** are declared under `ciShards.host` by capability entries (for example `iam`, `settings`, `scheduler`). Validation requires every host-only TC file to appear in exactly one host shard.
+- **Plugin shards** are packed from discovered `apps/lina-plugins/*/hack/tests/e2e` ownership using `file-count-binpack` (optional `weightOverrides`). The root suite must not hardcode official plugin business aliases for packing.
+- **plugin-full-extra** shards cover host framework scopes that must run under `make dev plugins=1` (for example `extension:plugin`).
+- GitHub Actions loads the matrix from `scripts/emit-ci-shards.mjs` so YAML does not drift from the manifest.
+- Parallel-pool workers default to `ciShards.defaults.parallelWorkers` (2) in CI; the serial pool always uses one worker.
+
+When adding host E2E directories, update `ciShards.host` so coverage stays complete. When a plugin's relative cost is consistently skewed, adjust `ciShards.plugin.weightOverrides` or `targetShardCount` rather than hardcoding shard lists in workflows.
 
 The root `hack/tests` tree must not hardcode concrete source-plugin IDs, plugin-owned routes, plugin-specific mock data, plugin-specific test configuration, plugin-specific baseline data, plugin-specific i18n keys, or plugin-specific page objects. Keep plugin behavior, plugin test data, plugin configuration, and plugin POMs under the owning `apps/lina-plugins/<plugin-id>/hack/tests/` tree. The root suite may keep only generic plugin discovery and runner mechanics.
 

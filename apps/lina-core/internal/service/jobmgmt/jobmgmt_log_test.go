@@ -145,7 +145,7 @@ func TestClearLogsSupportsDeleteAllAndSelectedIDs(t *testing.T) {
 		firstLogID := insertLogCleanupTestLog(t, ctx, jobID, "first")
 		secondLogID := insertLogCleanupTestLog(t, ctx, jobID, "second")
 
-		deleted, err := svc.ClearLogs(ctx, ClearLogsInput{IDs: fmt.Sprintf("%d", firstLogID)})
+		deleted, err := svc.ClearLogs(ctx, ClearLogsInput{IDs: []int64{firstLogID}})
 		if err != nil {
 			t.Fatalf("expected selected execution-log delete to succeed, got error: %v", err)
 		}

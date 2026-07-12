@@ -5,9 +5,11 @@ import type {
 } from '#/api/system/plugin/model';
 
 import { defineAsyncComponent, h, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
+import { useAccessStore } from '@vben/stores';
 
 import { message, Modal, Space, Switch, Tag, Tooltip } from 'ant-design-vue';
 
@@ -21,6 +23,10 @@ import {
   pluginUpdateTenantProvisioningPolicy,
 } from '#/api/system/plugin';
 import { $t } from '#/locales';
+import {
+  hasPluginManagementPage,
+  resolvePluginManagementPath,
+} from '#/plugins/plugin-management-route';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
 import { closePluginTabs } from '#/plugins/tabbar-cleanup';
 import { formatTimestamp } from '#/utils/time';
@@ -82,6 +88,8 @@ const pluginAccessCodes = {
 } as const;
 
 const { hasAccessByCodes } = useAccess();
+const accessStore = useAccessStore();
+const router = useRouter();
 const statusChangingPluginIds = ref<Record<string, boolean>>({});
 
 const [Grid, gridApi] = useVbenVxeGrid({
@@ -253,7 +261,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         fixed: 'right',
         slots: { default: 'action' },
         title: $t('pages.common.actions'),
-        width: 240,
+        // At most three small ghost buttons (detail + manage + one lifecycle
+        // action); keep width tight so the column does not waste horizontal
+        // space while still fitting a single non-wrapping row.
+        width: 200,
       },
     ],
     height: 'auto',
@@ -277,9 +288,51 @@ const [Grid, gridApi] = useVbenVxeGrid({
     rowConfig: {
       keyField: 'id',
     },
+    rowClassName: 'cursor-pointer',
     id: 'system-plugin-index',
   },
+  gridEvents: {
+    cellClick: ({
+      $event,
+      column,
+      row,
+    }: {
+      $event?: Event;
+      column?: { field?: string };
+      row: PluginListItem;
+    }) => {
+      if (shouldIgnorePluginRowClick(column?.field, $event)) {
+        return;
+      }
+      void handleDetail(row);
+    },
+  },
 });
+
+/** Columns / controls that must not open the detail modal on click. */
+const pluginRowClickIgnoredFields = new Set([
+  'action',
+  'autoEnableForNewTenants',
+  'enabled',
+]);
+
+function shouldIgnorePluginRowClick(
+  columnField?: string,
+  event?: Event,
+): boolean {
+  if (columnField && pluginRowClickIgnoredFields.has(columnField)) {
+    return true;
+  }
+  const target = event?.target;
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(
+    target.closest(
+      'button, a, input, textarea, select, .ant-switch, .ant-checkbox, .ant-radio, [role="switch"], [role="button"], [role="checkbox"]',
+    ),
+  );
+}
 
 function getPluginTypeLabel(type: string) {
   return type === 'source'
@@ -485,6 +538,38 @@ async function handleDetail(row: PluginListItem) {
   const detail = await loadPluginDetail(row);
   detailModalApi.setData({ row: detail });
   detailModalApi.open();
+}
+
+function canOpenPluginManagement(row: PluginListItem) {
+  return row.installed === 1 && hasPluginManagementPage(row.id);
+}
+
+function buildPluginManagementDisabledTooltip(row: PluginListItem) {
+  if (canOpenPluginManagement(row)) {
+    return undefined;
+  }
+  if (row.installed !== 1) {
+    return $t('pages.system.plugin.messages.installFirst');
+  }
+  return $t('pages.system.plugin.messages.noManagementPage');
+}
+
+async function handleOpenManagement(row: PluginListItem) {
+  if (!canOpenPluginManagement(row)) {
+    return;
+  }
+  const targetPath = resolvePluginManagementPath(
+    row.id,
+    router,
+    accessStore.accessMenus,
+  );
+  if (!targetPath) {
+    message.warning(
+      $t('pages.system.plugin.messages.managementRouteUnavailable'),
+    );
+    return;
+  }
+  await router.push(targetPath);
 }
 
 async function handleStatusChange(row: PluginListItem, checked: boolean) {
@@ -956,13 +1041,28 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
       </template>
 
       <template #action="{ row }">
-        <Space>
+        <Space :size="4" :wrap="false">
           <ghost-button
             :data-testid="`plugin-detail-button-${row.id}`"
             @click.stop="handleDetail(row)"
           >
             {{ $t('pages.common.detail') }}
           </ghost-button>
+          <Tooltip :title="buildPluginManagementDisabledTooltip(row)">
+            <span
+              class="inline-flex"
+              :data-testid="`plugin-manage-wrapper-${row.id}`"
+              @click.stop
+            >
+              <ghost-button
+                :data-testid="`plugin-manage-button-${row.id}`"
+                :disabled="!canOpenPluginManagement(row)"
+                @click.stop="handleOpenManagement(row)"
+              >
+                {{ $t('pages.system.plugin.actions.manage') }}
+              </ghost-button>
+            </span>
+          </Tooltip>
           <ghost-button
             v-if="isRuntimeUpgradeAvailable(row) && canInstallPlugin()"
             :data-testid="`plugin-upgrade-button-${row.id}`"

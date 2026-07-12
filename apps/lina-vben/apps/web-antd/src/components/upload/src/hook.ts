@@ -175,7 +175,9 @@ export function useUpload(
       }
       // Fetch file info from server to populate the file list
       try {
-        const ids = Array.isArray(value) ? value.join(',') : value;
+        const ids = Array.isArray(value)
+          ? value.map((item) => Number(item)).filter((id) => Number.isFinite(id) && id > 0)
+          : [Number(value)].filter((id) => Number.isFinite(id) && id > 0);
         const resp = await fileInfoByIds(ids);
         innerFileList.value = (resp.list || []).map(
           (info: FileInfo): UploadFile => ({

@@ -111,6 +111,7 @@ const (
 	HostServiceMethodAuthSwitchTenant                                 = hostservices.HostServiceMethodAuthSwitchTenant
 	HostServiceMethodAuthIssueImpersonationToken                      = hostservices.HostServiceMethodAuthIssueImpersonationToken
 	HostServiceMethodAuthRevokeImpersonationToken                     = hostservices.HostServiceMethodAuthRevokeImpersonationToken
+	HostServiceMethodAuthExternalLoginByVerifiedIdentity              = hostservices.HostServiceMethodAuthExternalLoginByVerifiedIdentity
 	HostServiceMethodAuthzBatchGetPermissions                         = hostservices.HostServiceMethodAuthzBatchGetPermissions
 	HostServiceMethodAuthzBatchHasPermissions                         = hostservices.HostServiceMethodAuthzBatchHasPermissions
 	HostServiceMethodAuthzHasPermission                               = hostservices.HostServiceMethodAuthzHasPermission
@@ -122,6 +123,7 @@ const (
 	HostServiceMethodUsersList                                        = hostservices.HostServiceMethodUsersList
 	HostServiceMethodUsersEnsureVisible                               = hostservices.HostServiceMethodUsersEnsureVisible
 	HostServiceMethodUsersCreate                                      = hostservices.HostServiceMethodUsersCreate
+	HostServiceMethodUsersCreateFromExternal                          = hostservices.HostServiceMethodUsersCreateFromExternal
 	HostServiceMethodUsersUpdate                                      = hostservices.HostServiceMethodUsersUpdate
 	HostServiceMethodUsersDelete                                      = hostservices.HostServiceMethodUsersDelete
 	HostServiceMethodUsersSetStatus                                   = hostservices.HostServiceMethodUsersSetStatus

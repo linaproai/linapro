@@ -62,7 +62,7 @@ function toggleExpanded() {
       v-for="(route, index) in visibleRoutes"
       :key="buildRouteKey(route, index)"
       :data-testid="`plugin-route-review-item-${index}`"
-      class="rounded-md border border-[var(--ant-color-border)] p-4"
+      class="rounded-xl border border-[var(--ant-color-border)] p-4"
     >
       <div class="flex flex-wrap items-center gap-2">
         <Tag color="blue">{{ route.method }}</Tag>

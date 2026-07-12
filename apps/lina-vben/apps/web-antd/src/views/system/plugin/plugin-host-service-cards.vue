@@ -21,7 +21,7 @@ function hasPanelTargets(card: HostServiceCardView['scopes'][number]) {
     <div
       v-for="card in cards"
       :key="card.identityKey"
-      class="rounded-md border border-[var(--ant-color-border)] p-4"
+      class="rounded-xl border border-[var(--ant-color-border)] p-4"
     >
       <div class="mb-3 flex flex-wrap items-center gap-2">
         <span class="text-[15px] font-medium">

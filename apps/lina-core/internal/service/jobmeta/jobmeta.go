@@ -96,7 +96,7 @@ type Owner interface {
 	// UpdateJob mutates one governed scheduled job and updates scheduler state.
 	UpdateJob(ctx context.Context, in UpdateJobInput) error
 	// DeleteJobs removes governed scheduled jobs and unregisters scheduler entries.
-	DeleteJobs(ctx context.Context, ids string) error
+	DeleteJobs(ctx context.Context, ids []int64) error
 	// UpdateJobStatus toggles one scheduled job and updates scheduler state.
 	UpdateJobStatus(ctx context.Context, id int64, status jobv1.Status) error
 	// TriggerJob starts one manual execution through the scheduler.

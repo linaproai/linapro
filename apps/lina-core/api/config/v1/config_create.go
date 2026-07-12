@@ -19,5 +19,5 @@ type CreateReq struct {
 
 // CreateRes is the config creation response.
 type CreateRes struct {
-	Id int `json:"id" dc:"Parameter ID" eg:"1"`
+	Id int64 `json:"id" dc:"Parameter ID" eg:"1"`
 }

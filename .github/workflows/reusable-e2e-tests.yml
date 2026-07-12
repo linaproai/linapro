@@ -52,7 +52,9 @@ on:
         description: Number of Playwright workers used for the E2E parallel pool.
         required: false
         type: number
-        default: 1
+        # Matches execution-manifest ciShards.defaults.parallelWorkers; serial pool stays single-worker.
+        # 与 execution-manifest ciShards.defaults.parallelWorkers 对齐；串行池仍单 worker。
+        default: 2
 
 # Browser E2E jobs only need read access to repository contents.
 # 浏览器 E2E job 只需要读取仓库内容。
@@ -119,7 +121,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
-          cache: false
+          cache: true
+          cache-dependency-path: "**/go.sum"
 
       # Install the pinned pnpm version without installing packages yet.
       # 安装固定版本 pnpm，但暂不安装项目依赖。
@@ -159,6 +162,16 @@ jobs:
       - name: Install E2E Dependencies
         working-directory: hack/tests
         run: pnpm install --frozen-lockfile
+
+      # Cache Playwright browser downloads across E2E shards to cut install time.
+      # 跨 E2E 分片缓存 Playwright 浏览器下载，降低安装耗时。
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('hack/tests/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       # Install Chromium and required OS packages for Playwright.
       # 安装 Playwright 使用的 Chromium 和所需系统包。

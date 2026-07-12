@@ -120,8 +120,8 @@ func TestJobCapabilityAdapterMutationsDelegateToOwner(t *testing.T) {
 	if err = adapter.Delete(ctx, jobcap.JobID("8")); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
-	if owner.deletedIDs != "8" {
-		t.Fatalf("Delete owner ids = %q, want 8", owner.deletedIDs)
+	if len(owner.deletedIDs) != 1 || owner.deletedIDs[0] != 8 {
+		t.Fatalf("Delete owner ids = %v, want [8]", owner.deletedIDs)
 	}
 
 	if err = adapter.Run(ctx, jobcap.JobID("8")); err != nil {
@@ -150,8 +150,8 @@ func TestJobCapabilityAdapterRejectsInvalidInputBeforeOwner(t *testing.T) {
 	if err := adapter.Delete(ctx, jobcap.JobID("bad")); !bizerr.Is(err, capmodel.CodeCapabilityDenied) {
 		t.Fatalf("Delete invalid id error = %v, want capability denied", err)
 	}
-	if owner.deletedIDs != "" {
-		t.Fatalf("Delete invalid id still reached owner with ids %q", owner.deletedIDs)
+	if len(owner.deletedIDs) != 0 {
+		t.Fatalf("Delete invalid id still reached owner with ids %v", owner.deletedIDs)
 	}
 
 	adapter = NewCapabilityAdapter(nil, nil, nil)
@@ -223,7 +223,7 @@ type recordingJobOwner struct {
 	createID    int64
 	createInput jobmeta.SaveJobInput
 	updateInput jobmeta.UpdateJobInput
-	deletedIDs  string
+	deletedIDs  []int64
 	triggeredID int64
 	statusID    int64
 	status      jobv1.Status
@@ -242,7 +242,7 @@ func (o *recordingJobOwner) UpdateJob(_ context.Context, in jobmeta.UpdateJobInp
 }
 
 // DeleteJobs records one delete request.
-func (o *recordingJobOwner) DeleteJobs(_ context.Context, ids string) error {
+func (o *recordingJobOwner) DeleteJobs(_ context.Context, ids []int64) error {
 	o.deletedIDs = ids
 	return nil
 }

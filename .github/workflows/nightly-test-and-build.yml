@@ -43,12 +43,15 @@ jobs:
       include-plugin-frontend-unit-tests: true
       include-plugin-command-smoke: true
       include-make-command-smoke: true
+      include-i18n-check: true
       include-redis-integration: true
       include-host-only-build-smoke: true
       include-host-only-e2e-tests: true
       include-plugin-full-e2e-tests: true
       include-redis-cluster-smoke: true
-      e2e-parallel-workers: 1
+      # Align with execution-manifest ciShards.defaults.parallelWorkers for the parallel pool.
+      # 与 execution-manifest 中 ciShards.defaults.parallelWorkers 对齐，仅加速并行池。
+      e2e-parallel-workers: 2
       artifact-prefix: nightly
       retention-days: 14
 

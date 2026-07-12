@@ -11,7 +11,14 @@ export const pluginsDir = path.resolve(repoRoot, 'apps/lina-plugins');
 export const manifestPath = path.resolve(testsDir, 'config/execution-manifest.json');
 export const pluginTestEntry = 'plugins';
 export const pluginWorkspaceInitCommand = 'git submodule update --init --recursive';
-export const hostOnlyExcludedEntries = [];
+// Host-only mode starts with `make dev plugins=0`, which disables source-plugin
+// frontend discovery (`virtual:lina-plugin-pages` is empty). Tests that assert
+// Manage-button enablement for real plugin IDs require the build-time page
+// registry from official plugins and are covered by the plugin-full
+// `extension:plugin` suite (`make dev plugins=1`).
+export const hostOnlyExcludedEntries = [
+  'e2e/extension/plugin/TC019-plugin-management-manage-entry.ts',
+];
 export const tcFilePattern = /TC\d{3}-[^/.]+\.ts$/u;
 export const legacyGlobalTcFilePattern = /TC\d{4}-[^/.]+\.ts$/u;
 

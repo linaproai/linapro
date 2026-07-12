@@ -23,14 +23,18 @@ var (
 		gcode.CodeInvalidParameter,
 	)
 	// CodePluginInstallModeInvalid reports that an install request used an unsupported install mode.
+	// messageKey is derived as error.plugin.install.mode.invalid.
 	CodePluginInstallModeInvalid = bizerr.MustDefine(
 		"PLUGIN_INSTALL_MODE_INVALID",
 		"Plugin install mode supports only global or tenant_scoped",
 		gcode.CodeInvalidParameter,
 	)
 	// CodePluginInstallModeInvalidForScopeNature reports an install-mode and scope-nature mismatch.
+	// Error code is chosen so the derived key does not nest under
+	// error.plugin.install.mode.invalid (which is already a leaf string).
+	// messageKey is derived as error.plugin.install.mode.scope.nature.mismatch.
 	CodePluginInstallModeInvalidForScopeNature = bizerr.MustDefine(
-		"PLUGIN_INSTALL_MODE_INVALID_FOR_SCOPE_NATURE",
+		"PLUGIN_INSTALL_MODE_SCOPE_NATURE_MISMATCH",
 		"Plugin {pluginId} with scope_nature={scopeNature} cannot use install_mode={installMode}",
 		gcode.CodeInvalidParameter,
 	)
@@ -184,8 +188,11 @@ var (
 	// plugin cannot run a full uninstall because both staged and active release
 	// artifacts are missing. Operators may use force uninstall to clear only
 	// host governance state.
+	// Error code is chosen so the derived key does not nest under
+	// error.plugin.dynamic.artifact.missing (which is already a leaf string).
+	// messageKey is derived as error.plugin.dynamic.uninstall.artifact.missing.
 	CodePluginDynamicArtifactMissingForUninstall = bizerr.MustDefine(
-		"PLUGIN_DYNAMIC_ARTIFACT_MISSING_FOR_UNINSTALL",
+		"PLUGIN_DYNAMIC_UNINSTALL_ARTIFACT_MISSING",
 		"Dynamic plugin {pluginId} cannot run full uninstall because its wasm artifact is missing. Use force uninstall to clear host governance only",
 		gcode.CodeInvalidOperation,
 	)

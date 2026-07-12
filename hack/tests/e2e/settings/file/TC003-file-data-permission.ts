@@ -104,10 +104,10 @@ test.describe("TC-3 文件管理数据权限", () => {
 
   test.afterAll(async () => {
     if (visibleFileID > 0) {
-      await adminApi.delete(`file/${visibleFileID}`).catch(() => {});
+      await adminApi.delete(`file?ids[]=${visibleFileID}`).catch(() => {});
     }
     if (hiddenFileID > 0) {
-      await adminApi.delete(`file/${hiddenFileID}`).catch(() => {});
+      await adminApi.delete(`file?ids[]=${hiddenFileID}`).catch(() => {});
     }
     await limitedApi?.post("auth/logout").catch(() => {});
     await limitedApi?.dispose();
@@ -138,7 +138,7 @@ test.describe("TC-3 文件管理数据权限", () => {
     await expectBusinessError(
       await limitedApi.get(`file/download/${hiddenFileID}`),
     );
-    await expectBusinessError(await limitedApi.delete(`file/${hiddenFileID}`));
+    await expectBusinessError(await limitedApi.delete(`file?ids[]=${hiddenFileID}`));
 
     const hiddenStillExists = await listFiles(adminApi, hiddenName);
     expect(hiddenStillExists.list.map((item) => item.id)).toContain(

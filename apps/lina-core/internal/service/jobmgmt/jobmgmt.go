@@ -35,7 +35,7 @@ type Service interface {
 	UpdateGroup(ctx context.Context, in UpdateGroupInput) error
 	// DeleteGroups removes one or more groups and migrates their jobs to the
 	// default group in the same mutation flow.
-	DeleteGroups(ctx context.Context, ids string) error
+	DeleteGroups(ctx context.Context, ids []int64) error
 
 	// WithStartupDataSnapshot returns a child context carrying scheduled-job
 	// startup snapshots shared by one host startup orchestration. Snapshot
@@ -303,10 +303,10 @@ type ListLogsInput struct {
 
 // ClearLogsInput stores execution-log cleanup filters.
 type ClearLogsInput struct {
-	JobID     *int64 // JobID limits cleanup to one visible job.
-	IDs       string // IDs stores comma-separated log IDs and takes priority.
-	BeginTime string // BeginTime filters start_at lower bound.
-	EndTime   string // EndTime filters start_at upper bound.
+	JobID     *int64  // JobID limits cleanup to one visible job.
+	IDs       []int64 // IDs stores selected log IDs and takes priority over other filters.
+	BeginTime string  // BeginTime filters start_at lower bound.
+	EndTime   string  // EndTime filters start_at upper bound.
 }
 
 // LogListItem defines one log row returned to controllers.

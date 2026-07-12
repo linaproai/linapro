@@ -874,6 +874,7 @@
         "uploadPlugin": "Upload Plugin",
         "install": "Install",
         "installAndEnable": "Install and Enable",
+        "manage": "Manage",
         "upgrade": "Upgrade",
         "retryUpgrade": "Retry Upgrade",
         "manualRepair": "Manual Repair",
@@ -955,15 +956,15 @@
           "reverse_dependency_version": "Downstream version mismatch"
         },
         "checkFailed": "Failed to refresh plugin dependency check results",
-        "cycle": "A dependency cycle was detected.",
-        "frameworkUnsatisfied": "Framework version requirement is not satisfied.",
+        "cycle": "A dependency cycle was detected. Adjust the related plugin dependencies before continuing.",
+        "frameworkUnsatisfied": "The current framework version does not meet this plugin's requirements.",
         "frameworkUnsatisfiedDescription": "Required: {required}; current: {current}.",
-        "installBlocked": "Resolve dependency blockers before installing this plugin.",
+        "installBlocked": "Some dependency requirements are not met yet. Review the items below before installing.",
         "loading": "Checking plugin dependencies...",
-        "resolveBeforeInstall": "Resolve dependency blockers before installing this plugin.",
-        "resolveBeforeUninstall": "Uninstall dependent plugins before removing this plugin.",
+        "resolveBeforeInstall": "Some dependency requirements are not met yet. Resolve them before installing this plugin.",
+        "resolveBeforeUninstall": "Uninstall plugins that depend on this one before continuing.",
         "title": "Dependency Check",
-        "uninstallBlocked": "This plugin is required by installed plugins."
+        "uninstallBlocked": "Other installed plugins still depend on this one. Resolve them before uninstalling."
       },
       "hostServices": {
         "identity": {
@@ -979,13 +980,29 @@
           "requested": "Requested Scope"
         },
         "service": {
+          "ai": "AI",
+          "apidoc": "API Doc",
+          "auth": "Auth",
+          "bizctx": "Business Context",
+          "cache": "Cache",
           "data": "Data",
+          "dict": "Dictionary",
+          "files": "Files",
+          "hostconfig": "Host Config",
           "jobs": "Jobs",
+          "lock": "Distributed Lock",
+          "manifest": "Manifest",
           "network": "Network",
           "notifications": "Notifications",
+          "org": "Organization",
           "plugins": "Plugins",
+          "route": "Route",
           "runtime": "Runtime",
-          "storage": "Storage"
+          "sessions": "Sessions",
+          "storage": "Storage",
+          "tenant": "Tenant",
+          "unknown": "Unknown Service ({service})",
+          "users": "Users"
         },
         "summary": {
           "path": "Path",
@@ -1008,8 +1025,10 @@
         "installSucceededEnableFailed": "Installed successfully, but enabling failed. Please review the authorization result and plugin status.",
         "installed": "Plugin installed",
         "installedAndEnabled": "Plugin installed and enabled",
+        "managementRouteUnavailable": "This plugin management page is not available in the current session. Confirm the plugin is enabled and your account has the corresponding menu permission.",
         "mockDataRolledBack": "Plugin {pluginId} installed successfully, but mock data {failedFile} failed to load and was rolled back: {cause}. You can keep the plugin in its installed-without-mock state or uninstall and reinstall after fixing the mock SQL.",
         "noInstallPermission": "The current account does not have permission to install or synchronize plugins",
+        "noManagementPage": "This plugin has no management page",
         "noUpgradePermission": "The current account does not have permission to upgrade plugins",
         "noPolicyPermission": "The current account does not have permission to configure plugin policies",
         "noStatusPermission": "The current account does not have permission to change plugin status",
@@ -1060,7 +1079,7 @@
         "resourceCount": "Resources {count}",
         "riskSection": "Risk Hints",
         "noRiskHints": "No additional risk hints",
-        "resolveBeforeUpgrade": "Resolve dependency blockers before upgrading this plugin."
+        "resolveBeforeUpgrade": "Some dependency requirements are not met yet. Resolve them before upgrading this plugin."
       },
       "upload": {
         "acknowledge": "Got It",

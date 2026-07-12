@@ -1,5 +1,6 @@
 // This file adapts dynamic-plugin auth-domain host-service calls, including
-// token handoff and authorization method families, to capability.Services.
+// token handoff, external login, and authorization method families, to
+// capability.Services.
 
 package wasm
 
@@ -8,9 +9,11 @@ import (
 	"strings"
 
 	"lina-core/pkg/plugin/capability/authcap/authz"
+	"lina-core/pkg/plugin/capability/authcap/extlogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // dispatchAuthHostService routes auth token host-service calls.
@@ -27,6 +30,8 @@ func dispatchAuthHostService(
 		bridgehostservice.HostServiceMethodAuthzIsPlatformAdmin,
 		bridgehostservice.HostServiceMethodAuthzReplaceRolePermissions:
 		return dispatchAuthAuthorizationMethods(ctx, hcc, method, payload)
+	case bridgehostservice.HostServiceMethodAuthExternalLoginByVerifiedIdentity:
+		return dispatchAuthExternalLogin(ctx, hcc, payload)
 	}
 
 	services := capabilityServicesForHostCall(hcc)
@@ -127,6 +132,52 @@ func authzServiceForHostCall(hcc *hostCallContext) authz.Service {
 		return nil
 	}
 	return services.Auth().Authz()
+}
+
+// dispatchAuthExternalLogin exchanges a plugin-verified external identity for a
+// host session. Provider ownership: source plugins use ProvideExternalIdentity;
+// dynamic plugins must authorize the provider ID as an auth host-service
+// resource ref (same trust model after install authorization).
+func dispatchAuthExternalLogin(
+	ctx context.Context,
+	hcc *hostCallContext,
+	payload []byte,
+) *bridgehostcall.HostCallResponseEnvelope {
+	services := capabilityServicesForHostCall(hcc)
+	if services == nil || services.Auth() == nil || services.Auth().ExternalLogin() == nil {
+		return domainServiceNotScoped("auth.external_login")
+	}
+	var request extlogin.LoginInput
+	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+		return invalidCapabilityRequest(err)
+	}
+	provider := strings.TrimSpace(request.Provider)
+	if !ownsExternalLoginProvider(hcc, provider) {
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
+			"external login provider is not owned by the calling plugin",
+		)
+	}
+	result, err := services.Auth().ExternalLogin().LoginByVerifiedIdentity(ctx, request)
+	return domainCapabilityResult(result, err)
+}
+
+// ownsExternalLoginProvider reports whether the calling plugin owns providerID.
+func ownsExternalLoginProvider(hcc *hostCallContext, providerID string) bool {
+	if hcc == nil || strings.TrimSpace(providerID) == "" {
+		return false
+	}
+	pluginID := strings.TrimSpace(hcc.pluginID)
+	if definition, ok := pluginhost.GetSourcePlugin(pluginID); ok && definition != nil {
+		for _, owned := range definition.GetExternalIdentityProviderIDs() {
+			if owned == providerID {
+				return true
+			}
+		}
+		return false
+	}
+	// Dynamic plugins: hostServices resources.ref lists owned provider IDs.
+	return hcc.hostServiceResource(bridgehostservice.HostServiceAuth, providerID) != nil
 }
 
 // keyRequest carries one string key.

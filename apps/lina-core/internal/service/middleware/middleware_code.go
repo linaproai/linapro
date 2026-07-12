@@ -34,23 +34,23 @@ var (
 		gcode.CodeUnknown,
 	)
 	// CodeMiddlewarePermissionCurrentUserMissing reports that permission middleware has no user context.
-	CodeMiddlewarePermissionCurrentUserMissing = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.permission.current.user.missing.
+	CodeMiddlewarePermissionCurrentUserMissing = bizerr.MustDefine(
 		"PERMISSION_CURRENT_USER_MISSING",
-		"error.permission.currentUserMissing",
 		"Current authenticated user is unavailable",
 		gcode.CodeNotAuthorized,
 	)
 	// CodeMiddlewarePermissionContextLoadFailed reports that permission context loading failed.
-	CodeMiddlewarePermissionContextLoadFailed = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.permission.context.load.failed.
+	CodeMiddlewarePermissionContextLoadFailed = bizerr.MustDefine(
 		"PERMISSION_CONTEXT_LOAD_FAILED",
-		"error.permission.contextLoadFailed",
 		"Failed to load API permission context",
 		gcode.CodeInternalError,
 	)
 	// CodeMiddlewarePermissionDeniedRequired reports that the user lacks declared permissions.
-	CodeMiddlewarePermissionDeniedRequired = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.permission.denied.required.
+	CodeMiddlewarePermissionDeniedRequired = bizerr.MustDefine(
 		"PERMISSION_DENIED_REQUIRED",
-		"error.permission.denied.required",
 		"Current user lacks required API permissions: {permissions}",
 		gcode.CodeNotAuthorized,
 	)

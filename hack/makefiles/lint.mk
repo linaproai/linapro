@@ -6,6 +6,9 @@ LINT_GO_ARGS :=
 ifneq ($(origin plugins), undefined)
 LINT_GO_ARGS += plugins=$(plugins)
 endif
+ifneq ($(origin dir), undefined)
+LINT_GO_ARGS += dir=$(dir)
+endif
 ifneq ($(origin fix), undefined)
 LINT_GO_ARGS += fix=$(fix)
 endif

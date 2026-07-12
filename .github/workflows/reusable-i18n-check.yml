@@ -1,0 +1,72 @@
+# Reusable LinaPro runtime i18n governance check workflow.
+# LinaPro 可复用运行时 i18n 治理检查工作流。
+name: Reusable i18n Check
+
+on:
+  # Expose make i18n.check as a reusable CI gate for main, nightly, and release callers.
+  # 将 make i18n.check 暴露为可被 main、nightly、release 调用的 CI 门禁。
+  workflow_call:
+    inputs:
+      # Controls whether official plugin submodules are checked out.
+      # Full i18n gates should use recursive so plugin error catalogs are scanned.
+      # 控制是否检出官方插件 submodule。完整 i18n 门禁应使用 recursive，以便扫描插件错误语言包。
+      submodules:
+        description: Checkout submodule strategy for actions/checkout.
+        required: false
+        type: string
+        default: recursive
+      # When true, fail if the official plugin workspace is missing after checkout.
+      # 为 true 时，检出后若官方插件工作区缺失则失败。
+      require-plugin-workspace:
+        description: Whether official plugin manifests must be present for this gate.
+        required: false
+        type: boolean
+        default: true
+
+# i18n governance checks only need repository read access.
+# i18n 治理检查只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep command logs aligned with the project timezone.
+# 让命令日志与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Runs the public make i18n.check entrypoint (scan + locale parity + bizerr keys + frontend $t).
+  # 运行公开 make i18n.check 入口（硬编码扫描、locale 对等、bizerr key、前端 $t）。
+  i18n-check:
+    name: Runtime i18n check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Check out repository sources, including official plugins when requested.
+      # 拉取仓库源码；按调用方要求包含官方插件。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: ${{ inputs.submodules }}
+
+      # Fail fast when plugin-full coverage is required but plugins are not present.
+      # 在需要插件完整覆盖但插件工作区缺失时快速失败。
+      - name: Verify Official Plugin Workspace
+        if: ${{ inputs.require-plugin-workspace }}
+        uses: ./.github/actions/verify-official-plugin-workspace
+
+      # Install Go so make i18n.check can execute linactl through go run.
+      # 安装 Go，使 make i18n.check 可通过 go run 执行 linactl。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+            hack/tools/linactl/go.sum
+
+      # Run the same public entrypoint developers use locally.
+      # 运行与本地开发相同的公开入口。
+      - name: Run make i18n.check
+        run: make i18n.check

@@ -32,10 +32,10 @@ test.describe('TC-11 删除分组自动迁移任务', () => {
 
   test.afterAll(async () => {
     if (jobId) {
-      await api.delete(`job/${jobId}`);
+      await api.delete(`job?ids[]=${jobId}`);
     }
     if (groupId) {
-      await api.delete(`job-group/${groupId}`);
+      await api.delete(`job-group?ids[]=${groupId}`);
     }
     if (originalShellSwitch) {
       await restoreCronShellEnabled(api, originalShellSwitch);

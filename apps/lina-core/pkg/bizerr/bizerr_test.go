@@ -46,12 +46,11 @@ func TestCodeAccessorsAndMatching(t *testing.T) {
 
 	var (
 		runtimeCode = "USER_LOCKED"
-		messageKey  = "error.user.locked.custom"
+		messageKey  = MessageKey(runtimeCode) // error.user.locked
 		fallback    = "User is locked"
 	)
-	code := MustDefineWithKey(
+	code := MustDefine(
 		runtimeCode,
-		messageKey,
 		fallback,
 		gcode.CodeNotAuthorized,
 	)

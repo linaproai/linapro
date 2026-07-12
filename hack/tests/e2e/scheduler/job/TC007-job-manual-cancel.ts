@@ -34,7 +34,7 @@ test.describe('TC-7 长任务手动终止', () => {
   test.afterAll(async () => {
     if (jobId) {
       await clearLogs(api, jobId);
-      await api.delete(`job/${jobId}`);
+      await api.delete(`job?ids[]=${jobId}`);
     }
     if (originalShellSwitch) {
       await restoreCronShellEnabled(api, originalShellSwitch);

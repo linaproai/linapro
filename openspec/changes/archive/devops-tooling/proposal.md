@@ -20,6 +20,7 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - 提供跨平台安装脚本、内存态 demo Compose、开发容器 Compose、`lina-perf-audit`手动触发性能审计技能和持久 issue-card 机制。
 - 将非工具链 owner 的项目初始化、数据库启动、E2E 组织和定时任务清理内容迁移为交叉影响摘要，避免在本分组重复保存完整能力规范。
 - 建立仓库级`Go`静态检查门禁：固定`golangci-lint`与`staticcheck`版本，通过`linactl lint.go`提供跨平台入口，支持宿主模式与插件完整模式，并接入主`CI`与发布验证。
+- 为`linactl lint.go`与`make lint`/`make lint.go`增加可选`dir=<path>`参数，将本地/Agent 迭代时的扫描范围收敛到目标路径所属的单个`Go module`；未传`dir`时保持工作区全量行为，确保`CI`与审查门禁不受影响。支持`apps/lina-core`、`hack/tools/linactl`、插件根（优先`backend`）及任意位于某`go.mod`下的子目录解析；日志须标明`scope=dir|workspace`。不引入包级`packages=`筛选，不改变`CI`默认全量策略。
 - 将动态插件 builder 专用的 hook、resource 与 lifecycle timeout 配置统一收敛到插件根`hack/config.yaml`的`wasm.*`配置，不再从`backend/*/*.yaml`读取。
 - 收敛`linactl`公开契约：删除旧构建变量、`package.json`构建回退、`plugins=auto`、snake_case 参数映射、宽松布尔别名、环境变量标签/registry 覆盖与镜像调试入口；`wasm`单插件入口仅`dir=`。
 
@@ -34,7 +35,7 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - `lina-perf-audit-skill`
 - `monthly-openspec-archive`
 - `release-version-governance`
-- `go-static-lint-governance`：仓库级`Go`静态检查配置、`linactl lint.go`入口、多目标死代码检查、插件工作区覆盖、`CI`门禁与治理文档。
+- `go-static-lint-governance`：仓库级`Go`静态检查配置、`linactl lint.go`入口、多目标死代码检查、插件工作区覆盖、`CI`门禁、可选`dir=`组件/module 定向扫描、日志范围标识与治理文档。
 - `plugin-runtime-builder-config`：动态插件 builder 配置统一到插件根`hack/config.yaml`的`wasm`配置。
 
 ### Modified Capabilities
@@ -43,11 +44,13 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - `release-image-build`
 - `runtime-upgrade-governance`
 - `agent-skills-link-cli`
+- `go-static-lint-governance`：在既有全量门禁之上补充`dir=`定向范围、路径解析失败语义与文档/规则说明要求。
 
 ## Impact
 
-- 影响仓库开发命令、工具模块组织、GitHub Actions、安装脚本、Agent 资源桥接、OpenSpec 月度治理、release/nightly 发布、GoFrame 代码生成入口和开发期升级流程的历史追溯。
+- 影响仓库开发命令、工具模块组织、GitHub Actions、安装脚本、Agent 资源桥接、OpenSpec 月度治理、release/nightly 发布、GoFrame 代码生成入口、`Go`静态检查定向扫描入口和开发期升级流程的历史追溯。
 - 不改变当前运行时代码、HTTP API、数据库 schema、业务权限、数据权限、插件运行时契约、前端 UI 或运行时缓存行为；`plugin-upgrade-governance`等运行时插件契约由`archive/plugin-framework`和主规范承载。
 - 插件目录影响仅为新增根目录薄`Makefile`并引入共享`hack/makefiles/plugin.codegen.mk`，不修改插件业务源码、插件清单、生命周期资源或运行时授权边界。
-- `i18n`历史影响主要来自工具文档、workflow 注释、OpenSpec 任务记录和少量运行时实现阶段的独立 owner 变更；本次压缩不修改语言包、`manifest/i18n`或`apidoc i18n JSON`。
-- 验证以工具单元测试、命令 smoke、GitHub Actions YAML/shell 检查、OpenSpec 校验、release/nightly workflow 验证、性能审计 dry-run 和文档镜像同步为主；本次压缩只做 OpenSpec 文档治理验证。
+- `i18n`历史影响主要来自工具文档、workflow 注释、OpenSpec 任务记录和少量运行时实现阶段的独立 owner 变更；静态检查`dir=`能力无运行时`i18n`资源、缓存与数据权限影响；本次压缩不修改语言包、`manifest/i18n`或`apidoc i18n JSON`。
+- 跨平台：`dir`解析与参数处理继续走 Go 标准库，`Makefile`/`make.cmd`仅透传参数。
+- 验证以工具单元测试、命令 smoke、GitHub Actions YAML/shell 检查、OpenSpec 校验、release/nightly workflow 验证、性能审计 dry-run、`linactl` lint 定向/全量 smoke 和文档镜像同步为主；本次压缩只做 OpenSpec 文档治理验证。

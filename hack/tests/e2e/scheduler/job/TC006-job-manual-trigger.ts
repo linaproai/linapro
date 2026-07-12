@@ -30,7 +30,7 @@ test.describe('TC-6 手动触发任务', () => {
 
   test.afterAll(async () => {
     if (jobId) {
-      await api.delete(`job/${jobId}`);
+      await api.delete(`job?ids[]=${jobId}`);
     }
     if (originalShellSwitch) {
       await restoreCronShellEnabled(api, originalShellSwitch);

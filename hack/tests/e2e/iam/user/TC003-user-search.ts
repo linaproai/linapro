@@ -1,4 +1,5 @@
 import { test, expect } from '../../../fixtures/auth';
+import { buildBatchIdsQuery } from "../../../support/api/query-ids";
 import { createAdminApiContext } from '../../../fixtures/plugin';
 import { UserPage } from '../../../pages/UserPage';
 
@@ -55,7 +56,7 @@ async function deleteSearchFixtureUser(
   if (!fixture?.id) {
     return;
   }
-  await adminApi.delete(`user?ids=${fixture.id}`).catch(() => {});
+  await adminApi.delete(`user?${buildBatchIdsQuery([fixture.id])}`).catch(() => {});
 }
 
 test.describe('TC003 用户列表搜索', () => {

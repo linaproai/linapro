@@ -219,8 +219,15 @@ export function pluginApiPath(pluginId: string, pathName: string) {
   return `${pluginApiOrigin}/x/${normalizedPluginID}/api/v1/${normalizedPath}`;
 }
 
+// Default query arrays to brackets form (ids[]=1&ids[]=2). GoFrame binds this
+// shape to []int; plain repeated keys (ids=1&ids=2) keep only the last value.
+// Related issue: https://github.com/linaproai/linapro/issues/89
 export const requestClient = createRequestClient(apiURL, {
+  paramsSerializer: 'brackets',
   responseReturn: 'data',
 });
 
-export const baseRequestClient = new RequestClient({ baseURL: apiURL });
+export const baseRequestClient = new RequestClient({
+  baseURL: apiURL,
+  paramsSerializer: 'brackets',
+});

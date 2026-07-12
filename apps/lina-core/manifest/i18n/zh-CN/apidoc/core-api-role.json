@@ -78,7 +78,7 @@
           "RoleBatchDeleteReq": {
             "fields": {
               "ids": {
-                "dc": "角色ID列表，多个ID通过英文逗号分隔的查询参数传入"
+                "dc": "角色ID列表，以查询数组参数传入，例如 ids[]=2&ids[]=3&ids[]=4"
               }
             },
             "meta": {

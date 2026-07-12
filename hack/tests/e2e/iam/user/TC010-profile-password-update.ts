@@ -7,6 +7,7 @@ import { test, expect } from '../../../fixtures/auth';
 import { LoginPage } from '../../../pages/LoginPage';
 import { ProfilePage } from '../../../pages/ProfilePage';
 import { createAdminApiContext, expectSuccess } from '../../../support/api/job';
+import { buildBatchIdsQuery } from "../../../support/api/query-ids";
 
 type CreateUserResult = {
   id: number;
@@ -44,7 +45,7 @@ async function createTemporaryUser(api: APIRequestContext, username: string) {
 }
 
 async function deleteTemporaryUser(api: APIRequestContext, userID: number) {
-  await expectSuccess(await api.delete(`user?ids=${userID}`));
+  await expectSuccess(await api.delete(`user?${buildBatchIdsQuery([userID])}`));
 }
 
 async function expectProfileUpdateSuccess(response: JsonResponse) {

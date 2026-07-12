@@ -21,7 +21,7 @@ test.describe('TC-1 定时任务分组 CRUD', () => {
 
   test.afterAll(async () => {
     if (createdGroupId) {
-      await api.delete(`job-group/${createdGroupId}`);
+      await api.delete(`job-group?ids[]=${createdGroupId}`);
     }
     await api.dispose();
   });

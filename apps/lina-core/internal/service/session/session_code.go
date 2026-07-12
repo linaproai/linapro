@@ -11,9 +11,9 @@ import (
 var (
 	// CodeSessionStateUnavailable reports that shared online-session hot state
 	// cannot be read or written.
-	CodeSessionStateUnavailable = bizerr.MustDefineWithKey(
+	// messageKey is derived as error.session.state.unavailable.
+	CodeSessionStateUnavailable = bizerr.MustDefine(
 		"SESSION_STATE_UNAVAILABLE",
-		"error.session.state.unavailable",
 		"Online-session state is temporarily unavailable",
 		gcode.CodeInternalError,
 	)

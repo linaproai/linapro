@@ -120,6 +120,16 @@
   overflow: hidden;
 }
 
+/**
+ * Align internal table chrome with the outer page panel (rounded-xl).
+ * Default vxe is--round uses a smaller top-only radius that looks sharper
+ * than the surrounding card.
+ */
+:root .vxe-grid.is--round .vxe-table--border-line,
+:root .vxe-grid.is--round .vxe-table--header-wrapper.body--wrapper {
+  border-radius: 0;
+}
+
 /* Sortable column headers show pointer cursor */
 .vxe-header--column.is--sortable {
   cursor: pointer;

@@ -208,8 +208,8 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 }
 
 // DeleteJobs removes one or more non-built-in scheduled jobs.
-func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
-	jobIDs := parseInt64IDs(ids)
+func (s *serviceImpl) DeleteJobs(ctx context.Context, ids []int64) error {
+	jobIDs := normalizePositiveInt64IDs(ids)
 	if len(jobIDs) == 0 {
 		return bizerr.NewCode(CodeJobDeleteRequired)
 	}

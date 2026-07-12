@@ -29,6 +29,16 @@ const frameworkUnsatisfied = computed(() => {
 });
 const reverseDependents = computed(() => props.check?.reverseDependents ?? []);
 const reverseBlockers = computed(() => props.check?.reverseBlockers ?? []);
+// reverse_dependency edges already appear in reverseDependents; keep only
+// blockers that add information (unknown snapshot, version mismatch, etc.).
+const visibleReverseBlockers = computed(() => {
+  if (reverseDependents.value.length === 0) {
+    return reverseBlockers.value;
+  }
+  return reverseBlockers.value.filter(
+    (blocker) => blocker.code !== 'reverse_dependency',
+  );
+});
 const cycle = computed(() => props.check?.cycle ?? []);
 
 const hasInstallContent = computed(() => {
@@ -44,7 +54,7 @@ const hasUninstallContent = computed(() => {
   return (
     props.loading ||
     reverseDependents.value.length > 0 ||
-    reverseBlockers.value.length > 0
+    visibleReverseBlockers.value.length > 0
   );
 });
 
@@ -54,9 +64,10 @@ const shouldRender = computed(() => {
     : hasUninstallContent.value;
 });
 
+// Uninstall only needs "who depends on me" for operators to clear
+// dependents first; version constraints are not actionable here.
 function formatReverseDependent(item: PluginDependencyReverseDependent) {
-  const name = item.name || item.pluginId;
-  return item.requiredVersion ? `${name} ${item.requiredVersion}` : name;
+  return item.pluginId || item.name || '';
 }
 
 function formatFrameworkMismatch() {
@@ -66,22 +77,34 @@ function formatFrameworkMismatch() {
   });
 }
 
+// Reverse blockers identify the downstream consumer in pluginId; install
+// blockers identify the missing/unsatisfied dependency in dependencyId.
+function isReverseBlockerCode(code?: string) {
+  return (
+    code === 'reverse_dependency' ||
+    code === 'reverse_dependency_version' ||
+    code === 'dependency_snapshot_unknown'
+  );
+}
+
 function formatBlocker(blocker: PluginDependencyBlocker) {
   const label = $t(`pages.system.plugin.dependency.blocker.${blocker.code}`);
   const normalizedLabel =
     label === `pages.system.plugin.dependency.blocker.${blocker.code}`
       ? blocker.code
       : label;
-  const dependency = blocker.dependencyId || blocker.pluginId || '';
+  const subject = isReverseBlockerCode(blocker.code)
+    ? blocker.pluginId || blocker.dependencyId || ''
+    : blocker.dependencyId || blocker.pluginId || '';
   const version = blocker.requiredVersion ? ` ${blocker.requiredVersion}` : '';
-  return [normalizedLabel, dependency, version].filter(Boolean).join(' ');
+  return [normalizedLabel, subject, version].filter(Boolean).join(' ');
 }
 </script>
 
 <template>
   <div
     v-if="shouldRender"
-    class="flex flex-col gap-3 rounded-md border border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] p-3"
+    class="flex flex-col gap-3 rounded-xl border border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] p-3"
     data-testid="plugin-dependency-summary"
   >
     <Alert
@@ -132,7 +155,7 @@ function formatBlocker(blocker: PluginDependencyBlocker) {
     <Alert
       v-if="
         props.mode === 'uninstall' &&
-        (reverseDependents.length > 0 || reverseBlockers.length > 0)
+        (reverseDependents.length > 0 || visibleReverseBlockers.length > 0)
       "
       data-testid="plugin-dependency-reverse-blockers"
       show-icon
@@ -143,13 +166,13 @@ function formatBlocker(blocker: PluginDependencyBlocker) {
         <div class="mt-2 flex flex-wrap gap-2">
           <Tag
             v-for="item in reverseDependents"
-            :key="`${item.pluginId}-${item.requiredVersion}`"
+            :key="item.pluginId"
             color="red"
           >
             {{ formatReverseDependent(item) }}
           </Tag>
           <Tag
-            v-for="(blocker, index) in reverseBlockers"
+            v-for="(blocker, index) in visibleReverseBlockers"
             :key="`${blocker.code}-${blocker.pluginId}-${index}`"
             color="red"
           >
@@ -160,3 +183,15 @@ function formatBlocker(blocker: PluginDependencyBlocker) {
     </Alert>
   </div>
 </template>
+
+<style scoped>
+/*
+ * Ant Design Alert 在带 description 时会把 message 渲染成标题字号（约 16px）。
+ * 依赖阻断提示属于说明文案，与正文保持 14px / 常规字重更合适。
+ */
+:deep(.ant-alert-with-description .ant-alert-message) {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5715;
+}
+</style>

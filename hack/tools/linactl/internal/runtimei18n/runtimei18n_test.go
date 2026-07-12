@@ -154,6 +154,54 @@ func TestScanRuntimeI18NReportsAllowlistAndExcludedStats(t *testing.T) {
 	}
 }
 
+// TestValidateBizerrMessageKeysReportsHostMissingCatalogEntry verifies host
+// bizerr MustDefine keys are checked against host error.json catalogs.
+func TestValidateBizerrMessageKeysReportsHostMissingCatalogEntry(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "internal", "service", "demo", "demo_code.go"),
+		`package demo
+import (
+	"github.com/gogf/gf/v2/errors/gcode"
+	"lina-core/pkg/bizerr"
+)
+var CodeDemoMissing = bizerr.MustDefine(
+	"DEMO_MISSING_KEY",
+	"Demo missing key",
+	gcode.CodeInternalError,
+)
+`,
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "manifest", "i18n", "zh-CN", "error.json"),
+		`{"error":{"demo":{"present":"存在"}}}
+`,
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "manifest", "i18n", "en-US", "error.json"),
+		`{"error":{"demo":{"present":"Present"}}}
+`,
+	)
+
+	errors, err := validateBizerrMessageKeys(repoRoot)
+	if err != nil {
+		t.Fatalf("expected host bizerr validation to run, got error: %v", err)
+	}
+	if len(errors) != 2 {
+		t.Fatalf("expected two missing-key errors (zh-CN + en-US), got %#v", errors)
+	}
+	joined := strings.Join(errors, "\n")
+	if !strings.Contains(joined, "DEMO_MISSING_KEY") || !strings.Contains(joined, "error.demo.missing.key") {
+		t.Fatalf("expected DEMO_MISSING_KEY mapping failure, got %#v", errors)
+	}
+}
+
 // TestValidateRuntimeI18NMessagesReportsMissingKeys verifies locale coverage
 // validation compares non-baseline locales against zh-CN.
 func TestValidateRuntimeI18NMessagesReportsMissingKeys(t *testing.T) {
@@ -179,6 +227,140 @@ func TestValidateRuntimeI18NMessagesReportsMissingKeys(t *testing.T) {
 	}
 	if len(errors) != 1 || !strings.Contains(errors[0], "en-US missing key from zh-CN: error.demo.missing") {
 		t.Fatalf("expected one missing-key error, got %#v", errors)
+	}
+}
+
+// TestValidateBizerrMessageKeysReportsPluginGaps verifies i18n-enabled plugins
+// must map every bizerr.MustDefine code into their error catalogs.
+func TestValidateBizerrMessageKeysReportsPluginGaps(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "plugin.yaml"),
+		"id: demo-oidc\ni18n:\n  enabled: true\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "backend", "internal", "service", "oauth", "oauth_code.go"),
+		"package oauth\n\nvar CodeDiscoveryFailed = bizerr.MustDefine(\n\t\"PLUGIN_DEMO_DISCOVERY_FAILED\",\n\t\"discovery failed\",\n\tgcode.CodeInternalError,\n)\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "manifest", "i18n", "zh-CN", "error.json"),
+		"{\"error\":{\"plugin\":{\"demo\":{\"other\":\"其他\"}}}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "manifest", "i18n", "en-US", "error.json"),
+		"{\"error\":{\"plugin\":{\"demo\":{\"other\":\"Other\"}}}}\n",
+	)
+
+	errors, err := validateBizerrMessageKeys(repoRoot)
+	if err != nil {
+		t.Fatalf("expected validation to run, got error: %v", err)
+	}
+	if len(errors) != 2 {
+		t.Fatalf("expected two locale gaps, got %#v", errors)
+	}
+	for _, item := range errors {
+		if !strings.Contains(item, "plugin:demo-oidc") ||
+			!strings.Contains(item, "PLUGIN_DEMO_DISCOVERY_FAILED") ||
+			!strings.Contains(item, "error.plugin.demo.discovery.failed") {
+			t.Fatalf("unexpected gap message: %s", item)
+		}
+	}
+}
+
+// TestValidateBizerrMessageKeysSkipsI18nDisabledPlugins verifies plugins without
+// i18n.enabled=true are not required to ship error catalogs for bizerr codes.
+func TestValidateBizerrMessageKeysSkipsI18nDisabledPlugins(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "single-lang", "plugin.yaml"),
+		"id: single-lang\ni18n:\n  enabled: false\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "single-lang", "backend", "code.go"),
+		"package backend\n\nvar CodeX = bizerr.MustDefine(\"PLUGIN_SINGLE_LANG_X\", \"x\", gcode.CodeInternalError)\n",
+	)
+
+	errors, err := validateBizerrMessageKeys(repoRoot)
+	if err != nil {
+		t.Fatalf("expected validation to run, got error: %v", err)
+	}
+	if len(errors) != 0 {
+		t.Fatalf("expected disabled plugin to be skipped, got %#v", errors)
+	}
+}
+
+// TestValidateBizerrMessageKeysPassesWhenCatalogMatches verifies host and
+// plugin catalogs that include derived messageKeys pass coverage.
+func TestValidateBizerrMessageKeysPassesWhenCatalogMatches(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "internal", "service", "demo", "demo_code.go"),
+		"package demo\n\nvar CodeMissing = bizerr.MustDefine(\"HOST_DEMO_MISSING\", \"missing\", gcode.CodeNotFound)\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "manifest", "i18n", "zh-CN", "error.json"),
+		"{\"error\":{\"host\":{\"demo\":{\"missing\":\"缺失\"}}}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "manifest", "i18n", "en-US", "error.json"),
+		"{\"error\":{\"host\":{\"demo\":{\"missing\":\"Missing\"}}}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "plugin.yaml"),
+		"id: demo-oidc\ni18n:\n  enabled: true\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "backend", "code.go"),
+		"package backend\n\nvar CodeY = bizerr.MustDefine(\"PLUGIN_DEMO_Y\", \"y\", gcode.CodeInternalError)\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "manifest", "i18n", "zh-CN", "error.json"),
+		"{\"error\":{\"plugin\":{\"demo\":{\"y\":\"Y中文\"}}}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-oidc", "manifest", "i18n", "en-US", "error.json"),
+		"{\"error\":{\"plugin\":{\"demo\":{\"y\":\"Y\"}}}}\n",
+	)
+
+	errors, err := validateBizerrMessageKeys(repoRoot)
+	if err != nil {
+		t.Fatalf("expected validation to run, got error: %v", err)
+	}
+	if len(errors) != 0 {
+		t.Fatalf("expected matching catalogs to pass, got %#v", errors)
+	}
+}
+
+// TestDeriveBizerrMessageKeyMatchesBizerrPackage verifies derivation matches
+// lina-core/pkg/bizerr.MessageKey rules.
+func TestDeriveBizerrMessageKeyMatchesBizerrPackage(t *testing.T) {
+	t.Parallel()
+
+	got := deriveBizerrMessageKey("PLUGIN_OIDC_GENERIC_DISCOVERY_FAILED")
+	want := "error.plugin.oidc.generic.discovery.failed"
+	if got != want {
+		t.Fatalf("deriveBizerrMessageKey() = %q, want %q", got, want)
 	}
 }
 
@@ -358,188 +540,8 @@ func TestRunMessagesCommandPasses(t *testing.T) {
 	if !strings.Contains(out.String(), "Runtime i18n message coverage passed") {
 		t.Fatalf("expected pass message, got %q", out.String())
 	}
-}
-
-// TestValidateModuleLevelCallsDetectsTsTopLevel verifies that $t() calls at
-// TypeScript module top level (outside any function) produce a warning.
-func TestValidateModuleLevelCallsDetectsTsTopLevel(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "plugin.yaml"),
-		"id: demo\ni18n:\n  enabled: true\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "zh-CN", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"演示\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "en-US", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"Demo\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "frontend", "pages", "data.ts"),
-		"import { $t } from '#/locales';\n\nexport const options = [\n  { label: $t('plugin.demo.missing'), value: 1 },\n];\n",
-	)
-
-	warnings, err := validateModuleLevelFrontendI18NCalls(repoRoot)
-	if err != nil {
-		t.Fatalf("expected validation to run, got error: %v", err)
-	}
-	if len(warnings) != 1 {
-		t.Fatalf("expected one module-level warning, got %#v", warnings)
-	}
-	if !strings.Contains(warnings[0], "module-level $t()") {
-		t.Fatalf("expected warning about module-level $t(), got %q", warnings[0])
-	}
-}
-
-// TestValidateModuleLevelCallsIgnoresTsFunctionScope verifies that $t() calls
-// inside a function body do not produce warnings.
-func TestValidateModuleLevelCallsIgnoresTsFunctionScope(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "plugin.yaml"),
-		"id: demo\ni18n:\n  enabled: true\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "zh-CN", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"演示\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "en-US", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"Demo\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "frontend", "pages", "data.ts"),
-		"import { $t } from '#/locales';\n\nexport function getOptions() {\n  return [\n    { label: $t('plugin.demo.title'), value: 1 },\n  ];\n}\n",
-	)
-
-	warnings, err := validateModuleLevelFrontendI18NCalls(repoRoot)
-	if err != nil {
-		t.Fatalf("expected validation to run, got error: %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("expected no warnings for function-scope $t(), got %#v", warnings)
-	}
-}
-
-// TestValidateModuleLevelCallsDetectsVueScriptSetupTopLevel verifies that $t()
-// calls at <script setup> top level produce a warning.
-func TestValidateModuleLevelCallsDetectsVueScriptSetupTopLevel(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "plugin.yaml"),
-		"id: demo\ni18n:\n  enabled: true\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "zh-CN", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"common\":{\"yes\":\"是\",\"no\":\"否\"}}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "en-US", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"common\":{\"yes\":\"Yes\",\"no\":\"No\"}}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "frontend", "pages", "demo.vue"),
-		"<script setup lang=\"ts\">\nimport { $t } from '#/locales';\n\nconst options = [\n  { label: $t('plugin.demo.common.yes'), value: 1 },\n  { label: $t('plugin.demo.common.no'), value: 0 },\n];\n</script>\n\n<template><div>{{ $t('plugin.demo.common.yes') }}</div></template>\n",
-	)
-
-	warnings, err := validateModuleLevelFrontendI18NCalls(repoRoot)
-	if err != nil {
-		t.Fatalf("expected validation to run, got error: %v", err)
-	}
-	if len(warnings) != 2 {
-		t.Fatalf("expected two module-level warnings (yes + no), got %#v", warnings)
-	}
-}
-
-// TestValidateModuleLevelCallsIgnoresVueTemplate verifies that $t() calls in
-// <template> blocks do not produce warnings.
-func TestValidateModuleLevelCallsIgnoresVueTemplate(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "plugin.yaml"),
-		"id: demo\ni18n:\n  enabled: true\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "zh-CN", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"演示\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "en-US", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"Demo\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "frontend", "pages", "demo.vue"),
-		"<script setup lang=\"ts\">\nimport { $t } from '#/locales';\n\nfunction getTitle() {\n  return $t('plugin.demo.title');\n}\n</script>\n\n<template><div>{{ $t('plugin.demo.title') }}</div></template>\n",
-	)
-
-	warnings, err := validateModuleLevelFrontendI18NCalls(repoRoot)
-	if err != nil {
-		t.Fatalf("expected validation to run, got error: %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("expected no warnings for template/function $t(), got %#v", warnings)
-	}
-}
-
-// TestValidateModuleLevelCallsIgnoresVueObjectLiteral verifies that $t() calls
-// inside object literals within <script setup> do not produce warnings.
-func TestValidateModuleLevelCallsIgnoresVueObjectLiteral(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "plugin.yaml"),
-		"id: demo\ni18n:\n  enabled: true\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "zh-CN", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"演示\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "manifest", "i18n", "en-US", "plugin.json"),
-		"{\"plugin\":{\"demo\":{\"title\":\"Demo\"}}}\n",
-	)
-	mustWriteToolTestFile(
-		t,
-		filepath.Join(repoRoot, "apps", "lina-plugins", "demo", "frontend", "pages", "demo.vue"),
-		"<script setup lang=\"ts\">\nimport { $t } from '#/locales';\n\nfunction buildSchema() {\n  return [\n    { label: $t('plugin.demo.title'), field: 'title' },\n  ];\n}\n</script>\n",
-	)
-
-	warnings, err := validateModuleLevelFrontendI18NCalls(repoRoot)
-	if err != nil {
-		t.Fatalf("expected validation to run, got error: %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("expected no warnings for function-scope object literal $t(), got %#v", warnings)
+	if !strings.Contains(out.String(), "bizerr messageKey coverage") {
+		t.Fatalf("expected bizerr coverage mention in pass message, got %q", out.String())
 	}
 }
 

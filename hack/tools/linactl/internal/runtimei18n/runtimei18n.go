@@ -1,6 +1,7 @@
 // Package runtimei18n implements repository-level runtime i18n governance
 // checks for linactl. It owns hard-coded runtime copy scanning, host/plugin
-// message coverage validation, and the default allowlist path used by the
+// locale key parity, bizerr messageKey coverage (host + i18n-enabled plugins),
+// frontend static $t key coverage, and the default allowlist path used by the
 // consolidated i18n.check command.
 package runtimei18n
 
@@ -136,16 +137,6 @@ func runFrontendKeysCommand(repoRoot string, args []string, out io.Writer) (int,
 	if err = emitFrontendKeyCoverage(out, errors); err != nil {
 		return 1, err
 	}
-
-	// Module-level $t() call warnings (non-blocking).
-	warnings, warnErr := validateModuleLevelFrontendI18NCalls(repoRoot)
-	if warnErr != nil {
-		return 1, warnErr
-	}
-	if warnErr = emitModuleLevelWarnings(out, warnings); warnErr != nil {
-		return 1, warnErr
-	}
-
 	if len(errors) > 0 {
 		return 1, nil
 	}

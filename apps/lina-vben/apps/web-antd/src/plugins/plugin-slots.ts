@@ -1,5 +1,11 @@
 export const pluginSlotKeys = {
   authLoginAfter: 'auth.login.after',
+  /**
+   * Platform social account icons (Google / Discord / QQ / …).
+   * Host renders these as a Vben-style icon row under “其他登录方式”.
+   * Protocol / directory logins (generic OIDC, LDAP) stay on auth.login.after.
+   */
+  authLoginSocial: 'auth.login.social',
   crudTableAfter: 'crud.table.after',
   crudToolbarAfter: 'crud.toolbar.after',
   dashboardWorkspaceBefore: 'dashboard.workspace.before',
@@ -25,9 +31,15 @@ const publishedPluginSlotKeySet = new Set<PluginSlotKey>(
 export const publishedPluginSlots: PublishedPluginSlot[] = [
   {
     description:
-      'Public extension area below the login form for hints or lightweight entries.',
+      'Full-width button stack below the login form for protocol or directory logins (generic OIDC, LDAP, enterprise SSO).',
     hostLocation: 'auth.login',
     key: pluginSlotKeys.authLoginAfter,
+  },
+  {
+    description:
+      'Icon-row extension under the login form for third-party platform accounts (Google, Discord, QQ, WeChat, GitHub). Host wraps with an “other login methods” divider.',
+    hostLocation: 'auth.login',
+    key: pluginSlotKeys.authLoginSocial,
   },
   {
     description:

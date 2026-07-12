@@ -33,7 +33,7 @@ test.describe('TC-2 Shell 输出截断可查看', () => {
   test.afterAll(async () => {
     if (jobId) {
       await clearLogs(api, jobId);
-      await api.delete(`job/${jobId}`);
+      await api.delete(`job?ids[]=${jobId}`);
     }
     if (originalShellSwitch) {
       await restoreCronShellEnabled(api, originalShellSwitch);

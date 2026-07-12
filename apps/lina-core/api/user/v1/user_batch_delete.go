@@ -9,7 +9,7 @@ import (
 // BatchDeleteReq defines the request for deleting multiple users.
 type BatchDeleteReq struct {
 	g.Meta `path:"/user" method:"delete" tags:"User Management" summary:"Batch delete users" dc:"Delete multiple users by ID in a single transaction. The built-in administrator and the current signed-in user cannot be deleted." permission:"system:user:remove"`
-	Ids    []int `json:"ids" v:"required|min-length:1" dc:"User ID list supplied as repeated ids query parameters" eg:"1"`
+	Ids    []int `json:"ids" v:"required|min-length:1" dc:"User ID list as a query array, e.g. ids[]=2&ids[]=3&ids[]=4" eg:"[2,3,4]"`
 }
 
 // BatchDeleteRes defines the response for deleting multiple users.

@@ -8,6 +8,7 @@ import (
 
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/authcap/authz"
+	"lina-core/pkg/plugin/capability/authcap/extlogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -35,6 +36,32 @@ func (s authService) Token() token.Service {
 // Authz returns authorization-domain ordinary operations.
 func (s authService) Authz() authz.Service {
 	return authzService{baseService: s.baseService}
+}
+
+// ExternalLogin returns the external-login sub capability via host services.
+// Installed dynamic plugins share the same trust model as source plugins; the
+// host stamps the calling plugin identity and enforces provider ownership
+// (source: ProvideExternalIdentity; dynamic: auth hostService resource refs).
+func (s authService) ExternalLogin() extlogin.Service {
+	return externalLoginService{baseService: s.baseService}
+}
+
+// externalLoginService adapts external-login host service calls.
+type externalLoginService struct{ baseService }
+
+// LoginByVerifiedIdentity exchanges a verified external identity for a host session.
+func (s externalLoginService) LoginByVerifiedIdentity(
+	_ context.Context,
+	in extlogin.LoginInput,
+) (*extlogin.LoginOutput, error) {
+	out := &extlogin.LoginOutput{}
+	err := s.callJSONRequest(
+		protocol.HostServiceAuth,
+		protocol.HostServiceMethodAuthExternalLoginByVerifiedIdentity,
+		in,
+		out,
+	)
+	return out, err
 }
 
 // SelectTenant consumes a pre-login token and issues a tenant-bound token.

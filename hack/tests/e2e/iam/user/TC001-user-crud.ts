@@ -1,4 +1,5 @@
 import { test, expect } from '../../../fixtures/auth';
+import { buildBatchIdsQuery } from "../../../support/api/query-ids";
 import { createAdminApiContext } from '../../../fixtures/plugin';
 import { UserPage } from '../../../pages/UserPage';
 
@@ -38,7 +39,7 @@ test.describe('TC001 用户管理 CRUD', () => {
         return;
       }
 
-      const deleteResponse = await adminApi.delete(`user?ids=${user.id}`);
+      const deleteResponse = await adminApi.delete(`user?${buildBatchIdsQuery([user.id])}`);
       expect(deleteResponse.ok(), `清理测试用户失败: ${username}`).toBeTruthy();
     } finally {
       await adminApi.dispose();

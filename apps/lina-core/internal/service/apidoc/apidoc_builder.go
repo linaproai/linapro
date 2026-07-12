@@ -44,7 +44,10 @@ func (s *serviceImpl) Build(ctx context.Context, server *ghttp.Server) (*goai.Op
 			return nil, err
 		}
 	}
+	// Localize first, then derive top-level tags from whatever groups are present
+	// on operations so host and plugins do not need framework-hardcoded orders.
 	s.localizeDocument(ctx, document)
+	assignOpenAPIDocumentTags(document)
 	stripOpenAPIOperationKeyExtensions(document.Paths)
 	return document, nil
 }

@@ -57,6 +57,11 @@ interface HostServiceCardBuildOptions {
   targetSummaryBadgeColor?: string;
 }
 
+/**
+ * Stable display order for known host service families.
+ * Values align with common authorization-review scanning order: data plane
+ * first, then infra, identity, and remaining catalog services.
+ */
 const hostServiceOrder: Record<string, number> = {
   data: 0,
   storage: 1,
@@ -65,39 +70,73 @@ const hostServiceOrder: Record<string, number> = {
   jobs: 4,
   plugins: 5,
   notifications: 6,
+  cache: 7,
+  lock: 8,
+  files: 9,
+  users: 10,
+  sessions: 11,
+  auth: 12,
+  tenant: 13,
+  org: 14,
+  dict: 15,
+  route: 16,
+  apidoc: 17,
+  bizctx: 18,
+  hostconfig: 19,
+  manifest: 20,
+  ai: 21,
 };
+
+/**
+ * Known host service wire names that have dedicated display labels.
+ * Keep in sync with pages.system.plugin.hostServices.service.* i18n keys
+ * (excluding the shared "unknown" fallback key).
+ */
+export const knownHostServiceLabels = [
+  'ai',
+  'apidoc',
+  'auth',
+  'bizctx',
+  'cache',
+  'data',
+  'dict',
+  'files',
+  'hostconfig',
+  'jobs',
+  'lock',
+  'manifest',
+  'network',
+  'notifications',
+  'org',
+  'plugins',
+  'route',
+  'runtime',
+  'sessions',
+  'storage',
+  'tenant',
+  'users',
+] as const;
+
+const hostServiceLabelKeyPrefix = 'pages.system.plugin.hostServices.service';
 
 export function sortHostServices(items?: HostServicePermissionItem[]) {
   return [...(items ?? [])].sort(compareHostServiceIdentity);
 }
 
+/**
+ * Resolve a localized display title for a host service wire name.
+ * Known services use dedicated i18n keys; unknown services use a consistent
+ * fallback that still surfaces the raw wire identifier for operators.
+ */
 export function formatServiceLabel(service: string) {
-  switch (service) {
-    case 'data': {
-      return $t('pages.system.plugin.hostServices.service.data');
-    }
-    case 'network': {
-      return $t('pages.system.plugin.hostServices.service.network');
-    }
-    case 'runtime': {
-      return $t('pages.system.plugin.hostServices.service.runtime');
-    }
-    case 'storage': {
-      return $t('pages.system.plugin.hostServices.service.storage');
-    }
-    case 'jobs': {
-      return $t('pages.system.plugin.hostServices.service.jobs');
-    }
-    case 'plugins': {
-      return $t('pages.system.plugin.hostServices.service.plugins');
-    }
-    case 'notifications': {
-      return $t('pages.system.plugin.hostServices.service.notifications');
-    }
-    default: {
-      return service;
-    }
+  const normalized = (service ?? '').trim();
+  if (!normalized) {
+    return '';
   }
+  if ((knownHostServiceLabels as readonly string[]).includes(normalized)) {
+    return $t(`${hostServiceLabelKeyPrefix}.${normalized}`);
+  }
+  return $t(`${hostServiceLabelKeyPrefix}.unknown`, { service: normalized });
 }
 
 export function buildPluginDetailHostServiceCards(

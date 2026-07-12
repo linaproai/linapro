@@ -21,7 +21,7 @@ test.describe("TC-2 Uploads route is public and storage-backed", () => {
 
   test.afterAll(async () => {
     if (uploadedFileID > 0) {
-      await adminApi.delete(`file?ids=${uploadedFileID}`).catch(() => {});
+      await adminApi.delete(`file?ids[]=${uploadedFileID}`).catch(() => {});
     }
     await adminApi?.dispose();
   });

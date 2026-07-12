@@ -6,6 +6,18 @@
 
 死代码门禁不启用独立`unused` linter，而由固定版本`staticcheck U1000`承担；含`wasip1`/`!wasip1`构建约束的包按宿主目标与`GOOS=wasip1 GOARCH=wasm` guest 目标归并结果，避免 guest 专属符号被宿主目标误判。`lint.go`与`env.setup`在扫描或初始化前按锁定版本自动检测/安装`golangci-lint`与`staticcheck`，安装使用`GOWORK=off`并剥离可能污染的构建变量。`CI`复用`make lint.go`/`linactl lint.go`路径，主验证与发布验证均阻断宿主与插件完整模式失败，不使用`only-new-issues`作为长期豁免。
 
+**可选`dir=`定向粒度 = 单个 Go module，而非包。** 本地与 Agent 迭代修改单个后端组件时，全量工作区扫描反馈周期过长；`build`/`ctrl`/`dao`已支持`dir=`定向，lint 对齐同一语义。实现要点：
+
+1. 先按`plugins`准备宿主或官方插件完整工作区，再在`go list -m`结果中过滤`dir`对应 module；插件 module 依赖`temp/go.work.plugins`，跳过环境准备会导致插件定向解析失败。
+2. 路径解析：相对仓库根转绝对路径 → 必须存在且为目录 → 含`plugin.yaml`且存在`backend/go.mod`时优先`backend` → 否则向上查找最近`go.mod`（止于仓库根）→ 与 workspace module 列表做路径等价匹配（`EvalSymlinks`）→ 匹配失败则明确报错，不静默回退全量。
+3. 日志 plan/summary 标识`scope=workspace|dir`与目标相对路径，避免审查误读为已跑全量。
+4. 未传`dir`时行为与`CI`兼容、完全不变；首期仅单路径，不允许多个`dir`一次传入。
+5. 明确不做包级`packages=`筛选（`U1000`跨包语义不可靠）、不做基于 git diff 的自动范围推断。
+
+公开入口示例：`make lint dir=apps/lina-core`、`make lint.go dir=apps/lina-plugins/<id>/backend plugins=1`、`linactl lint.go dir=hack/tools/linactl plugins=0`。`lint.mk`只透传`dir`，业务逻辑仅在`linactl`。
+
+风险：定向 lint 通过不代表其他 module 无问题 → 文档与规则写明`CI`/PR 仍跑全量，Agent 约定变更涉及的全部 module 至少各跑一次；插件根误解析到 monorepo 上级`go.mod` → 插件根优先`backend`且查找止于 repo root。
+
 动态插件 builder 配置与静态检查治理同期收敛：`wasm.hooks`、`wasm.resources`与`wasm.lifecycle.timeouts`统一放在插件根`hack/config.yaml`，时长必须使用带单位字符串；构建工具与宿主本地目录加载均不得再扫描`backend/*/*.yaml`。
 
 公开参数只接受标准契约：`plugins`显式值仅标准布尔，省略时按工作区探测；参数 key 仅 kebab-case；布尔仅`true/false/1/0`；`wasm`单插件仅`dir=`，拒绝`p`/`plugin-dir`；发布标签仅显式`tag=`；镜像 registry 仅配置或`registry=`，不读`LINAPRO_IMAGE_REGISTRY`；构建变量展开仅`TARGET_DIR`/`BUILD_DIR`/`REPO_ROOT`，定向构建缺`hack/config.yaml`时拒绝且不回退`package.json`。

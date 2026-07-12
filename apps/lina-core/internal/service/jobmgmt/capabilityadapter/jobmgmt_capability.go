@@ -232,7 +232,7 @@ func (a *jobCapabilityAdapter) Delete(ctx context.Context, id capabilityjobcap.J
 	if err != nil {
 		return err
 	}
-	return owner.DeleteJobs(ctx, strconv.FormatInt(parsedID, 10))
+	return owner.DeleteJobs(ctx, []int64{parsedID})
 }
 
 // Run triggers one visible scheduled job through the job owner.

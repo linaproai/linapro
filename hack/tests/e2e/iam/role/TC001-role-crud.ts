@@ -3,6 +3,7 @@ import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "../../../fixtures/auth";
 import { RolePage } from "../../../pages/RolePage";
 import { createAdminApiContext, expectSuccess } from "../../../support/api/job";
+import { buildBatchIdsQuery } from "../../../support/api/query-ids";
 
 type RoleIdentity = {
   code: string;
@@ -28,13 +29,7 @@ function buildRoleIdentity(scope: string): RoleIdentity {
   };
 }
 
-function buildRepeatedIdsQuery(ids: number[]) {
-  const params = new URLSearchParams();
-  for (const id of ids) {
-    params.append("ids", String(id));
-  }
-  return params.toString();
-}
+
 
 async function listRolesByName(api: APIRequestContext, name: string) {
   return expectSuccess<RoleListResult>(
@@ -76,7 +71,7 @@ async function cleanupRolesByName(
   if (ids.length === 0) {
     return;
   }
-  await expectSuccess(await api.delete(`role?${buildRepeatedIdsQuery(ids)}`));
+  await expectSuccess(await api.delete(`role?${buildBatchIdsQuery(ids)}`));
 }
 
 async function expectPageHeightStable(page: any, pageName: string) {

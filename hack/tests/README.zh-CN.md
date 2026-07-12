@@ -67,7 +67,10 @@ apps/lina-plugins/<plugin-id>/
 | `pnpm test:host:module -- <scope>` | 在排除插件环境用例后运行单个宿主模块范围。 |
 | `pnpm test:smoke` | 运行预定义的高价值 `smoke` 套件。 |
 | `pnpm test:module -- <scope>` | 运行 `execution manifest` 中声明的模块范围。 |
-| `pnpm test:validate` | 校验 `TC` 唯一性、目录归属与 manifest 引用。 |
+| `pnpm test:ci-shard -- <kind> <name>` | 运行单个 CI 分片（`host` / `plugin` / `plugin-full-extra`）。 |
+| `pnpm test:ci-shards` | 打印 Nightly 使用的 host/plugin CI 分片计划。 |
+| `pnpm test:ci-shards:unit` | 运行 CI 分片规划器单元测试。 |
+| `pnpm test:validate` | 校验 `TC` 唯一性、目录归属、manifest 引用与 CI 分片覆盖完备性。 |
 | `pnpm report` | 打开 Playwright `HTML` 报告。 |
 
 模块范围示例：
@@ -88,8 +91,9 @@ apps/lina-plugins/<plugin-id>/
 - `smoke` 用例清单
 - 共享状态场景的串行执行边界
 - 串行隔离类别与有理由的并行例外
+- Nightly/完整浏览器回归使用的 CI 分片治理（`ciShards`）
 
-`pnpm test`、`pnpm test:full`、`pnpm test:smoke` 与 `pnpm test:module` 都通过 `scripts/run-suite.mjs` 执行。
+`pnpm test`、`pnpm test:full`、`pnpm test:smoke`、`pnpm test:module` 与 `pnpm test:ci-shard` 都通过 `scripts/run-suite.mjs` 执行。
 运行器会把选中的文件拆分为并行池与串行池，使高共享状态场景仍能安全执行。
 每次执行都会打印选中文件数、并行文件数、串行文件数、并行 worker 数，以及串行池覆盖的隔离类别摘要。
 完整套件会通过通用 `plugins` 入口包含插件自有测试。
@@ -100,6 +104,18 @@ apps/lina-plugins/<plugin-id>/
 ```bash
 pnpm test:module -- plugin:<plugin-id>
 ```
+
+### CI 分片治理
+
+Nightly 完整 E2E 不再用单个 job 跑完整 host 套件，而是：
+
+- **Host 分片**：在 `ciShards.host` 中按能力 entries 声明（如 `iam`、`settings`、`scheduler`）。校验要求每个 host-only TC 恰好属于一个 host 分片。
+- **Plugin 分片**：根据发现到的 `apps/lina-plugins/*/hack/tests/e2e` 归属，用 `file-count-binpack` 装箱（可用 `weightOverrides` 微调）。根套件不得为装箱硬编码官方插件业务别名。
+- **plugin-full-extra**：覆盖必须在 `make dev plugins=1` 下运行的宿主框架 scope（如 `extension:plugin`）。
+- GitHub Actions 通过 `scripts/emit-ci-shards.mjs` 加载 matrix，避免 YAML 与 manifest 双源漂移。
+- CI 中并行池 worker 默认取 `ciShards.defaults.parallelWorkers`（2）；串行池始终为 1 个 worker。
+
+新增宿主 E2E 目录时请同步更新 `ciShards.host` 以保持覆盖完备。若某插件相对耗时长期偏斜，应调整 `weightOverrides` 或 `targetShardCount`，而不是在 workflow 中写死分片列表。
 
 根 `hack/tests` 树不得硬编码具体源码插件 `ID`、插件自有路由、插件特定 mock 数据、插件特定测试配置、插件特定 baseline 数据、插件特定 i18n key 或插件专属页面对象。插件行为、测试数据、测试配置与插件 POM 必须闭环在所属 `apps/lina-plugins/<plugin-id>/hack/tests/` 目录。根套件只能保留通用插件发现与 runner 机制。
 

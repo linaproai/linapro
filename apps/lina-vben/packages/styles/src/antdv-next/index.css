@@ -7,6 +7,14 @@
   color: inherit;
 }
 
+/**
+ * Page-level content panels (forms, settings, lists using Ant Card)
+ * must share the same corner radius as .card-box / shadcn Card (rounded-xl).
+ */
+.ant-card {
+  border-radius: calc(var(--radius) + 4px);
+}
+
 .ant-btn {
   .anticon {
     display: inline-flex;

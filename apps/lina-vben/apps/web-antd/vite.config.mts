@@ -518,6 +518,12 @@ export default defineConfig(async (config) => {
             // production; dev mode proxies them to the backend runtime.
             target: 'http://localhost:9120',
           },
+          '/portal': {
+            changeOrigin: true,
+            // Browser-facing OIDC login/callback routes are hosted by the
+            // backend; proxy them so pure Vite dev can start third-party login.
+            target: 'http://localhost:9120',
+          },
           [workspaceStoplightApiDocsPath]: {
             target: 'http://localhost:9120',
             bypass(_req, res) {

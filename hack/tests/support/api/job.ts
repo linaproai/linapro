@@ -223,7 +223,7 @@ export async function updateGroup(
 }
 
 export async function deleteGroup(api: APIRequestContext, id: number) {
-  await expectSuccess(await api.delete(`job-group/${id}`));
+  await expectSuccess(await api.delete(`job-group?ids[]=${id}`));
 }
 
 export async function listHandlers(api: APIRequestContext) {
@@ -529,7 +529,7 @@ export async function updateJobStatus(
 }
 
 export async function deleteJob(api: APIRequestContext, id: number) {
-  await expectSuccess(await api.delete(`job/${id}`));
+  await expectSuccess(await api.delete(`job?ids[]=${id}`));
 }
 
 export async function triggerJob(api: APIRequestContext, id: number) {

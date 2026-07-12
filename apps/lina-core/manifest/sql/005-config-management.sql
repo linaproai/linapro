@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS sys_config (
     "tenant_id"  INT NOT NULL DEFAULT 0,
     "name"       VARCHAR(100) NOT NULL DEFAULT '',
     "key"      VARCHAR(100) NOT NULL DEFAULT '',
-    "value"    VARCHAR(500) NOT NULL DEFAULT '',
+    "value"    TEXT NOT NULL DEFAULT '',
     "is_builtin" SMALLINT NOT NULL DEFAULT 0,
     "remark"     VARCHAR(500) NOT NULL DEFAULT '',
     "created_at" TIMESTAMPTZ DEFAULT NULL,

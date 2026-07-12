@@ -6,6 +6,7 @@ package pluginhost
 import (
 	"io/fs"
 
+	"lina-core/pkg/plugin/capability/authcap/extlogin/extidspi"
 	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
@@ -31,31 +32,33 @@ type sourcePlugin struct {
 	// access exposes grouped menu and permission access-control helpers.
 	access AccessDeclarations
 
-	embeddedFiles     fs.FS
-	tenantProvider    tenantspi.ProviderFactory
-	orgProvider       orgspi.ProviderFactory
-	capabilities      []capregistry.Descriptor
-	beforeInstall     SourcePluginBeforeLifecycleHandler
-	afterInstall      SourcePluginAfterLifecycleHandler
-	beforeUpgrade     SourcePluginBeforeUpgradeHandler
-	upgradeHandler    SourcePluginUpgradeHandler
-	afterUpgrade      SourcePluginUpgradeHandler
-	beforeDisable     SourcePluginBeforeLifecycleHandler
-	afterDisable      SourcePluginAfterLifecycleHandler
-	beforeUninstall   SourcePluginBeforeLifecycleHandler
-	afterUninstall    SourcePluginAfterLifecycleHandler
-	beforeTenantDis   SourcePluginBeforeTenantLifecycleHandler
-	afterTenantDis    SourcePluginAfterTenantLifecycleHandler
-	beforeTenantDel   SourcePluginBeforeTenantLifecycleHandler
-	afterTenantDel    SourcePluginAfterTenantLifecycleHandler
-	beforeModeChange  SourcePluginBeforeInstallModeChangeHandler
-	afterModeChange   SourcePluginAfterInstallModeChangeHandler
-	uninstallHandler  SourcePluginUninstallHandler
-	hookHandlers      []*HookHandlerRegistration
-	routeRegistrars   []*RouteHandlerRegistration
-	jobRegistrars     []*JobHandlerRegistration
-	menuFilters       []*MenuFilterHandlerRegistration
-	permissionFilters []*PermissionFilterHandlerRegistration
+	embeddedFiles          fs.FS
+	tenantProvider         tenantspi.ProviderFactory
+	orgProvider            orgspi.ProviderFactory
+	capabilities           []capregistry.Descriptor
+	externalIdentities     []string
+	externalIdentityEngine extidspi.ProviderFactory
+	beforeInstall          SourcePluginBeforeLifecycleHandler
+	afterInstall           SourcePluginAfterLifecycleHandler
+	beforeUpgrade          SourcePluginBeforeUpgradeHandler
+	upgradeHandler         SourcePluginUpgradeHandler
+	afterUpgrade           SourcePluginUpgradeHandler
+	beforeDisable          SourcePluginBeforeLifecycleHandler
+	afterDisable           SourcePluginAfterLifecycleHandler
+	beforeUninstall        SourcePluginBeforeLifecycleHandler
+	afterUninstall         SourcePluginAfterLifecycleHandler
+	beforeTenantDis        SourcePluginBeforeTenantLifecycleHandler
+	afterTenantDis         SourcePluginAfterTenantLifecycleHandler
+	beforeTenantDel        SourcePluginBeforeTenantLifecycleHandler
+	afterTenantDel         SourcePluginAfterTenantLifecycleHandler
+	beforeModeChange       SourcePluginBeforeInstallModeChangeHandler
+	afterModeChange        SourcePluginAfterInstallModeChangeHandler
+	uninstallHandler       SourcePluginUninstallHandler
+	hookHandlers           []*HookHandlerRegistration
+	routeRegistrars        []*RouteHandlerRegistration
+	jobRegistrars          []*JobHandlerRegistration
+	menuFilters            []*MenuFilterHandlerRegistration
+	permissionFilters      []*PermissionFilterHandlerRegistration
 }
 
 // NewDeclarations creates and returns a new grouped source-plugin declarations facade.
@@ -173,9 +176,31 @@ func (p *sourcePlugin) GetCapabilityDescriptors() []capregistry.Descriptor {
 	return items
 }
 
+// GetExternalIdentityProviderFactory returns the declared external-identity
+// provider engine factory. It is distinct from GetExternalIdentityProviderIDs:
+// the factory supplies the resolve/provision engine (declared by
+// linapro-extlogin-core), while the ID list stamps ownership for calling plugins.
+func (p *sourcePlugin) GetExternalIdentityProviderFactory() extidspi.ProviderFactory {
+	if p == nil {
+		return nil
+	}
+	return p.externalIdentityEngine
+}
+
 func cloneCapabilityDescriptor(descriptor capregistry.Descriptor) capregistry.Descriptor {
 	descriptor.Methods = append([]capregistry.MethodDescriptor(nil), descriptor.Methods...)
 	return descriptor
+}
+
+// GetExternalIdentityProviderIDs returns a copy of the external-identity
+// provider IDs declared by this source plugin.
+func (p *sourcePlugin) GetExternalIdentityProviderIDs() []string {
+	if p == nil || len(p.externalIdentities) == 0 {
+		return nil
+	}
+	items := make([]string, len(p.externalIdentities))
+	copy(items, p.externalIdentities)
+	return items
 }
 
 // GetBeforeInstallHandler returns the registered source-plugin pre-install callback.

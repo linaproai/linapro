@@ -1,4 +1,5 @@
-// This file verifies authentication service interface boundaries.
+// This file verifies auth.go public contract surfaces: Service method
+// boundaries and user-session ClientType parsing.
 
 package auth
 
@@ -36,6 +37,42 @@ func TestClientTypeRejectsNonUserActors(t *testing.T) {
 		}
 		if parsed != value {
 			t.Fatalf("expected client type %q, got %q", value, parsed)
+		}
+	}
+}
+
+// TestLoginErrorMessageKeysMatchRuntimeI18n ensures login-facing auth codes use
+// convention-derived message keys (bizerr.MessageKey) that ship in error.json.
+func TestLoginErrorMessageKeysMatchRuntimeI18n(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		code *bizerr.Code
+		key  string
+	}{
+		{
+			name: "invalid credentials",
+			code: CodeAuthInvalidCredentials,
+			key:  "error.auth.invalid.credentials",
+		},
+		{
+			name: "user disabled",
+			code: CodeAuthUserDisabled,
+			key:  "error.auth.user.disabled",
+		},
+		{
+			name: "ip blacklisted",
+			code: CodeAuthIPBlacklisted,
+			key:  "error.auth.ip.blacklisted",
+		},
+	}
+	for _, tc := range cases {
+		if got := tc.code.MessageKey(); got != tc.key {
+			t.Fatalf("%s: expected messageKey %q, got %q", tc.name, tc.key, got)
+		}
+		if got := bizerr.MessageKey(tc.code.RuntimeCode()); got != tc.key {
+			t.Fatalf("%s: MessageKey(%q)=%q, want %q", tc.name, tc.code.RuntimeCode(), got, tc.key)
 		}
 	}
 }

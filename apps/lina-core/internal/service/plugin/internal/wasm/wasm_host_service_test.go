@@ -643,7 +643,7 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 	authzSvc := &capabilityHostServiceAuthzService{}
 	dictSvc := &capabilityHostServiceDictService{}
 	services := &capabilityHostServiceTestServices{
-		auth:   authcap.New(nil, authzSvc),
+		auth:   authcap.New(nil, authzSvc, nil),
 		org:    orgspi.New(nil, nil, nil),
 		dict:   dictSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
@@ -2790,6 +2790,11 @@ func (s *capabilityHostServiceUsersService) Create(ctx context.Context, input ca
 	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
 	s.lastCreate = input
 	return capabilityusercap.UserID("created-user"), nil
+}
+
+// CreateFromExternal is unused: external provisioning is not dispatched over WASM.
+func (s *capabilityHostServiceUsersService) CreateFromExternal(context.Context, capabilityusercap.CreateFromExternalInput) (capabilityusercap.UserID, error) {
+	return "", nil
 }
 
 // Update records one user update request.

@@ -1,4 +1,5 @@
-// This file verifies host tenant-aware authentication token transitions.
+// This file verifies auth_impl.go behavior: tenant-aware token transitions
+// and login policy driven by managed sys_config runtime parameters.
 
 package auth
 
@@ -6,12 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/util/guid"
 	"github.com/golang-jwt/jwt/v5"
 
 	"lina-core/internal/dao"
@@ -19,12 +22,15 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
+	_ "lina-core/pkg/dbdriver"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
@@ -1080,6 +1086,54 @@ func TestMemorySessionStoreUsesGlobalTokenIdentity(t *testing.T) {
 	}
 }
 
+// generateToken generates one test access JWT without creating a refresh token.
+func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, tenantID int, clientType ClientType) (string, string, error) {
+	tokenID := guid.S()
+	token, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, clientType, false, 0)
+	if err != nil {
+		return "", "", err
+	}
+	return token, tokenID, nil
+}
+
+// memoryPreTokenStore keeps pre-login tokens in memory for isolated tests.
+type memoryPreTokenStore struct {
+	mu      sync.Mutex
+	records map[string]preTokenRecord
+}
+
+// newMemoryPreTokenStore creates an empty in-memory pre-login token store.
+func newMemoryPreTokenStore() *memoryPreTokenStore {
+	return &memoryPreTokenStore{records: make(map[string]preTokenRecord)}
+}
+
+// Create stores one short-lived pre-login token.
+func (s *memoryPreTokenStore) Create(_ context.Context, record preTokenRecord) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	token := preTokenGeneratedPrefix + guid.S()
+	record.ExpiresAt = time.Now().Add(preTokenTTL)
+	s.records[token] = record
+	return token, nil
+}
+
+// Consume returns and deletes one pre-login token.
+func (s *memoryPreTokenStore) Consume(_ context.Context, token string) (preTokenRecord, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	record, ok := s.records[token]
+	if !ok {
+		return preTokenRecord{}, false, nil
+	}
+	delete(s.records, token)
+	if time.Now().After(record.ExpiresAt) {
+		return preTokenRecord{}, false, nil
+	}
+	return record, true, nil
+}
+
 // newTenantAuthTestService returns a service with in-memory session state.
 func newTenantAuthTestService() *serviceImpl {
 	return &serviceImpl{
@@ -1601,3 +1655,143 @@ var (
 	_ jwt.Claims         = (*Claims)(nil)
 	_ tenantspi.Provider = (*tenantAuthTestProvider)(nil)
 )
+
+// --- runtime-parameter login policy (formerly auth_runtime_params_test.go) ---
+
+// TestLoginRejectsBlacklistedIP verifies managed login IP blacklist settings
+// are enforced before user lookup.
+func TestLoginRejectsBlacklistedIP(t *testing.T) {
+	withRuntimeParamValue(t, configsvc.RuntimeParamKeyLoginBlackIPList, "127.0.0.1")
+
+	username := fmt.Sprintf("blacklist-test-%s", t.Name())
+	ctx := newRequestContext(t, "127.0.0.1:19120")
+
+	_, err := newRuntimeParamAuthTestService().Login(ctx, LoginInput{
+		Username:   username,
+		Password:   "ignored",
+		ClientType: tokencap.ClientTypeWeb,
+	})
+	if err == nil {
+		t.Fatal("expected blacklisted login attempt to fail")
+	}
+	if localized := i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)).LocalizeError(context.Background(), err); localized != "登录IP已被禁止" {
+		t.Fatalf("expected blacklisted login error %q, got %q", "登录IP已被禁止", localized)
+	}
+}
+
+// newRuntimeParamAuthTestService constructs auth with explicit test
+// dependencies while still reading runtime params from the real config service.
+func newRuntimeParamAuthTestService() Service {
+	var (
+		configSvc    = configsvc.New()
+		sessionStore = session.NewDBStore()
+		cacheSvc     = kvcache.New()
+	)
+	return New(configSvc, runtimeParamAuthTestHooks{}, nil, roleTestService{}, tenantspi.New(nil, nil, nil, nil), sessionStore, cacheSvc)
+}
+
+// runtimeParamAuthTestHooks discards auth lifecycle hooks for runtime-parameter
+// tests because these cases only verify config-driven auth rejection.
+type runtimeParamAuthTestHooks struct{}
+
+// DispatchHookEvent records no hook state in runtime-parameter tests.
+func (runtimeParamAuthTestHooks) DispatchHookEvent(context.Context, pluginhost.ExtensionPoint, map[string]interface{}) error {
+	return nil
+}
+
+// newRequestContext builds one request-backed context carrying the supplied
+// remote address for auth service tests.
+func newRequestContext(t *testing.T, remoteAddr string) context.Context {
+	t.Helper()
+
+	httpReq, err := http.NewRequest(http.MethodPost, "http://localhost/api/v1/auth/login", nil)
+	if err != nil {
+		t.Fatalf("build http request: %v", err)
+	}
+	httpReq.RemoteAddr = remoteAddr
+	httpReq.Header.Set("User-Agent", "runtime-param-test")
+
+	req := &ghttp.Request{Request: httpReq}
+	return req.Context()
+}
+
+// withRuntimeParamValue temporarily overrides one protected runtime parameter
+// and restores the original sys_config record during cleanup.
+func withRuntimeParamValue(t *testing.T, key string, value string) {
+	t.Helper()
+
+	ctx := context.Background()
+	original, err := queryRuntimeParam(ctx, key)
+	if err != nil {
+		t.Fatalf("query runtime param %s: %v", key, err)
+	}
+
+	if original == nil {
+		_, err = dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
+			Name:   key,
+			Key:    key,
+			Value:  value,
+			Remark: "test override",
+		}).Insert()
+		if err != nil {
+			t.Fatalf("insert runtime param %s: %v", key, err)
+		}
+		markRuntimeParamChanged(t, ctx)
+		t.Cleanup(func() {
+			if _, cleanupErr := dao.SysConfig.Ctx(ctx).Unscoped().Where(do.SysConfig{Key: key}).Delete(); cleanupErr != nil {
+				t.Fatalf("cleanup runtime param %s: %v", key, cleanupErr)
+			}
+			markRuntimeParamChanged(t, ctx)
+		})
+		return
+	}
+
+	_, err = dao.SysConfig.Ctx(ctx).
+		Unscoped().
+		Where(do.SysConfig{Id: original.Id}).
+		Data(do.SysConfig{Value: value}).
+		Update()
+	if err != nil {
+		t.Fatalf("update runtime param %s: %v", key, err)
+	}
+	markRuntimeParamChanged(t, ctx)
+	t.Cleanup(func() {
+		_, cleanupErr := dao.SysConfig.Ctx(ctx).
+			Unscoped().
+			Where(do.SysConfig{Id: original.Id}).
+			Data(do.SysConfig{
+				Name:   original.Name,
+				Key:    original.Key,
+				Value:  original.Value,
+				Remark: original.Remark,
+			}).
+			Update()
+		if cleanupErr != nil {
+			t.Fatalf("restore runtime param %s: %v", key, cleanupErr)
+		}
+		markRuntimeParamChanged(t, ctx)
+	})
+}
+
+// markRuntimeParamChanged bumps the runtime-parameter revision for tests after
+// direct sys_config mutations.
+func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	if err := configsvc.New().MarkRuntimeParamsChanged(ctx); err != nil {
+		t.Fatalf("mark runtime params changed: %v", err)
+	}
+}
+
+// queryRuntimeParam loads one sys_config record by protected runtime-parameter key.
+func queryRuntimeParam(ctx context.Context, key string) (*entity.SysConfig, error) {
+	var runtimeParam *entity.SysConfig
+	err := dao.SysConfig.Ctx(ctx).
+		Unscoped().
+		Where(do.SysConfig{Key: key}).
+		Scan(&runtimeParam)
+	if err != nil {
+		return nil, err
+	}
+	return runtimeParam, nil
+}

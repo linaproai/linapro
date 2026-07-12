@@ -112,6 +112,21 @@ source/dynamic 两套升级骨架分散在 `sourceupgrade`、`runtimeupgrade`、
 - 启动期独立执行`BootstrapBuiltinPlugins(ctx)`，在插件路由、cron、前端包预热前自动安装、启用和安全升级 builtin 源码插件
 - 生命周期变化继续复用现有依赖解析、SQL 迁移、资源同步、缓存失效、enabled snapshot 和集群主节点边界
 
+## 10.1 插件管理列表「管理」入口
+
+运维人员进入某个插件的业务管理页（如 LDAP 设置、登录日志、通知管理）时，不应只能从左侧菜单自行定位。列表操作列需要提供直达入口，并在无管理页或未安装时明确置灰。
+
+**决策**：
+
+1. **判定来源：前端 page-registry**。以`getPluginPages()`中归属该`pluginId`的可导航页面为准；排除`frontend/pages/components/**`以及文件名含`modal`/`drawer`的辅助组件。构建期已有稳定注册表，无需后端扩展列表字段，符合列表首屏性能约束。
+2. **多管理页目标选择**。以当前会话`accessMenus`深度优先遍历顺序选择该插件第一个匹配菜单路径；若 access 菜单尚无匹配则回退`router.getRoutes()`注册顺序中的第一个匹配路径。**禁止**按`routePath`字母序排序，否则会出现如`/ai/invocations`排在`/ai/providers`前、误进非首位菜单的问题。侧边栏菜单顺序即用户感知的“第一个菜单”，与`plugin.yaml`的`sort`一致。
+3. **跳转路径解析**。路径匹配支持完整相等或后缀匹配，以兼容相对菜单路径挂到父目录后的完整 URL。当前会话找不到任何匹配路由时，保持在列表页并给出用户可见提示。按钮启用只表达“插件声明了管理页且已安装”；真正可访问性仍受启用状态与权限约束。
+4. **按钮状态**。已安装且存在可导航管理页 → 可点击；未安装 → 禁用并提示先安装；已安装但无管理页 → 禁用并提示无管理页面。
+
+**非目标**：不为每个插件强制新增管理页；不改变菜单同步、权限过滤或动态插件资产托管语义；不在列表接口返回`managementPath`等新字段。
+
+**取舍**：仅 iframe/资产页、未进入 page-registry 的动态插件可能被判定为无管理页（当前托管工作台主要源码插件管理页走 page-registry）；多管理页只进一个，优先菜单顺序首位，后续若需要可改为下拉。
+
 ## 11. 插件领域能力扩展
 
 **阶段 0/1 冻结**：冻结插件领域能力扩展的四类矩阵（方法发布、错误语义、规模上限、动态授权资源），实现第一批高频只读能力：`Users.Current`、`Users.BatchResolve`、`Authz.BatchHasPermissions`、`Dict.EnsureValuesVisible`、`Sessions.Current`。
@@ -165,3 +180,13 @@ Import boundary scanning via `linactl plugins.check` allows cross-plugin product
 ## Host Layer Simplification
 
 New core-owned host service methods must use JSON envelopes. Existing dedicated codecs are frozen as a method-level allowlist. Wire constants for services and methods live only under `protocol/hostservices` and are referenced by the catalog; no `go generate`. Historical `HostServiceCapabilityJSON*` aliases are removed in favor of `HostServiceJSON*`. Upgrade preview/execute is owned by the lifecycle facade; the root plugin package no longer constructs or holds a parallel `upgrade.Service`, while public type aliases remain stable for management API callers.
+
+## 同权同信与动态外部登录
+
+**决策**：经宿主安装或升级治理并处于启用状态的动态插件，与源码插件适用同一信任级与能力准入模型；不得仅因 `type=dynamic` 永久拒绝发布某一 core-owned 领域能力。
+
+**关键设计**：
+- 动态插件可经 hostServices 授权调用 `external_login.login_by_verified_identity` 与 `users.create_from_external`，guest 走真实 host call 而非永久 stub。
+- 源码 provider ownership 继续 `ProvideExternalIdentity(providerID)`；动态 ownership 由 `auth` 服务下 `resources[].ref` 声明 provider ID，WASM dispatcher 校验后盖章 pluginID 铸会话。
+- 调用链：dynamic guest → domainhostcall → wasm dispatcher（授权 + ownership）→ capability 或等价 auth/users 实现。
+- 安全仍依赖安装治理、方法级授权、provider ownership 与启用检查；被攻破的已授权动态插件与源码插件同信模型，后续可叠加宿主验签加固。

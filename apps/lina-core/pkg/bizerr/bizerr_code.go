@@ -22,19 +22,14 @@ type Code struct {
 	meta Meta
 }
 
-// MustDefine creates one reusable business error definition. It panics when
-// required metadata is invalid so broken definitions fail during startup or
-// tests.
+// MustDefine creates one reusable business error definition. The runtime i18n
+// message key is always derived from errorCode via MessageKey (convention over
+// configuration). It panics when required metadata is invalid so broken
+// definitions fail during startup or tests.
 func MustDefine(errorCode string, fallback string, typeCode gcode.Code) *Code {
-	return MustDefineWithKey(errorCode, MessageKey(errorCode), fallback, typeCode)
-}
-
-// MustDefineWithKey creates one reusable business error definition with an
-// explicit runtime i18n key.
-func MustDefineWithKey(errorCode string, messageKey string, fallback string, typeCode gcode.Code) *Code {
 	meta := Meta{
 		ErrorCode:  strings.TrimSpace(errorCode),
-		MessageKey: strings.TrimSpace(messageKey),
+		MessageKey: MessageKey(errorCode),
 		Fallback:   strings.TrimSpace(fallback),
 		TypeCode:   typeCode,
 	}

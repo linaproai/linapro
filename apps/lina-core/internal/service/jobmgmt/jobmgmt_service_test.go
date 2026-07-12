@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -82,7 +81,7 @@ func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
 	jobID = int64(insertedJobID)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
-	if err = svc.DeleteGroups(ctx, gconv.String(groupID)); err != nil {
+	if err = svc.DeleteGroups(ctx, []int64{groupID}); err != nil {
 		t.Fatalf("expected group delete to succeed, got error: %v", err)
 	}
 

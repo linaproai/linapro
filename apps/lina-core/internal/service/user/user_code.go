@@ -130,4 +130,28 @@ var (
 		"Failed to read worksheet {sheet}",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeUserProvisionEmailInvalid reports that external provisioning received
+	// an empty or malformed email address.
+	CodeUserProvisionEmailInvalid = bizerr.MustDefine(
+		"USER_PROVISION_EMAIL_INVALID",
+		"External provisioning requires a valid email address",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserProvisionFailed reports that creating the provisioned user failed.
+	CodeUserProvisionFailed = bizerr.MustDefine(
+		"USER_PROVISION_FAILED",
+		"Failed to provision the external user",
+		gcode.CodeInternalError,
+	)
+	// CodeUserProvisionEmailConflict reports that operator-less external
+	// provisioning found an existing local account with the same email. Minting
+	// a second account (or silently linking) would enable account takeover
+	// through an IdP email assertion, so the minting primitive itself enforces
+	// this safety invariant with an unfiltered host-side lookup; the
+	// unauthenticated login path has no actor context for data-scoped lookups.
+	CodeUserProvisionEmailConflict = bizerr.MustDefine(
+		"USER_PROVISION_EMAIL_CONFLICT",
+		"An account with the same email already exists",
+		gcode.CodeInvalidOperation,
+	)
 )

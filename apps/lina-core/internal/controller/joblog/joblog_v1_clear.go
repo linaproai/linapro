@@ -13,21 +13,21 @@ import (
 
 // Clear handles scheduled job log cleanup requests.
 func (c *ControllerV1) Clear(ctx context.Context, req *v1.ClearReq) (res *v1.ClearRes, err error) {
-	logIDs := req.LogIds
-	if logIDs == "" {
-		logIDs = g.RequestFromCtx(ctx).Get("logIds").String()
-	}
 	beginTime := req.BeginTime
 	if beginTime == "" {
-		beginTime = g.RequestFromCtx(ctx).Get("beginTime").String()
+		if r := g.RequestFromCtx(ctx); r != nil {
+			beginTime = r.Get("beginTime").String()
+		}
 	}
 	endTime := req.EndTime
 	if endTime == "" {
-		endTime = g.RequestFromCtx(ctx).Get("endTime").String()
+		if r := g.RequestFromCtx(ctx); r != nil {
+			endTime = r.Get("endTime").String()
+		}
 	}
 	deleted, err := c.jobMgmtSvc.ClearLogs(ctx, jobmgmt.ClearLogsInput{
 		JobID:     req.JobId,
-		IDs:       logIDs,
+		IDs:       req.LogIds,
 		BeginTime: beginTime,
 		EndTime:   endTime,
 	})

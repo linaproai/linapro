@@ -28,6 +28,14 @@ type Service interface {
 	GetUserDeptInfo(ctx context.Context, userId int) (int, string, error)
 	// Create creates a new user with transaction support.
 	Create(ctx context.Context, in CreateInput) (int, error)
+	// CreateFromExternalUser creates one platform user for a verified external
+	// identity during external login. It is a system-level create path with no
+	// acting operator: the username is derived from the email local part with
+	// numeric de-duplication, the password is random and unusable, and no roles
+	// or tenants are assigned so the account starts with least privilege.
+	// Callers (the external-identity provider plugin via usercap.CreateFromExternal)
+	// decide when create is allowed; this method never consults request actors.
+	CreateFromExternalUser(ctx context.Context, in CreateFromExternalInput) (int, error)
 	// GetById retrieves user by ID.
 	GetById(ctx context.Context, id int) (*entity.SysUser, error)
 	// Update updates user information with transaction support.
@@ -145,6 +153,26 @@ type CreateInput struct {
 	PostIds   []int  // Post ID list
 	RoleIds   []int  // Role ID list
 	TenantIds []int  // Tenant ID list
+}
+
+// CreateFromExternalInput defines input for CreateFromExternalUser. Email is
+// the verified address asserted by the external identity provider;
+// DisplayName seeds the nickname and may be empty. When Email is empty an
+// external provider that has no email (for example WeChat) MUST supply a
+// deterministic UsernameAnchor so a stable username can be derived without an
+// email local part.
+type CreateFromExternalInput struct {
+	// Email is the verified email address from the external provider. It may be
+	// empty for email-less providers, in which case UsernameAnchor is required.
+	Email string
+	// DisplayName optionally seeds the nickname.
+	DisplayName string
+	// Remark records the provisioning source for audit, e.g. the provider ID.
+	Remark string
+	// UsernameAnchor is an optional deterministic anchor used to derive a
+	// username when Email is empty. It MUST be collision-resistant per distinct
+	// external identity so two identities cannot alias onto one account.
+	UsernameAnchor string
 }
 
 // UpdateInput defines input for Update function.

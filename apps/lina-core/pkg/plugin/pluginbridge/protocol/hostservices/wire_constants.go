@@ -67,6 +67,9 @@ const (
 	HostServiceMethodAuthSelectTenant = "token.tenant.select"
 	// HostServiceMethodAuthSwitchTenant is the catalog wire value for method "token.tenant.switch".
 	HostServiceMethodAuthSwitchTenant = "token.tenant.switch"
+	// HostServiceMethodAuthExternalLoginByVerifiedIdentity is the catalog wire
+	// value for method "external_login.login_by_verified_identity".
+	HostServiceMethodAuthExternalLoginByVerifiedIdentity = "external_login.login_by_verified_identity"
 	// HostServiceMethodAuthzBatchGetPermissions is the catalog wire value for method "authz.permissions.batch_get".
 	HostServiceMethodAuthzBatchGetPermissions = "authz.permissions.batch_get"
 	// HostServiceMethodAuthzBatchHasPermissions is the catalog wire value for method "authz.permissions.batch_has".
@@ -373,6 +376,8 @@ const (
 	HostServiceMethodUsersBatchResolve = "users.resolve.batch"
 	// HostServiceMethodUsersCreate is the catalog wire value for method "users.create".
 	HostServiceMethodUsersCreate = "users.create"
+	// HostServiceMethodUsersCreateFromExternal is the catalog wire value for method "users.create_from_external".
+	HostServiceMethodUsersCreateFromExternal = "users.create_from_external"
 	// HostServiceMethodUsersCurrent is the catalog wire value for method "users.current.get".
 	HostServiceMethodUsersCurrent = "users.current.get"
 	// HostServiceMethodUsersDelete is the catalog wire value for method "users.delete".

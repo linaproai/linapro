@@ -1,7 +1,7 @@
 //go:build windows
 
 // This file keeps the shell executor buildable on Windows where process-group
-// signalling is not used by the current iteration.
+// signaling is not used by the current iteration.
 
 package shellexec
 

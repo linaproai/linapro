@@ -9,6 +9,7 @@ import (
 	jobv1 "lina-core/api/job/v1"
 	usermsgv1 "lina-core/api/usermsg/v1"
 	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap/extlogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
@@ -53,6 +54,17 @@ func (testNoopAuth) IssueImpersonationToken(context.Context, token.Impersonation
 
 func (testNoopAuth) RevokeImpersonationToken(context.Context, token.ImpersonationTokenRevokeInput) error {
 	return nil
+}
+
+// testNoopExternalLogin is a registration-safe external-login stub so LDAP/OIDC
+// plugins can wire routes without a full host external-login implementation.
+type testNoopExternalLogin struct{}
+
+func (testNoopExternalLogin) LoginByVerifiedIdentity(
+	context.Context,
+	extlogin.LoginInput,
+) (*extlogin.LoginOutput, error) {
+	return &extlogin.LoginOutput{}, nil
 }
 
 type testNoopI18n struct{}
