@@ -111,20 +111,20 @@ jobs:
           cat > "$smoke_root/apps/lina-core/manifest/config/config.template.yaml" <<'YAML'
           template: true
           YAML
-          # linactl dev 启动前会通过 portcheck 校验后端 server.address 与前端
-          # vite proxy target 的端口与 BACKEND_PORT 一致；这里写入与沙盒
-          # backend_port=18080 对齐的最小 config.yaml 与 vite.config.mts，确保
-          # portcheck 在沙盒内通过。
-          # linactl dev runs portcheck before starting subprocesses; emit minimal
-          # backend config.yaml and frontend vite.config.mts aligned to
-          # backend_port=18080 so portcheck.Verify passes inside the sandbox.
+          # Minimal config/vite fixtures aligned to the sandbox override ports
+          # (LINA_CORE_PORT=18080 / LINA_VBEN_PORT=15666). The stub backend
+          # listens on :18080; linactl readiness probes that same port when the
+          # make variables are passed correctly.
+          # 沙盒覆盖端口（LINA_CORE_PORT=18080 / LINA_VBEN_PORT=15666）对应的
+          # 最小配置与 vite 桩；stub 后端监听 :18080，make 变量正确传入后
+          # linactl 就绪探测也会命中同一端口。
           cat > "$smoke_root/apps/lina-core/manifest/config/config.yaml" <<'YAML'
           server:
             address: ":18080"
           YAML
           cat > "$smoke_root/apps/lina-vben/apps/web-antd/vite.config.mts" <<'TS'
-          // Minimal vite config used only by linactl portcheck inside this smoke sandbox.
-          // 仅用于沙盒内 linactl portcheck 校验的最小 vite 配置。
+          // Minimal vite config for the make-command-smoke sandbox fixture.
+          // 仅用于 make-command-smoke 沙盒 fixture 的最小 vite 配置。
           export default {
             server: {
               proxy: {
@@ -152,11 +152,18 @@ jobs:
           }).listen(port, host);
           JS
 
-          make -C "$smoke_root" dev plugins=0 BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port"
-          make -C "$smoke_root" status BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" | tee "$RUNNER_TEMP/dev-status.txt"
+          # Port overrides must use Makefile variable names LINA_CORE_PORT /
+          # LINA_VBEN_PORT (renamed from BACKEND_PORT / FRONTEND_PORT). Stale
+          # names are ignored and linactl falls back to defaults 9120/5666,
+          # which do not match the stub listener on :18080.
+          # 端口覆盖必须使用 Makefile 变量名 LINA_CORE_PORT / LINA_VBEN_PORT
+          #（已从 BACKEND_PORT / FRONTEND_PORT 重命名）。旧变量名会被忽略，
+          # linactl 回落到默认 9120/5666，与 stub 监听的 :18080 不一致。
+          make -C "$smoke_root" dev plugins=0 LINA_CORE_PORT="$backend_port" LINA_VBEN_PORT="$frontend_port"
+          make -C "$smoke_root" status LINA_CORE_PORT="$backend_port" LINA_VBEN_PORT="$frontend_port" | tee "$RUNNER_TEMP/dev-status.txt"
           grep -q "Lina Core" "$RUNNER_TEMP/dev-status.txt"
           grep -q "Lina Vben" "$RUNNER_TEMP/dev-status.txt"
-          make -C "$smoke_root" stop BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port"
+          make -C "$smoke_root" stop LINA_CORE_PORT="$backend_port" LINA_VBEN_PORT="$frontend_port"
           test ! -f "$smoke_root/temp/pids/lina-core.pid"
           test ! -f "$smoke_root/temp/pids/lina-vben.pid"
 
