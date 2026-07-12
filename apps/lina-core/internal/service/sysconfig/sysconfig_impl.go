@@ -91,7 +91,7 @@ func (s *serviceImpl) refreshRuntimeParamSnapshotIfNeeded(
 }
 
 // GetById retrieves config by ID.
-func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysConfig, error) {
+func (s *serviceImpl) GetById(ctx context.Context, id int64) (*entity.SysConfig, error) {
 	var cfg *entity.SysConfig
 	model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: id})
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
@@ -106,7 +106,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysConfig, e
 }
 
 // Create creates a new config record.
-func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
+func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int64, error) {
 	if err := validateManagedConfigValue(in.Key, in.Value); err != nil {
 		return 0, err
 	}
@@ -147,7 +147,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		return 0, err
 	}
 
-	return int(createdID), nil
+	return createdID, nil
 }
 
 // Update updates config information.
@@ -225,7 +225,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 }
 
 // Delete soft-deletes a config record using GoFrame's auto soft-delete feature.
-func (s *serviceImpl) Delete(ctx context.Context, id int) error {
+func (s *serviceImpl) Delete(ctx context.Context, id int64) error {
 	// Check config exists
 	existing, err := s.GetById(ctx, id)
 	if err != nil {

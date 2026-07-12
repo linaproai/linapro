@@ -99,7 +99,7 @@ func TestGetByIdKeepsRawConfigMetadata(t *testing.T) {
 		"控制登录页顶部主标题文案。",
 	)
 
-	item, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).GetById(ctx, int(record.Id))
+	item, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).GetById(ctx, record.Id)
 	if err != nil {
 		t.Fatalf("get raw config detail: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestExportLocalizesHeadersButKeepsRawRows(t *testing.T) {
 		"控制登录页顶部主标题文案。",
 	)
 
-	data, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).Export(ctx, ExportInput{Ids: []int{int(record.Id)}})
+	data, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).Export(ctx, ExportInput{Ids: []int64{record.Id}})
 	if err != nil {
 		t.Fatalf("export localized config headers: %v", err)
 	}

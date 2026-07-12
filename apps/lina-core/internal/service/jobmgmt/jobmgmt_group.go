@@ -198,8 +198,8 @@ func (s *serviceImpl) UpdateGroup(ctx context.Context, in UpdateGroupInput) erro
 }
 
 // DeleteGroups removes one or more groups and migrates their jobs to the default group.
-func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
-	groupIDs := parseInt64IDs(ids)
+func (s *serviceImpl) DeleteGroups(ctx context.Context, ids []int64) error {
+	groupIDs := normalizePositiveInt64IDs(ids)
 	if len(groupIDs) == 0 {
 		return bizerr.NewCode(CodeJobGroupDeleteRequired)
 	}

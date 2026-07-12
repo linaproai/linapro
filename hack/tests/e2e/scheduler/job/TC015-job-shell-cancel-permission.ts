@@ -69,7 +69,7 @@ test.describe('TC-15 Shell 终止权限校验', () => {
   test.afterAll(async () => {
     if (jobId) {
       await clearLogs(adminApi, jobId);
-      await adminApi.delete(`job/${jobId}`);
+      await adminApi.delete(`job?ids[]=${jobId}`);
     }
     if (limitedApi) {
       await limitedApi.dispose();

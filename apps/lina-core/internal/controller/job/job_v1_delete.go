@@ -1,4 +1,4 @@
-// This file implements the scheduled job delete endpoint.
+// This file maps the scheduled job delete API to the job management service.
 
 package job
 
@@ -8,7 +8,7 @@ import (
 	v1 "lina-core/api/job/v1"
 )
 
-// Delete handles scheduled job deletion requests.
+// Delete deletes scheduled jobs by ID list.
 func (c *ControllerV1) Delete(ctx context.Context, req *v1.DeleteReq) (res *v1.DeleteRes, err error) {
 	if err = c.jobMgmtSvc.DeleteJobs(ctx, req.Ids); err != nil {
 		return nil, err

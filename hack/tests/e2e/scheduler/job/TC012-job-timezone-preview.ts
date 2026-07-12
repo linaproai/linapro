@@ -28,7 +28,7 @@ test.describe("TC-1 时区持久化与 Cron 预览", () => {
 
   test.afterAll(async () => {
     if (jobId) {
-      await api.delete(`job/${jobId}`);
+      await api.delete(`job?ids[]=${jobId}`);
     }
     if (originalShellSwitch) {
       await restoreCronShellEnabled(api, originalShellSwitch);

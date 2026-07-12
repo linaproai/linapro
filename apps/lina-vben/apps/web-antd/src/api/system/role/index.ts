@@ -77,9 +77,12 @@ export function roleRemove(id: number) {
 
 /** 批量删除角色 */
 export function roleBatchDelete(ids: number[]) {
-  const params = new URLSearchParams();
-  ids.forEach((id) => params.append('ids', String(id)));
-  return requestClient.delete(`/role?${params.toString()}`);
+  // Query arrays must use brackets form (ids[]=1&ids[]=2) so GoFrame binds []int.
+  // Related issue: https://github.com/linaproai/linapro/issues/89
+  return requestClient.delete('/role', {
+    params: { ids },
+    paramsSerializer: 'brackets',
+  });
 }
 
 /** 修改角色状态 */

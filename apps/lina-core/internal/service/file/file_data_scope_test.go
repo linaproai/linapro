@@ -78,7 +78,7 @@ func TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes(t *testing.T) {
 	if _, err = svc.OpenByID(ctx, hiddenID); !bizerr.Is(err, CodeFileDataScopeDenied) {
 		t.Fatalf("expected hidden download to be denied, got %v", err)
 	}
-	if err = svc.Delete(ctx, fmt.Sprintf("%d", hiddenID)); !bizerr.Is(err, CodeFileDataScopeDenied) {
+	if err = svc.Delete(ctx, []int64{hiddenID}); !bizerr.Is(err, CodeFileDataScopeDenied) {
 		t.Fatalf("expected hidden delete to be denied, got %v", err)
 	}
 	if count := countFileScopeRecord(t, ctx, hiddenID); count != 1 {

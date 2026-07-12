@@ -184,11 +184,11 @@
 
 ### Requirement:角色批量删除
 
-系统 SHALL 提供 `DELETE /api/v1/role?ids=...` 用于批量删除角色，复用所有单条删除保护规则，并保证整个操作的事务原子性。
+系统 SHALL 提供 `DELETE /api/v1/role` 并通过 query 数组参数 `ids[]` 批量删除角色，复用所有单条删除保护规则，并保证整个操作的事务原子性。ID 列表必须编码为 `ids[]=2&ids[]=3&ids[]=4` 形式，以便 GoFrame 将参数绑定为整数数组。
 
 #### Scenario:删除多个未分配给用户的角色
 
-- **当** 拥有 `system:role:remove` 权限的调用方调用 `DELETE /api/v1/role?ids=2,3,4`
+- **当** 拥有 `system:role:remove` 权限的调用方调用 `DELETE /api/v1/role?ids[]=2&ids[]=3&ids[]=4`
 - **且** 目标角色均未分配给用户且均非超级管理员角色
 - **则** 系统在一个事务内软删除所有角色
 - **且** 同步删除相关的 `sys_role_menu` 和 `sys_user_role` 关联记录
@@ -196,14 +196,14 @@
 
 #### Scenario:包含超级管理员角色的批量被拒绝
 
-- **当** 调用方调用 `DELETE /api/v1/role?ids=1&ids=2&ids=3`
+- **当** 调用方调用 `DELETE /api/v1/role?ids[]=1&ids[]=2&ids[]=3`
 - **且** id `1` 是超级管理员角色
 - **则** 整个批量必须被拒绝
 - **且** 不删除任何角色
 
 #### Scenario:空 id 列表在验证时被拒绝
 
-- **当** 调用方调用 `DELETE /api/v1/role?ids=` 时
+- **当** 调用方调用 `DELETE /api/v1/role` 且未提供任何有效 `ids[]` 参数时
 - **则** 系统返回参数验证错误
 - **且** 不启动事务
 

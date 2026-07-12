@@ -54,10 +54,10 @@
 - **则** 硬删除所有登录日志记录
 
 ### Requirement:登录日志批量删除
-系统 SHALL 保留登录日志按 ID 列表删除接口 `DELETE /api/v1/loginlog/{ids}`，用于受控 API 调用或后续专门入口；登录日志管理页面 SHALL 不再提供表格勾选批量删除交互。
+系统 SHALL 保留登录日志按 ID 列表删除接口 `DELETE /api/v1/loginlog?ids[]=...`，用于受控 API 调用或后续专门入口；登录日志管理页面 SHALL 不再提供表格勾选批量删除交互。ID 列表必须编码为 query 数组（`ids[]=1&ids[]=2`）。
 
 #### Scenario:按 ID 批量删除
-- **当** 管理员请求 `DELETE /api/v1/loginlog/1,2,3` 时
+- **当** 管理员请求 `DELETE /api/v1/loginlog?ids[]=1&ids[]=2&ids[]=3` 时
 - **则** 硬删除指定 ID 的登录日志记录，返回删除记录数
 
 #### Scenario:前端不显示勾选批量删除

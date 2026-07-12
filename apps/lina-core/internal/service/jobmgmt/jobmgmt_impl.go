@@ -11,8 +11,6 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/text/gstr"
-	"github.com/gogf/gf/v2/util/gconv"
 
 	jobv1 "lina-core/api/job/v1"
 	"lina-core/internal/dao"
@@ -37,16 +35,16 @@ func (s *serviceImpl) currentUserID(ctx context.Context) int64 {
 	return int64(businessCtx.UserId)
 }
 
-// parseInt64IDs parses one comma-separated identifier list.
-func parseInt64IDs(ids string) []int64 {
-	parts := gstr.SplitAndTrim(ids, ",")
-	result := make([]int64, 0, len(parts))
-	for _, part := range parts {
-		currentID := gconv.Int64(strings.TrimSpace(part))
-		if currentID == 0 {
-			continue
+// normalizePositiveInt64IDs drops non-positive identifiers from a batch ID list.
+func normalizePositiveInt64IDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			result = append(result, id)
 		}
-		result = append(result, currentID)
 	}
 	return result
 }

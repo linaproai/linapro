@@ -48,7 +48,7 @@ test.describe('TC-10 源码注册任务只读保护', () => {
     );
 
     await expectBusinessError(
-      await api.delete(`job/${builtinJob!.id}`),
+      await api.delete(`job?ids[]=${builtinJob!.id}`),
       '源码注册任务不允许删除',
     );
 

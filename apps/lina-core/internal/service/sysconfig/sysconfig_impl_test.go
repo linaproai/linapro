@@ -27,7 +27,7 @@ func TestDeleteRejectsProtectedRuntimeParam(t *testing.T) {
 	ctx := context.Background()
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
 
-	err := New(hostconfig.New(), nil).Delete(ctx, int(runtimeParam.Id))
+	err := New(hostconfig.New(), nil).Delete(ctx, runtimeParam.Id)
 	if err == nil {
 		t.Fatal("expected deleting protected runtime param to fail")
 	}
@@ -39,7 +39,7 @@ func TestDeleteRejectsProtectedPublicFrontendSetting(t *testing.T) {
 	ctx := context.Background()
 	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
 
-	err := New(hostconfig.New(), nil).Delete(ctx, int(publicSetting.Id))
+	err := New(hostconfig.New(), nil).Delete(ctx, publicSetting.Id)
 	if err == nil {
 		t.Fatal("expected deleting protected public frontend setting to fail")
 	}
@@ -51,7 +51,7 @@ func TestDeleteRejectsBuiltInFlaggedSystemParameter(t *testing.T) {
 	ctx := context.Background()
 	record := insertConfigForBuiltInGuard(t, ctx, true)
 
-	err := New(hostconfig.New(), nil).Delete(ctx, int(record.Id))
+	err := New(hostconfig.New(), nil).Delete(ctx, record.Id)
 	if !bizerr.Is(err, CodeSysConfigBuiltinDeleteDenied) {
 		t.Fatalf("expected %s, got %v", CodeSysConfigBuiltinDeleteDenied.RuntimeCode(), err)
 	}
@@ -69,7 +69,7 @@ func TestUpdateAllowsBuiltInFlaggedSystemParameter(t *testing.T) {
 	)
 
 	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
-		Id:    int(record.Id),
+		Id: record.Id,
 		Value: &updatedValue,
 	})
 	if err != nil {
@@ -182,7 +182,7 @@ func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
 	)
 
 	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
-		Id:  int(runtimeParam.Id),
+		Id: runtimeParam.Id,
 		Key: &newKey,
 	})
 	if err == nil {
@@ -200,7 +200,7 @@ func TestUpdateRejectsProtectedPublicFrontendSettingRename(t *testing.T) {
 	)
 
 	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
-		Id:  int(publicSetting.Id),
+		Id: publicSetting.Id,
 		Key: &newKey,
 	})
 	if err == nil {
@@ -252,7 +252,7 @@ func TestUpdateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 
 	updatedValue := "8h"
 	err = New(hostconfig.New(), nil).Update(ctx, UpdateInput{
-		Id:    int(runtimeParam.Id),
+		Id: runtimeParam.Id,
 		Value: &updatedValue,
 	})
 	if err != nil {
@@ -323,7 +323,7 @@ func TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot(t *testing.
 
 	updatedValue := "LinaPro Console"
 	err = New(hostconfig.New(), nil).Update(ctx, UpdateInput{
-		Id:    int(publicSetting.Id),
+		Id: publicSetting.Id,
 		Value: &updatedValue,
 	})
 	if err != nil {

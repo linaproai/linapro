@@ -88,7 +88,7 @@
 系统 SHALL 提供删除通知公告接口，支持批量删除。
 
 #### Scenario:删除通知公告成功
-- **当** 调用 `DELETE /api/v1/notice` 并传入 `ids` 参数（逗号分隔的 ID 列表）时
+- **当** 调用 `DELETE /api/v1/notice?ids[]=1&ids[]=2`（query 数组 ID 列表）时
 - **则** 对应的通知公告被软删除（设置 `deleted_at`）
 
 ### Requirement:通知公告字典数据

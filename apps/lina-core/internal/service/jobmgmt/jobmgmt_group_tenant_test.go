@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
@@ -159,11 +158,11 @@ func TestJobGroupDeleteMigratesOnlyCurrentTenantJobs(t *testing.T) {
 	svc := newTestService(t)
 	setJobMgmtTestBizCtx(svc, jobmgmtStaticBizCtx{ctx: &model.Context{TenantId: jobGroupTenantA, UserId: 1}})
 
-	if err := svc.DeleteGroups(tenantACtx, gconv.String(tenantBGroup)); !bizerr.Is(err, CodeJobGroupNotFound) {
+	if err := svc.DeleteGroups(tenantACtx, []int64{tenantBGroup}); !bizerr.Is(err, CodeJobGroupNotFound) {
 		t.Fatalf("expected out-of-tenant delete to return not found, got %v", err)
 	}
 
-	if err := svc.DeleteGroups(tenantACtx, gconv.String(tenantAGroup)); err != nil {
+	if err := svc.DeleteGroups(tenantACtx, []int64{tenantAGroup}); err != nil {
 		t.Fatalf("expected tenant A group delete to succeed, got error: %v", err)
 	}
 

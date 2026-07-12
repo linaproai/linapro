@@ -212,24 +212,37 @@ test.describe('TC-19 插件管理列表管理入口', () => {
     await pluginPage.searchByPluginId(managedPluginID);
     await expect(pluginPage.pluginManageAction(managedPluginID)).toBeEnabled();
 
-    await pluginPage.openPluginManagement(managedPluginID);
+    // Race navigation and the short-lived warning toast. Waiting for URL first
+    // can miss ant-design message toasts that auto-dismiss in ~3s.
+    // Swallow the losing waiter so its later timeout does not surface as an
+    // unhandled rejection after Promise.race settles.
+    const unavailableMessage = adminPage.getByText(
+      /当前会话无法访问该插件管理页面|not available in the current session/iu,
+    );
+    const outcomePromise = Promise.race([
+      adminPage
+        .waitForURL(/loginlog/iu, { timeout: 8_000 })
+        .then(() => 'navigated' as const)
+        .catch(() => null),
+      unavailableMessage
+        .waitFor({ state: 'visible', timeout: 8_000 })
+        .then(() => 'unavailable' as const)
+        .catch(() => null),
+    ]);
 
+    await pluginPage.openPluginManagement(managedPluginID);
     await expect(pluginPage.pluginDetailModal()).toHaveCount(0);
 
-    const navigatedToLoginlog = await adminPage
-      .waitForURL(/loginlog/iu, { timeout: 5_000 })
-      .then(() => true)
-      .catch(() => false);
-
-    if (navigatedToLoginlog) {
+    const outcome = await outcomePromise;
+    expect(
+      outcome,
+      'expected Manage to navigate to loginlog or show the unavailable toast',
+    ).not.toBeNull();
+    if (outcome === 'navigated') {
       expect(adminPage.url()).toMatch(/loginlog/iu);
       await expect(adminPage).not.toHaveURL(/\/system\/plugin(?:\?|$)/u);
     } else {
-      await expect(
-        adminPage.getByText(
-          /当前会话无法访问该插件管理页面|not available in the current session/iu,
-        ),
-      ).toBeVisible({ timeout: 5_000 });
+      await expect(unavailableMessage).toBeVisible();
       await expect(adminPage).toHaveURL(/\/system\/plugin/u);
     }
 

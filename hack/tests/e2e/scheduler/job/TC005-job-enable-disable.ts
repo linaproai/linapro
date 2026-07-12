@@ -28,7 +28,7 @@ test.describe('TC-5 定时任务启停', () => {
 
   test.afterAll(async () => {
     if (jobId) {
-      await api.delete(`job/${jobId}`);
+      await api.delete(`job?ids[]=${jobId}`);
     }
     if (originalShellSwitch) {
       await restoreCronShellEnabled(api, originalShellSwitch);

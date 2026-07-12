@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "../../../fixtures/auth";
 import { RolePage } from "../../../pages/RolePage";
 import { createAdminApiContext, expectSuccess } from "../../../support/api/job";
+import { buildBatchIdsQuery } from "../../../support/api/query-ids";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -51,14 +52,6 @@ function buildRoleIdentity(): RoleIdentity {
   };
 }
 
-function buildRepeatedIdsQuery(ids: number[]) {
-  const params = new URLSearchParams();
-  for (const id of ids) {
-    params.append("ids", String(id));
-  }
-  return params.toString();
-}
-
 async function listRolesByName(api: APIRequestContext, name: string) {
   return expectSuccess<RoleListResult>(
     await api.get(`role?page=1&size=100&name=${encodeURIComponent(name)}`),
@@ -78,7 +71,7 @@ async function cleanupRolesByName(api: APIRequestContext, ...names: string[]) {
   if (ids.length === 0) {
     return;
   }
-  await expectSuccess(await api.delete(`role?${buildRepeatedIdsQuery(ids)}`));
+  await expectSuccess(await api.delete(`role?${buildBatchIdsQuery(ids)}`));
 }
 
 async function createRoleWithMenuIds(

@@ -120,7 +120,7 @@ func (s *serviceImpl) GetLog(ctx context.Context, id int64) (*LogDetailOutput, e
 func (s *serviceImpl) ClearLogs(ctx context.Context, in ClearLogsInput) (int64, error) {
 	var (
 		model     = dao.SysJobLog.Ctx(ctx)
-		logIDs    = parseInt64IDs(in.IDs)
+		logIDs    = normalizePositiveInt64IDs(in.IDs)
 		cols      = dao.SysJobLog.Columns()
 		beginTime = strings.TrimSpace(in.BeginTime)
 		endTime   = strings.TrimSpace(in.EndTime)

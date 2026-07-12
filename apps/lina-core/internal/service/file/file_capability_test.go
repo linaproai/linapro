@@ -393,7 +393,7 @@ func (o *fileCapabilityDetailOwner) InfoByIds(context.Context, []int64) ([]*enti
 }
 
 // Delete is unused by capability detail tests.
-func (o *fileCapabilityDetailOwner) Delete(context.Context, string) error {
+func (o *fileCapabilityDetailOwner) Delete(context.Context, []int64) error {
 	return nil
 }
 

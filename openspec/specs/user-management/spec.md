@@ -173,11 +173,11 @@
 
 ### Requirement:用户批量删除
 
-系统 SHALL 提供 RESTful 批量删除端点，在单个请求中删除多个用户，共享与单用户删除相同的保护规则、数据权限边界和原子性。
+系统 SHALL 提供 RESTful 批量删除端点 `DELETE /api/v1/user`，通过 query 数组参数 `ids[]` 在单个请求中删除多个用户，共享与单用户删除相同的保护规则、数据权限边界和原子性。ID 列表必须编码为 `ids[]=2&ids[]=3&ids[]=4` 形式，以便 GoFrame 将参数绑定为整数数组。
 
 #### Scenario:批量删除成功
 
-- **当** 拥有 `user:remove` 权限的调用方调用 `DELETE /api/v1/user?ids=2,3,4`
+- **当** 拥有 `user:remove` 权限的调用方调用 `DELETE /api/v1/user?ids[]=2&ids[]=3&ids[]=4`
 - **且** 没有 id 匹配内置管理员或当前登录用户
 - **且** 所有目标用户都位于当前调用方数据权限范围内
 - **则** 系统在单个事务内软删除所有指定用户
@@ -187,21 +187,21 @@
 
 #### Scenario:批量删除拒绝内置管理员 id
 
-- **当** 调用方调用 `DELETE /api/v1/user?ids=1&ids=2&ids=3`
+- **当** 调用方调用 `DELETE /api/v1/user?ids[]=1&ids[]=2&ids[]=3`
 - **且** id `1` 属于内置管理员
 - **则** 整个批量必须以 `bizerr` `CodeUserBuiltinAdminDeleteDenied` 被拒绝
 - **且** 不删除任何用户，不清理任何关联
 
 #### Scenario:批量删除拒绝当前用户 id
 
-- **当** 调用方调用 `DELETE /api/v1/user?ids=...`
+- **当** 调用方调用 `DELETE /api/v1/user?ids[]=...`
 - **且** id 列表包含当前登录用户的 id
 - **则** 整个批量必须以 `bizerr` `CodeUserCurrentDeleteDenied` 被拒绝
 - **且** 不删除任何用户
 
 #### Scenario:空 id 列表在验证时被拒绝
 
-- **当** 调用方调用 `DELETE /api/v1/user?ids=` 时
+- **当** 调用方调用 `DELETE /api/v1/user` 且未提供任何有效 `ids[]` 参数时
 - **则** 系统必须以验证错误拒绝请求
 - **且** 不启动事务
 

@@ -1,10 +1,17 @@
 import type { Locator, Page } from '@playwright/test';
 
 import { test, expect } from '../../fixtures/auth';
-import { prepareSourcePluginsBaseline } from '../../fixtures/plugin';
+import {
+  createAdminApiContext,
+  findPlugin,
+  prepareSourcePluginsBaseline,
+  syncPlugins,
+} from '../../fixtures/plugin';
 import { ConfigPage } from '../../pages/ConfigPage';
 import { workspacePath } from '../../fixtures/config';
 import { waitForRouteReady } from '../../support/ui';
+
+const aiCorePluginId = 'linapro-ai-core';
 
 async function readBorderRadius(locator: Locator): Promise<string> {
   await expect(locator).toBeVisible();
@@ -42,11 +49,18 @@ function gridPanel(page: Page) {
     .locator('xpath=..');
 }
 
-test.describe('TC-4 后台页面板块圆角统一', () => {
-  test.beforeAll(async () => {
-    await prepareSourcePluginsBaseline(['linapro-ai-core']);
-  });
+async function isAiCorePluginAvailable(): Promise<boolean> {
+  const adminApi = await createAdminApiContext();
+  try {
+    await syncPlugins(adminApi);
+    const plugin = await findPlugin(adminApi, aiCorePluginId);
+    return Boolean(plugin);
+  } finally {
+    await adminApi.dispose();
+  }
+}
 
+test.describe('TC-4 后台页面板块圆角统一', () => {
   test('TC-4a: 版本信息 card-box 使用主题 radius-xl 且非尖角', async ({
     adminPage,
   }) => {
@@ -94,6 +108,14 @@ test.describe('TC-4 后台页面板块圆角统一', () => {
   test('TC-4d: 智能中心调用日志板块与 card-box 使用同一圆角', async ({
     adminPage,
   }) => {
+    // Host-only runs do not ship source plugins; keep host card-box checks
+    // above while gating the AI Hub panel assertion on plugin availability.
+    test.skip(
+      !(await isAiCorePluginAvailable()),
+      'linapro-ai-core is unavailable in host-only environments',
+    );
+    await prepareSourcePluginsBaseline([aiCorePluginId]);
+
     const cardBoxRadius = await readCardBoxRadius(adminPage);
 
     await adminPage.goto(workspacePath('/ai/invocations'));

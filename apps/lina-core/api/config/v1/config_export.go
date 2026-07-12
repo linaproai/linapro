@@ -13,7 +13,7 @@ type ExportReq struct {
 	Key       string `json:"key" dc:"Filter by parameter key name (fuzzy matching)" eg:"sys.index"`
 	BeginTime string `json:"beginTime" dc:"Creation time range-start time, format YYYY-MM-DD" eg:"2025-01-01"`
 	EndTime   string `json:"endTime" dc:"Creation time range-end time, format YYYY-MM-DD" eg:"2025-12-31"`
-	Ids       []int  `json:"ids" dc:"Specify the list of record IDs to be exported. If not passed, all records that meet the conditions will be exported." eg:"[1,2,3]"`
+	Ids       []int64  `json:"ids" dc:"Optional record ID list as a query array (ids[]=1&ids[]=2). If not passed, all records that meet the conditions will be exported." eg:"[1,2,3]"`
 }
 
 // ExportRes is the config export response.

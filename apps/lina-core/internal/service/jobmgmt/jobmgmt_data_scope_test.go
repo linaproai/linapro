@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/util/gconv"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
@@ -84,7 +82,7 @@ func TestJobDataScopeFiltersUserJobsKeepsBuiltinsAndProtectsLogs(t *testing.T) {
 	if _, err = svc.TriggerJob(ctx, hiddenJobID); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden job trigger denied, got %v", err)
 	}
-	if _, err = svc.ClearLogs(ctx, ClearLogsInput{IDs: int64ToString(hiddenLogID)}); !bizerr.Is(err, CodeJobDataScopeDenied) {
+	if _, err = svc.ClearLogs(ctx, ClearLogsInput{IDs: []int64{hiddenLogID}}); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden log clear denied, got %v", err)
 	}
 
@@ -243,9 +241,4 @@ func jobScopeLogIDSet(items []*LogListItem) map[int64]struct{} {
 		result[item.SysJobLog.Id] = struct{}{}
 	}
 	return result
-}
-
-// int64ToString formats one ID without importing strconv at call sites.
-func int64ToString(id int64) string {
-	return gconv.String(id)
 }

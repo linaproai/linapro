@@ -707,7 +707,7 @@ func (noopJobOwner) UpdateJob(_ context.Context, _ jobmeta.UpdateJobInput) error
 }
 
 // DeleteJobs accepts one scheduled-job delete request.
-func (noopJobOwner) DeleteJobs(_ context.Context, _ string) error {
+func (noopJobOwner) DeleteJobs(_ context.Context, _ []int64) error {
 	return nil
 }
 

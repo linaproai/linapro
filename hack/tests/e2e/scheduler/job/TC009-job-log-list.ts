@@ -32,7 +32,7 @@ test.describe("TC-9 执行日志查询与删除", () => {
   test.afterAll(async () => {
     if (jobId) {
       await clearLogs(api, jobId);
-      await api.delete(`job/${jobId}`);
+      await api.delete(`job?ids[]=${jobId}`);
     }
     if (originalShellSwitch) {
       await restoreCronShellEnabled(api, originalShellSwitch);

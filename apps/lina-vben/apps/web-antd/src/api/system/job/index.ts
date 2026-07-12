@@ -41,9 +41,11 @@ export function jobUpdate(id: number, data: JobPayload) {
 }
 
 /** 删除任务 */
-export function jobDelete(ids: Array<number> | number | string) {
-  const target = Array.isArray(ids) ? ids.join(',') : ids;
-  return requestClient.delete(`/job/${target}`);
+export function jobDelete(ids: Array<number> | number) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  return requestClient.delete('/job', {
+    params: { ids: list },
+  });
 }
 
 /** 更新任务状态 */
@@ -104,10 +106,10 @@ export function jobLogClear(params?: JobLogClearParams) {
 }
 
 /** 批量删除执行日志 */
-export function jobLogDelete(ids: Array<number> | number | string) {
-  const target = Array.isArray(ids) ? ids.join(',') : ids;
+export function jobLogDelete(ids: Array<number> | number) {
+  const list = Array.isArray(ids) ? ids : [ids];
   return requestClient.delete('/job/log', {
-    params: { logIds: target },
+    params: { logIds: list },
   });
 }
 

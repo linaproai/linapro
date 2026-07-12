@@ -2,6 +2,10 @@ import type { APIRequestContext, Request } from "@playwright/test";
 
 import { test, expect } from "../../../fixtures/auth";
 import { UserPage } from "../../../pages/UserPage";
+import {
+  buildBatchIdsQuery,
+  getBracketArrayIds,
+} from "../../../support/api/query-ids";
 import { createAdminApiContext, expectSuccess } from "../../../support/api/job";
 
 type CreatedID = {
@@ -14,18 +18,7 @@ type ListResult = {
 };
 
 function getRequestedIds(request: Request) {
-  return new URL(request.url())
-    .searchParams.getAll("ids")
-    .map(Number)
-    .sort();
-}
-
-function buildRepeatedIdsQuery(ids: number[]) {
-  const params = new URLSearchParams();
-  for (const id of ids) {
-    params.append("ids", String(id));
-  }
-  return params.toString();
+  return getBracketArrayIds(request.url());
 }
 
 let adminApi: APIRequestContext;
@@ -115,7 +108,7 @@ test.describe("TC-9 User batch delete single request", () => {
     } finally {
       if (createdIds.length > 0) {
         await adminApi
-          .delete(`user?${buildRepeatedIdsQuery(createdIds)}`)
+          .delete(`user?${buildBatchIdsQuery(createdIds)}`)
           .catch(() => {});
       }
     }

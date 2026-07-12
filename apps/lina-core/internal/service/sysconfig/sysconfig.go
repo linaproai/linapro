@@ -21,12 +21,12 @@ type Service interface {
 	// GetById retrieves one config record by ID within the current tenant data
 	// scope. Missing or out-of-scope records return a sysconfig not-found
 	// business error.
-	GetById(ctx context.Context, id int) (*entity.SysConfig, error)
+	GetById(ctx context.Context, id int64) (*entity.SysConfig, error)
 	// Create creates a new config record in the current tenant scope. Protected
 	// runtime/public frontend keys are validated through the host config service,
 	// duplicate keys return business errors, and sys_config runtime snapshots
 	// are refreshed after successful creation.
-	Create(ctx context.Context, in CreateInput) (int, error)
+	Create(ctx context.Context, in CreateInput) (int64, error)
 	// Update updates an existing config record in the current tenant scope.
 	// Built-in protected keys cannot be renamed, duplicate keys are rejected,
 	// protected values are validated, and sys_config runtime snapshots are
@@ -34,7 +34,7 @@ type Service interface {
 	Update(ctx context.Context, in UpdateInput) error
 	// Delete soft-deletes a config record using GoFrame's auto soft-delete
 	// feature after tenant-scope visibility and built-in protection checks.
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, id int64) error
 	// GetByKey retrieves one tenant-specific or fallback platform config by key.
 	// Missing keys return a sysconfig key-not-found business error and returned
 	// records are localized and decorated with fallback metadata when i18n is
@@ -99,7 +99,7 @@ type CreateInput struct {
 
 // UpdateInput defines input for Update function.
 type UpdateInput struct {
-	Id     int     // Parameter ID
+	Id     int64   // Parameter ID
 	Name   *string // Parameter name
 	Key    *string // Parameter key
 	Value  *string // Parameter value
@@ -108,9 +108,9 @@ type UpdateInput struct {
 
 // ExportInput defines input for Export function.
 type ExportInput struct {
-	Name      string // Parameter name, supports fuzzy search
-	Key       string // Parameter key, supports fuzzy search
-	BeginTime string // Creation time start
-	EndTime   string // Creation time end
-	Ids       []int  // Specific IDs to export; if empty, export all matching records
+	Name      string  // Parameter name, supports fuzzy search
+	Key       string  // Parameter key, supports fuzzy search
+	BeginTime string  // Creation time start
+	EndTime   string  // Creation time end
+	Ids       []int64 // Specific IDs to export; if empty, export all matching records
 }

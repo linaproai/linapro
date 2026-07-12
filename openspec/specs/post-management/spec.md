@@ -55,11 +55,11 @@
 系统 SHALL 提供删除岗位接口，支持批量删除。
 
 #### Scenario:删除单个岗位
-- **当** 调用 `DELETE /api/v1/post/{id}` 时
+- **当** 调用 `DELETE /api/v1/post?ids[]={id}` 时
 - **则** 岗位被软删除
 
 #### Scenario:批量删除岗位
-- **当** 调用 `DELETE /api/v1/post/{ids}`，ids 为逗号分隔的多个 ID 时
+- **当** 调用 `DELETE /api/v1/post?ids[]=1&ids[]=2`，以 query 数组传入多个 ID 时
 - **则** 所有指定岗位被软删除
 
 #### Scenario:关联用户的岗位不能删除

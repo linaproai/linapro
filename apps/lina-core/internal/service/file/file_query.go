@@ -8,8 +8,6 @@ import (
 	"fmt"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/text/gstr"
-	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
@@ -157,14 +155,10 @@ func (s *serviceImpl) InfoByIds(ctx context.Context, ids []int64) ([]*entity.Sys
 }
 
 // Delete removes files by IDs (soft delete in DB, also removes physical files).
-func (s *serviceImpl) Delete(ctx context.Context, idsStr string) error {
-	ids := gstr.SplitAndTrim(idsStr, ",")
-	if len(ids) == 0 {
+func (s *serviceImpl) Delete(ctx context.Context, ids []int64) error {
+	idList := normalizePositiveInt64IDs(ids)
+	if len(idList) == 0 {
 		return bizerr.NewCode(CodeFileDeleteRequired)
-	}
-	idList := make([]int64, 0, len(ids))
-	for _, idStr := range ids {
-		idList = append(idList, gconv.Int64(idStr))
 	}
 	if err := s.ensureFilesVisible(ctx, idList); err != nil {
 		return err
@@ -188,6 +182,20 @@ func (s *serviceImpl) Delete(ctx context.Context, idsStr string) error {
 		}
 	}
 	return nil
+}
+
+// normalizePositiveInt64IDs drops non-positive identifiers from a batch ID list.
+func normalizePositiveInt64IDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			result = append(result, id)
+		}
+	}
+	return result
 }
 
 // getBaseUrl returns the base URL (scheme + host) from the current HTTP request context.

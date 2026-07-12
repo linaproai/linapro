@@ -78,10 +78,10 @@
 - **则** 硬删除所有操作日志记录
 
 ### Requirement:批量删除操作日志
-系统 SHALL 保留操作日志按 ID 列表删除接口 `DELETE /api/v1/operlog/{ids}`，用于受控 API 调用或后续专门入口；操作日志管理页面 SHALL 不再提供表格勾选批量删除交互。
+系统 SHALL 保留操作日志按 ID 列表删除接口 `DELETE /api/v1/operlog?ids[]=...`，用于受控 API 调用或后续专门入口；操作日志管理页面 SHALL 不再提供表格勾选批量删除交互。ID 列表必须编码为 query 数组（`ids[]=1&ids[]=2`）。
 
 #### Scenario:按 ID 批量删除
-- **当** 管理员请求 `DELETE /api/v1/operlog/1,2,3` 时
+- **当** 管理员请求 `DELETE /api/v1/operlog?ids[]=1&ids[]=2&ids[]=3` 时
 - **则** 硬删除指定 ID 的操作日志记录，返回删除记录数
 
 #### Scenario:前端不显示勾选批量删除

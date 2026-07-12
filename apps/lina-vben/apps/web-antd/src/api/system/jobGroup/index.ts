@@ -27,6 +27,15 @@ export function jobGroupUpdate(id: number, data: JobGroupPayload) {
 
 /** 删除任务分组 */
 export function jobGroupDelete(ids: Array<number> | number | string) {
-  const target = Array.isArray(ids) ? ids.join(',') : ids;
-  return requestClient.delete(`/job-group/${target}`);
+  const list = Array.isArray(ids)
+    ? ids
+    : typeof ids === 'string'
+      ? ids
+          .split(',')
+          .map((part) => Number(part.trim()))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      : [ids];
+  return requestClient.delete('/job-group', {
+    params: { ids: list },
+  });
 }
