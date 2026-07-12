@@ -25,10 +25,14 @@ on:
         required: false
         default: false
 
-# Cancel in-progress runs for the same branch/PR to save CI minutes.
-# 取消同一分支/PR 上仍在运行的旧任务，节省 CI 时间。
+# Cancel in-progress runs for the same push ref or the same PR number.
+# Keep push and pull_request in different groups so a short-lived push gate
+# never cancels a concurrent pull_request suite (see ci-gate job).
+# 取消同一 push ref 或同一 PR 上仍在运行的旧任务。
+# push 与 pull_request 使用不同 concurrency group，避免短命的 push 门禁
+# 取消正在运行的 pull_request 套件（见 ci-gate job）。
 concurrency:
-  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 # Keep logs and date-sensitive tests aligned with the project timezone.
@@ -37,10 +41,81 @@ env:
   TZ: "Asia/Shanghai"
 
 jobs:
+  # Prefer a single suite run when a branch push and an open same-repo PR both fire.
+  # - push with no open same-repo PR → run
+  # - push while an open same-repo PR covers the branch → skip (pull_request runs)
+  # - pull_request (including forks) → run
+  # - workflow_dispatch → run
+  # - push to the default branch → always run (post-merge validation)
+  # 当分支 push 与同源 open PR 同时触发时，只保留一次套件：
+  # - 无同源 open PR 的 push → 运行
+  # - 已有同源 open PR 覆盖该分支的 push → 跳过（由 pull_request 运行）
+  # - pull_request（含 fork）→ 运行
+  # - workflow_dispatch → 运行
+  # - 默认分支 push → 始终运行（合并后校验）
+  ci-gate:
+    name: CI gate
+    runs-on: ubuntu-latest
+    # Only this job lists open PRs; keep verification-suite on repo default token scopes.
+    # 仅门禁 job 查询 open PR；验证套件继续使用仓库默认 token 权限范围。
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - id: decide
+        name: Decide whether this event should run the suite
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Event is ${EVENT_NAME}; run CI."
+            exit 0
+          fi
+
+          if [ "$REF_NAME" = "$DEFAULT_BRANCH" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Push to default branch ${DEFAULT_BRANCH}; run CI."
+            exit 0
+          fi
+
+          head_ref="${REPOSITORY_OWNER}:${REF_NAME}"
+          count="0"
+          if ! count="$(gh api \
+            -X GET \
+            "repos/${REPOSITORY}/pulls" \
+            -f state=open \
+            -f head="${head_ref}" \
+            -f per_page=1 \
+            --jq 'length')"; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Failed to query open PRs for ${head_ref}; run CI to stay safe."
+            exit 0
+          fi
+
+          if [ "${count}" -gt 0 ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Open same-repo PR covers ${head_ref}; skip push CI in favor of pull_request."
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "No open same-repo PR for ${head_ref}; run push CI."
+          fi
+
   # Reuses the shared verification suite and keeps browser E2E disabled for push CI.
   # 复用共享验证套件，并在 push CI 中保持浏览器 E2E 关闭。
   verification-suite:
     name: Test verification suite
+    needs: ci-gate
+    if: needs.ci-gate.outputs.should_run == 'true'
     uses: ./.github/workflows/reusable-test-verification-suite.yml
     with:
       include-openspec-completion: true
