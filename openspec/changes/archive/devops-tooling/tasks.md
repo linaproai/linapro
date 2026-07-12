@@ -16,6 +16,8 @@
 - [x] 验证：`go test ./hack/tools/linactl/... -count=1`通过；`make plugins.check`通过；代表性插件`make dao`和`make ctrl`烟测通过；`openspec validate`通过；静态检索确认旧路径无活动配置残留。
 - [x] 交付`Go`静态检查门禁：仓库配置与版本锁定、`linactl lint.go`跨平台入口、宿主/插件完整模式、`staticcheck U1000`多目标死代码归并、`env.setup`预装工具、主`CI`/发布验证阻断。
 - [x] FB-1~FB-10（静态检查）：收敛首批 linter 噪声、按 wasip1 矩阵归并死代码、统一`staticcheck U1000`、自动安装锁定版本、`env.setup`预装、恢复动态示例 lifecycle 导出契约、builder 配置迁入`hack/config.yaml`并删除`backend/*/*.yaml`兼容路径；验证覆盖`linactl`单测、`make lint`、wasmbuilder/runtime 相关测试与 OpenSpec 校验。
-- [x] 治理：静态检查与 builder 配置变更无运行时`i18n`/缓存/数据权限/HTTP API 影响；跨平台入口仍为 Go/`linactl`；无需新增 E2E。
+- [x] 交付`lint dir=`定向扫描：`linactl`解析可选`dir`到单个 Go module（插件根优先 backend、向上找`go.mod`、workspace 过滤失败即报错）、plan/summary 输出`scope=dir|workspace`、`lint.mk`透传、`linactl`中英文 README 与`.agents/rules/backend-go.md`同步说明。
+- [x] 验证（`dir=`）：module 解析/workspace 过滤/无效路径/插件根→backend 单测；`cd hack/tools/linactl && go test`；手工 smoke `make lint dir=hack/tools/linactl plugins=0`与无`dir`全量兼容路径；OpenSpec 严格校验。
+- [x] 治理：静态检查与 builder 配置、`dir=`定向扫描均无运行时`i18n`/缓存/数据权限/HTTP API 影响；跨平台入口仍为 Go/`linactl`（路径解析用标准库）；`CI`/审查仍以未传`dir`的工作区扫描为准；无需新增 E2E。
 - [x] 删除`linactl`历史兼容面：旧变量/回退路径/`plugins=auto`/snake_case/布尔别名/环境变量覆盖/调试入口；`wasm`仅`dir=`。
 - [x] FB-1~FB-6：删除未用 helper、收敛 kebab-case 与`dir=`、修复 CI 静态扫描与 runtime 测试`plugin_dir`误用；验证`linactl`全包测试、lint.go、相关 runtime 测试与 OpenSpec 校验。

@@ -1,5 +1,8 @@
-## ADDED Requirements
+# plugin-management-manage-entry Specification
 
+## Purpose
+TBD - created by archiving change plugin-management-manage-entry. Update Purpose after archive.
+## Requirements
 ### Requirement: 插件管理列表操作列提供管理入口
 
 系统 SHALL 在插件管理列表每一行的操作列中展示「管理」按钮，用于进入该插件的业务管理页面。
@@ -47,3 +50,4 @@
 - **且** 当前会话中找不到与该管理页匹配的宿主路由
 - **则** 系统保持在插件管理列表
 - **且** 向用户展示可理解的失败提示
+

@@ -2,7 +2,7 @@
 
 ## Summary
 
-- [x] 建立插件框架核心能力：统一 plugin.yaml、源码/动态插件生命周期、动态 WASM 运行时、host service、能力目录、插件 UI、菜单权限、启动引导、依赖、升级、工作区和包边界。
+- [x] 建立插件框架核心能力：统一 plugin.yaml、源码/动态插件生命周期、动态 WASM 运行时、host service、能力目录、插件 UI、菜单权限、启动引导、依赖、升级、工作区和包边界；插件管理列表操作列「管理」入口（page-registry 判定、多菜单首位跳转、未安装/无管理页置灰）。
 - [x] 拆解 catalog/store/types，消除 catalog 反向回调环（split-plugin-catalog-store-types）。新建 plugintypes 叶子包、store 治理持久化组件，catalog 收窄为清单事实源。副作用调用上提到编排入口。边界测试固化 plugintypes 零兄弟依赖、catalog 不依赖 runtime/integration/dao。
 - [x] 构造函数直化与 setter 清零（straighten-plugin-wiring-state）。删除所有内部 service wiring setter 和 ValidateRequiredDependencies；切断 runtime/integration/lifecycle 互持宽 service；消除包级可变运行期状态；WASM host service 改为显式实例；runtime revision controller 迁入 cachecoord/revisionctrl；合并 capabilityhost 微包。plugin.RuntimeDelegate 打破启动环。
 - [x] 生命周期编排下沉（sink-plugin-lifecycle-orchestration）。重建 internal/lifecycle 接收 catalog/store/runtime/integration/migration/dependency/i18n/cache publisher/topology 窄接口。SQL migration executor 独立为 internal/migration。Install/Uninstall/UpdateStatus/源码生命周期/自动启用/租户钩子分批迁入。列表投影收敛为 buildPluginProjection 单一入口。publishPluginChange 统一缓存失效。业务控制参数从 context key 改为显式 options。
@@ -21,15 +21,21 @@
 - [x] `cd apps/lina-core && go test ./internal/cmd -count=1` 通过
 - [x] 各迭代 openspec validate --strict 通过
 - [x] 静态边界测试覆盖：plugintypes 零兄弟依赖、catalog 不依赖 runtime/integration/dao、store 不泄漏 DAO/DO/Entity、无 wiring setter、无包级可变状态、无旧 runtimecache import、无 wasm.Configure*、route.go 不超过 400 行、无旧 sourceupgrade/runtimeupgrade import
+- [x] 「管理」入口：路由解析 helper 单测；插件管理 E2E TC019（有管理页可跳转、无管理页禁用）；PluginPage POM 管理按钮定位；OpenSpec 严格校验
+
+## Feedback
+
+- [x] FB-1（「管理」入口）：插件未安装时按钮应置灰不可点击；根因：初始仅按是否有管理页启用按钮，未绑定安装状态；处理：未安装强制 disabled 并提示先安装；验证：单测与 E2E 覆盖
+- [x] FB-2（「管理」入口）：多菜单插件应进入侧边栏顺序第一个菜单而非最后一个；根因：曾按 routePath 字母序或注册表末项选择；处理：改以 accessMenus 深度优先首位匹配，禁止字母序；验证：多菜单跳转断言
 
 ## Governance
 
-- [x] 审查：lina-review 覆盖每个迭代，规则域包括 OpenSpec、后端 Go、架构、插件、缓存一致性、数据权限、测试、i18n、文档、开发工具跨平台
-- [x] i18n：无运行时用户可见文案或语言包新增；动态插件 i18n host service 移除属于边界调整
-- [x] 数据权限：平台治理守卫和租户边界未放宽；host service 授权快照语义不变
-- [x] 缓存一致性：权威源、触发点、跨实例同步、最大陈旧窗口、故障降级未因重构改变
+- [x] 审查：lina-review 覆盖每个迭代，规则域包括 OpenSpec、后端 Go、架构、插件、缓存一致性、数据权限、测试、i18n、文档、开发工具跨平台、前端 UI
+- [x] i18n：动态插件 i18n host service 移除属于边界调整；「管理」入口新增宿主前端管理按钮与提示文案（中英文）
+- [x] 数据权限：平台治理守卫和租户边界未放宽；host service 授权快照语义不变；「管理」入口不新增数据访问接口
+- [x] 缓存一致性：权威源、触发点、跨实例同步、最大陈旧窗口、故障降级未因重构改变；「管理」入口无缓存影响
 - [x] DI：所有内部 service 构造函数逐项显式注入，不使用 Deps/Options 聚合结构体
-- [x] 不修改 HTTP API、DTO、SQL schema、前端页面、插件 manifest wire 或 apps/lina-plugins/* 源码目录
+- [x] 「管理」入口不修改 HTTP API、DTO、SQL schema 或列表读模型字段；前端仅用 page-registry 与路由表
 - [x] Builtin 插件分发治理：新增`distribution`字段支持`builtin`声明；启动期自动安装/启用/安全升级 builtin 源码插件；普通管理入口隐藏并拒绝写操作；`sys_plugin.distribution`进入基线表结构。普通可管理枚举由`marketplace`重命名为`managed`，缺省归一化为`managed`，旧`marketplace`在有效契约中拒绝，无兼容分支。
 - [x] 插件领域能力扩展阶段 0/1：冻结四类矩阵，实现`Users.Current`、`Users.BatchResolve`、`Authz.BatchHasPermissions`、`Dict.EnsureValuesVisible`、`Sessions.Current`，同步动态 host service catalog/guest/dispatcher/README。
 - [x] 插件领域能力扩展阶段 1.5-5：完成候选搜索、组织/租户/插件治理投影、插件私有资源批量、通知类型化和 AI 状态，覆盖 40+ 个新方法；FB-1 至 FB-3 收敛 Storage provider 选择为零配置、新增冲突错误码。
