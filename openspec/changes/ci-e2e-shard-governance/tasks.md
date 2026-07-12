@@ -23,4 +23,3 @@
 - [x] 4.1 运行 `pnpm test:ci-shards:unit` 与分片规划 dry-run（`emit-ci-shards`）
 - [x] 4.2 确认 host 6 分片完备、plugin 8 路装箱（tenant-core 独占重片，其余约 12–21 文件）
 - [x] 4.3 `ci-shard host core --list` 可解析并列出用例
-- [ ] 4.4 `pnpm test:validate`：当前分支另有预存失败（根目录引用官方插件 ID / 高风险并行），与本变更无关；ciShards 校验未报错

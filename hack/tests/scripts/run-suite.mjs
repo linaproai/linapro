@@ -22,6 +22,7 @@ import {
   summarizeIsolationCategories,
   testsDir,
 } from './execution-governance.mjs';
+import { resolveHostOnlyPluginsEnv } from './host-only-env.mjs';
 
 const manifest = loadManifest();
 
@@ -44,7 +45,10 @@ function runPlaywright(files, workers, label) {
   console.log(`\n[${label}] playwright test ${files.length} file(s), workers=${workers}`);
   const env = {
     ...process.env,
-    E2E_HOST_ONLY_PLUGINS: label.startsWith('host') ? '1' : (process.env.E2E_HOST_ONLY_PLUGINS ?? '0'),
+    E2E_HOST_ONLY_PLUGINS: resolveHostOnlyPluginsEnv(
+      label,
+      process.env.E2E_HOST_ONLY_PLUGINS,
+    ),
   };
   const result = spawnSync('pnpm', args, {
     cwd: testsDir,

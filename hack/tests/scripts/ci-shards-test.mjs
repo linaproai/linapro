@@ -8,6 +8,10 @@ import {
   validateCiShards,
 } from './ci-shards.mjs';
 import { isPluginWorkspaceReady, resolveHostOnlyEntries } from './execution-governance.mjs';
+import {
+  isHostOnlyRunLabel,
+  resolveHostOnlyPluginsEnv,
+} from './host-only-env.mjs';
 
 function testBinPackBalancesHeavyItems() {
   const packed = binPackByWeight(
@@ -82,10 +86,52 @@ function testGitHubMatrixShape() {
   }
 }
 
+function testHostOnlyRunLabelsSetEnvForCiShards() {
+  const hostLabels = [
+    'host',
+    'host:parallel',
+    'host:serial',
+    'host-module:scheduler',
+    'host-module:scheduler:serial',
+    'ci-shard:host:scheduler',
+    'ci-shard:host:scheduler:parallel',
+    'ci-shard:host:scheduler:serial',
+  ];
+  for (const label of hostLabels) {
+    assert.equal(isHostOnlyRunLabel(label), true, `expected host-only label: ${label}`);
+    assert.equal(resolveHostOnlyPluginsEnv(label, '0'), '1', `expected env=1 for ${label}`);
+  }
+
+  const nonHostLabels = [
+    'full',
+    'full:serial',
+    'smoke',
+    'module:iam',
+    'ci-shard:plugin:plugins-1-of-8',
+    'ci-shard:plugin:plugins-1-of-8:serial',
+    'ci-shard:plugin-full-extra:extension-plugin',
+    'ci-shard:plugin-full-extra:extension-plugin:serial',
+  ];
+  for (const label of nonHostLabels) {
+    assert.equal(isHostOnlyRunLabel(label), false, `expected non-host label: ${label}`);
+    assert.equal(
+      resolveHostOnlyPluginsEnv(label, undefined),
+      '0',
+      `expected env=0 for ${label}`,
+    );
+    assert.equal(
+      resolveHostOnlyPluginsEnv(label, '1'),
+      '1',
+      `expected existing env preserved for ${label}`,
+    );
+  }
+}
+
 testBinPackBalancesHeavyItems();
 testBinPackIsDeterministic();
 testHostShardsPartitionHostOnlyFiles();
 testValidateCiShardsPasses();
 testGitHubMatrixShape();
+testHostOnlyRunLabelsSetEnvForCiShards();
 
 console.log('ci-shards unit tests passed.');
