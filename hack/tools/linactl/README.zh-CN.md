@@ -28,6 +28,10 @@ go run . stop dir=tools/custom-builder
 go run . status dir=tools/custom-builder
 go run . image tag=v0.2.0 push=0
 go run . version to=v0.2.0
+go run . upgrade
+go run . upgrade v=v0.5.0
+go run . upgrade v=main
+go run . upgrade force=1
 go run . release.tag.check tag=v0.2.0
 go run . release.tag.check print-version=1
 ```
@@ -49,6 +53,9 @@ make.cmd tidy
 make.cmd lint.go plugins=0
 make.cmd lint.go plugins=1
 make.cmd version to=v0.2.0
+make.cmd upgrade
+make.cmd upgrade v=v0.5.0
+make.cmd upgrade v=main
 make.cmd release.tag.check tag=v0.2.0
 ```
 
@@ -61,6 +68,8 @@ make.cmd release.tag.check tag=v0.2.0
 .\make.cmd i18n.check
 .\make.cmd lint.go plugins=0
 .\make.cmd version to=v0.2.0
+.\make.cmd upgrade
+.\make.cmd upgrade v=main
 .\make.cmd release.tag.check tag=v0.2.0
 ```
 
@@ -77,12 +86,13 @@ make.cmd release.tag.check tag=v0.2.0
 | `plugins` | `plugins=0` | 覆盖构建、开发、镜像、`Go`测试和`Go`静态检查命令的自动插件完整模式探测。 |
 | `fix` | `fix=true` | 允许`lint.go`向`golangci-lint`传入`--fix`；默认不启用，避免检查路径改写文件。 |
 | `to` | `to=v0.2.0` | 指定`version`写入的框架版本号。 |
+| `v` | `v=v0.5.0`或`v=main` | 指定`upgrade`的升级目标：省略时从官方仓库取最新稳定 tag；可传稳定版本号或分支名（如`main`）。 |
 | `tag` | `tag=v0.2.0` | 指定`release.tag.check`校验的 release tag。 |
 | `print-version` | `print-version=1` | 输出已校验的`framework.version`，供发布自动化使用。 |
 | `p` | `p=linapro-tenant-core` | 为插件工作区管理命令选择单个插件。 |
 | `out` | `out=temp/output` | 指定动态插件产物输出目录；相对路径按仓库根目录解析。 |
 | `source` | `source=official` | 为插件工作区管理命令选择单个已配置来源。 |
-| `force` | `force=1` | 允许插件安装或更新命令覆盖已存在或存在本地改动的插件目录。 |
+| `force` | `force=1` | 允许插件安装或更新命令覆盖已存在或存在本地改动的插件目录；对`upgrade`仅跳过工作区干净检查。 |
 | `verbose` | `verbose=1` | 构建任务展示子命令输出。 |
 
 未传入`plugins`时，构建和开发命令会在`apps/lina-plugins`存在插件清单时启用插件完整模式。插件完整模式会基于宿主专用的根目录`go.work`生成或刷新已忽略的`temp/go.work.plugins`，并通过`GOWORK`解析源码插件`Go`模块。
@@ -298,6 +308,26 @@ make agents.md.unlink agent=claude-code              # 移除 AGENTS.md 软链
 ```bash
 make.cmd version to=v0.2.0
 make version to=v0.2.0
+```
+
+## 框架升级
+
+`upgrade`**始终**从官方仓库`https://github.com/linaproai/linapro.git`拉取（工具托管 remote 名`linapro`），再**合并到当前本地分支**。不会使用本地`origin`或 fork remote。随后：
+
+- 不传`v`：合并最新稳定版本 tag（`vMAJOR.MINOR.PATCH`；带`-rc`等预发布后缀的 tag 不会被默认选中）；
+- `v=v0.5.0`或`v=0.5.0`：合并指定稳定版本 tag；
+- `v=main`（或其它分支名）：合并`linapro/<branch>`。
+
+`apps/lina-plugins`**不会被自动更新**。合并后会保留升级前的插件工作区（submodule 指针或本地目录树）。只有在你主动需要时，才通过`make plugins.update` / `linactl plugins.update`更新插件。
+
+工作区必须干净，且`HEAD`必须位于已命名分支。仅在需要跳过工作区干净检查时传入`force=1`。插件路径以外的合并冲突需手动解决（或使用`git merge --abort`取消）。
+
+```bash
+make upgrade
+make upgrade v=v0.5.0
+make upgrade v=main
+make.cmd upgrade v=main
+go run . upgrade v=v0.5.0
 ```
 
 ## Release Tag 校验

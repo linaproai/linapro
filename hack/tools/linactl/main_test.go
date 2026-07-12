@@ -130,7 +130,8 @@ func TestCommandRegistryUsesDottedPackAssetsCommand(t *testing.T) {
 }
 
 // TestCommandRegistryUsesDottedDatabaseCommands guards the public database
-// command names.
+// command names. Top-level upgrade is reserved for framework source upgrades
+// (see command_upgrade.go), not the legacy database alias of db.upgrade.
 func TestCommandRegistryUsesDottedDatabaseCommands(t *testing.T) {
 	registry := commandRegistry()
 	for _, name := range []string{"db.init", "db.upgrade", "db.mock"} {
@@ -138,10 +139,13 @@ func TestCommandRegistryUsesDottedDatabaseCommands(t *testing.T) {
 			t.Fatalf("expected command %q to be registered", name)
 		}
 	}
-	for _, name := range []string{"init", "upgrade", "mock"} {
+	for _, name := range []string{"init", "mock"} {
 		if _, ok := registry[name]; ok {
-			t.Fatalf("legacy command %q should not be registered", name)
+			t.Fatalf("legacy database command %q should not be registered", name)
 		}
+	}
+	if _, ok := registry["upgrade"]; !ok {
+		t.Fatalf("expected framework upgrade command %q to be registered", "upgrade")
 	}
 }
 
