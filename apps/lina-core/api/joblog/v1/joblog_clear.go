@@ -5,10 +5,10 @@ import "github.com/gogf/gf/v2/frame/g"
 // ClearReq defines the request for clearing scheduled job logs.
 type ClearReq struct {
 	g.Meta    `path:"/job/log" method:"delete" tags:"Job Scheduling / Execution Logs" summary:"Clean execution log" dc:"Supports batch deletion by log ID query array, clearing logs by task ID, deleting logs within a specified start-time range, or clearing all visible execution logs when no filter is passed." permission:"system:joblog:remove"`
-	JobId     *int64 `json:"jobId" dc:"The task ID of the logs to be cleared; logIds takes priority when both are passed; if no filter is passed, all visible task logs can be cleared" eg:"1"`
-	LogIds    []int64  `json:"logIds" dc:"Log ID list as a query array (logIds[]=1&logIds[]=2); when set, takes priority over other filters" eg:"[1,2,3]"`
-	BeginTime string `json:"beginTime" dc:"Cleanup start time by execution start_at lower bound; ignored when logIds is passed" eg:"2026-04-19"`
-	EndTime   string `json:"endTime" dc:"Cleanup end time by execution start_at upper bound; date-only values include the whole day; ignored when logIds is passed" eg:"2026-04-19"`
+	JobId     *int64  `json:"jobId" dc:"The task ID of the logs to be cleared; logIds takes priority when both are passed; if no filter is passed, all visible task logs can be cleared" eg:"1"`
+	LogIds    []int64 `json:"logIds" dc:"Log ID list as a query array (logIds[]=1&logIds[]=2); when set, takes priority over other filters" eg:"[1,2,3]"`
+	BeginTime string  `json:"beginTime" dc:"Cleanup start time by execution start_at lower bound; ignored when logIds is passed" eg:"2026-04-19"`
+	EndTime   string  `json:"endTime" dc:"Cleanup end time by execution start_at upper bound; date-only values include the whole day; ignored when logIds is passed" eg:"2026-04-19"`
 }
 
 // ClearRes defines the response for clearing scheduled job logs.

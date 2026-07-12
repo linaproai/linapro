@@ -55,7 +55,8 @@
 - 宿主默认使用`cd apps/lina-core && go test ./internal/cmd -count=1`，除非提供更窄且能覆盖路由构造的测试。
 - 不得仅依赖`git diff --check`、静态扫描、OpenSpec 校验或历史验证记录认定后端 Go 变更可编译。
 - 若某个包测试因外部依赖不可用无法运行，必须至少运行能完成编译的替代命令，并在任务记录和审查结论中说明阻断原因、替代覆盖范围和剩余风险。
-- 所有的`Go`代码都应当经过`make lint`检查，确保代码风格和质量符合要求。禁止裸跑`staticcheck`执行静态代码质量检测。
+- Go 静态检查必须通过`make lint`（或`linactl lint.go`），禁止裸跑`staticcheck`/`golangci-lint`。
+- 单组件迭代可用`dir=<path>`定向所属 module，例如`make lint dir=apps/lina-core plugins=0`；任务完成、`lina-review`与`CI`须覆盖本次变更涉及的全部 module（不传`dir`时用`plugins=0|1`）。
 
 ## 语言和类型要求
 

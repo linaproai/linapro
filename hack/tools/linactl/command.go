@@ -113,7 +113,7 @@ func commandRegistry() map[string]commandSpec {
 		{Name: "db.upgrade", Description: "Replay host SQL assets to upgrade the configured database.", Usage: "linactl db.upgrade confirm=upgrade", Run: runUpgrade},
 		{Name: "db.mock", Description: "Load optional mock demo data.", Usage: "linactl db.mock confirm=mock", Run: runMock},
 		{Name: "test", Description: "Run the Playwright E2E test suite.", Usage: "linactl test [scope=full|host|plugins|plugin:<id>]", Run: runTest},
-		{Name: "lint.go", Description: "Run golangci-lint for workspace Go modules.", Usage: "linactl lint.go [plugins=0|1] [fix=true]", Run: runLintGo},
+		{Name: "lint.go", Description: "Run golangci-lint for workspace Go modules.", Usage: "linactl lint.go [plugins=0|1] [dir=<path>] [fix=true]", Run: runLintGo},
 		{Name: "test.go", Description: "Run Go unit tests for workspace modules.", Usage: "linactl test.go [plugins=0|1] [race=true] [verbose=true]", Run: runTestGo},
 		{Name: "test.host", Description: "Run host-owned Playwright E2E tests without official plugins.", Usage: "linactl test.host", Run: runTestHost},
 		{Name: "test.plugins", Description: "Run official plugin Playwright E2E tests.", Usage: "linactl test.plugins", Run: runTestPlugins},

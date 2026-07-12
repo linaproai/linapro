@@ -20,6 +20,7 @@ go run . tidy
 go run . lint.go plugins=0
 go run . lint.go plugins=1
 go run . lint.go plugins=0 fix=true
+go run . lint.go dir=apps/lina-core plugins=0
 go run . build platforms=linux/amd64,linux/arm64
 go run . build dir=apps/lina-plugins/john-ai-agentbox
 go run . dev dir=tools/custom-builder
@@ -71,7 +72,7 @@ In PowerShell, run it with an explicit current-directory prefix:
 | --- | --- | --- |
 | `confirm` | `confirm=upgrade` | Confirms sensitive database maintenance commands. |
 | `rebuild` | `rebuild=true` | Rebuilds the configured database during `db.init`. |
-| `dir` | `dir=tools/custom-builder` | Selects one targeted command directory for `build`, `dev`, `stop`, or `status`, or one explicit dynamic plugin source directory for `wasm`. Omit it to run the command's default full workflow. |
+| `dir` | `dir=tools/custom-builder` | Selects one targeted command directory for `build`, `dev`, `stop`, or `status`; one explicit dynamic plugin source directory for `wasm`; or one component path for `lint.go` (resolved to its owning Go module). Omit it to run the command's default full workflow. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
 | `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, Go test, and Go lint commands. |
 | `fix` | `fix=true` | Allows `lint.go` to pass `--fix` to `golangci-lint`; omitted by default so checks do not rewrite files. |
@@ -116,10 +117,15 @@ If `golangci-lint` or `staticcheck` is missing from `PATH` or reports a differen
 make lint.go plugins=0
 make lint.go plugins=1
 make lint.go plugins=0 fix=true
+make lint dir=apps/lina-core plugins=0
+make lint dir=hack/tools/linactl plugins=0
+make lint dir=apps/lina-plugins/<plugin-id> plugins=1
 go run . lint.go plugins=0
 ```
 
 Use `plugins=0` for the host workspace, covering `apps/lina-core` and `hack/tools/linactl`. Use `plugins=1` when official plugin sources are initialized; this mode prepares the ignored `temp/go.work.plugins` workspace and lints host, tool, and official plugin `Go` modules. If `plugins` is omitted, `linactl` keeps the existing auto-detection behavior used by build and test commands.
+
+Optional `dir=<path>` narrows the scan to the single Go module that owns the path. Plugin roots that contain `plugin.yaml` and `backend/go.mod` resolve to the backend module; nested package directories walk up to the nearest `go.mod` under the repository root. The plan and summary output print `scope=dir` and the resolved module so local or agent runs are not mistaken for full-workspace coverage. CI and review gates still use the default full-workspace scan without `dir`.
 
 `golangci-lint` does not enable the standalone `unused` linter. `linactl lint.go` runs `staticcheck U1000` for dead-code checks across all packages; packages that contain non-test files with `//go:build wasip1` or `//go:build !wasip1` use a host plus `GOOS=wasip1 GOARCH=wasm` matrix so guest-only bridge code is not reported as dead code under the default host build.
 

@@ -9,7 +9,7 @@ import (
 // UpdateReq defines the request for updating a config.
 type UpdateReq struct {
 	g.Meta `path:"/config/{id}" method:"put" tags:"Parameter Settings" summary:"Update parameter settings" dc:"Update the information of the specified parameter settings. When modifying the parameter key name, make sure it does not conflict with other parameters." permission:"system:config:edit"`
-	Id     int64 `json:"id" v:"required" dc:"Parameter ID" eg:"1"`
+	Id     int64   `json:"id" v:"required" dc:"Parameter ID" eg:"1"`
 	Name   *string `json:"name" dc:"Parameter name" eg:"Main frame page-default skin style name"`
 	Key    *string `json:"key" dc:"Parameter key name (unique identifier)" eg:"sys.index.skinName"`
 	Value  *string `json:"value" dc:"Parameter key value" eg:"skin-blue"`

@@ -55,11 +55,21 @@ type goLintModuleSummary struct {
 }
 
 // runLintGo runs golangci-lint for each Go module in the selected workspace.
+// Optional dir=<path> narrows the scan to the single Go module that owns that
+// path; omit dir to keep the existing full-workspace behavior.
 func runLintGo(ctx context.Context, a *app, input commandInput) error {
 	fix, err := input.Bool("fix", false)
 	if err != nil {
 		return err
 	}
+	dir, dirSet := input.Params["dir"]
+	if dirSet {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			return errors.New("lint.go parameter dir is empty")
+		}
+	}
+
 	pluginsEnabled, env, err := prepareOfficialPluginBuildEnv(ctx, a, input)
 	if err != nil {
 		return err
@@ -73,6 +83,21 @@ func runLintGo(ctx context.Context, a *app, input commandInput) error {
 	}
 	if len(modules) == 0 {
 		return errors.New("no Go workspace modules discovered")
+	}
+
+	scope := "workspace"
+	var scopeDir string
+	if dirSet {
+		moduleDir, resolveErr := goLintResolveModuleDir(a.root, dir)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		modules, err = goLintFilterModulesByDir(modules, moduleDir)
+		if err != nil {
+			return err
+		}
+		scope = "dir"
+		scopeDir = toolutil.RelativePath(a.root, moduleDir)
 	}
 
 	plans, err := goLintModulePlans(ctx, &workspaceApp, modules)
@@ -94,17 +119,34 @@ func runLintGo(ctx context.Context, a *app, input commandInput) error {
 	for _, plan := range plans {
 		guestPackageCount += len(plan.GuestSensitivePackages)
 	}
-	fmt.Fprintf(
-		a.stdout,
-		"Go lint plan: modules=%d plugins=%t fix=%t config=%s golangci-lint=%s staticcheck=%s guestPackages=%d\n",
-		len(plans),
-		pluginsEnabled,
-		fix,
-		toolutil.RelativePath(a.root, configPath),
-		golangciLintVersion,
-		staticcheckVersion,
-		guestPackageCount,
-	)
+	if scope == "dir" {
+		fmt.Fprintf(
+			a.stdout,
+			"Go lint plan: scope=%s dir=%s modules=%d plugins=%t fix=%t config=%s golangci-lint=%s staticcheck=%s guestPackages=%d\n",
+			scope,
+			scopeDir,
+			len(plans),
+			pluginsEnabled,
+			fix,
+			toolutil.RelativePath(a.root, configPath),
+			golangciLintVersion,
+			staticcheckVersion,
+			guestPackageCount,
+		)
+	} else {
+		fmt.Fprintf(
+			a.stdout,
+			"Go lint plan: scope=%s modules=%d plugins=%t fix=%t config=%s golangci-lint=%s staticcheck=%s guestPackages=%d\n",
+			scope,
+			len(plans),
+			pluginsEnabled,
+			fix,
+			toolutil.RelativePath(a.root, configPath),
+			golangciLintVersion,
+			staticcheckVersion,
+			guestPackageCount,
+		)
+	}
 
 	summaries := make([]goLintModuleSummary, 0, len(plans))
 	for _, plan := range plans {
@@ -119,14 +161,28 @@ func runLintGo(ctx context.Context, a *app, input commandInput) error {
 		})
 	}
 
-	fmt.Fprintf(
-		a.stdout,
-		"Go lint summary: modules=%d plugins=%t fix=%t guestPackages=%d\n",
-		len(summaries),
-		pluginsEnabled,
-		fix,
-		guestPackageCount,
-	)
+	if scope == "dir" {
+		fmt.Fprintf(
+			a.stdout,
+			"Go lint summary: scope=%s dir=%s modules=%d plugins=%t fix=%t guestPackages=%d\n",
+			scope,
+			scopeDir,
+			len(summaries),
+			pluginsEnabled,
+			fix,
+			guestPackageCount,
+		)
+	} else {
+		fmt.Fprintf(
+			a.stdout,
+			"Go lint summary: scope=%s modules=%d plugins=%t fix=%t guestPackages=%d\n",
+			scope,
+			len(summaries),
+			pluginsEnabled,
+			fix,
+			guestPackageCount,
+		)
+	}
 	for _, summary := range summaries {
 		fmt.Fprintf(
 			a.stdout,
@@ -137,6 +193,110 @@ func runLintGo(ctx context.Context, a *app, input commandInput) error {
 		)
 	}
 	return nil
+}
+
+// goLintResolveModuleDir resolves dir to the owning Go module directory.
+// Plugin roots that contain plugin.yaml and backend/go.mod resolve to backend.
+func goLintResolveModuleDir(root string, dir string) (string, error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return "", errors.New("lint.go parameter dir is empty")
+	}
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(root, filepath.FromSlash(dir))
+	}
+	absolute, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve lint.go dir %s: %w", dir, err)
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return "", fmt.Errorf("lint.go dir %s: %w", toolutil.RelativePath(root, absolute), err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("lint.go dir %s is not a directory", toolutil.RelativePath(root, absolute))
+	}
+
+	canonicalRoot, err := goLintCanonicalDir(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root for lint.go dir: %w", err)
+	}
+	target, err := goLintCanonicalDir(absolute)
+	if err != nil {
+		return "", fmt.Errorf("resolve lint.go dir %s: %w", toolutil.RelativePath(root, absolute), err)
+	}
+	relToRoot, err := filepath.Rel(canonicalRoot, target)
+	if err != nil || strings.HasPrefix(relToRoot, "..") {
+		return "", fmt.Errorf("lint.go dir %s is outside the repository root", toolutil.RelativePath(root, absolute))
+	}
+
+	// Prefer a standard plugin backend module when the path is a plugin root.
+	if toolutil.FileExists(filepath.Join(target, "plugin.yaml")) {
+		backendDir := filepath.Join(target, "backend")
+		if toolutil.FileExists(filepath.Join(backendDir, "go.mod")) {
+			target = backendDir
+		}
+	}
+
+	moduleDir, err := goLintFindModuleRoot(canonicalRoot, target)
+	if err != nil {
+		return "", err
+	}
+	return moduleDir, nil
+}
+
+// goLintFindModuleRoot walks up from startDir until it finds a go.mod file,
+// stopping at repository root (inclusive).
+func goLintFindModuleRoot(repoRoot string, startDir string) (string, error) {
+	current := startDir
+	for {
+		if toolutil.FileExists(filepath.Join(current, "go.mod")) {
+			return current, nil
+		}
+		if current == repoRoot {
+			return "", fmt.Errorf(
+				"lint.go dir %s is not inside a Go module under the repository root",
+				toolutil.RelativePath(repoRoot, startDir),
+			)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", fmt.Errorf(
+				"lint.go dir %s is not inside a Go module under the repository root",
+				toolutil.RelativePath(repoRoot, startDir),
+			)
+		}
+		// Do not walk outside the repository root.
+		rel, err := filepath.Rel(repoRoot, parent)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return "", fmt.Errorf(
+				"lint.go dir %s is not inside a Go module under the repository root",
+				toolutil.RelativePath(repoRoot, startDir),
+			)
+		}
+		current = parent
+	}
+}
+
+// goLintFilterModulesByDir keeps the single workspace module matching moduleDir.
+func goLintFilterModulesByDir(modules []string, moduleDir string) ([]string, error) {
+	target, err := goLintCanonicalDir(moduleDir)
+	if err != nil {
+		return nil, fmt.Errorf("normalize lint module dir %s: %w", moduleDir, err)
+	}
+	for _, candidate := range modules {
+		canonical, err := goLintCanonicalDir(candidate)
+		if err != nil {
+			return nil, fmt.Errorf("normalize workspace module dir %s: %w", candidate, err)
+		}
+		if canonical == target {
+			return []string{candidate}, nil
+		}
+	}
+	return nil, fmt.Errorf(
+		"lint.go dir resolves to module %s which is not in the current Go workspace; use plugins=1 for official plugin modules or omit dir for full workspace lint",
+		target,
+	)
 }
 
 // runGoLintModulePlan executes the appropriate lint commands for one module.

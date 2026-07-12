@@ -20,6 +20,7 @@ go run . tidy
 go run . lint.go plugins=0
 go run . lint.go plugins=1
 go run . lint.go plugins=0 fix=true
+go run . lint.go dir=apps/lina-core plugins=0
 go run . build platforms=linux/amd64,linux/arm64
 go run . build dir=apps/lina-plugins/john-ai-agentbox
 go run . dev dir=tools/custom-builder
@@ -71,7 +72,7 @@ make.cmd release.tag.check tag=v0.2.0
 |------|------|------|
 | `confirm` | `confirm=upgrade` | 确认高风险数据库维护命令。 |
 | `rebuild` | `rebuild=true` | 在`db.init`时重建配置中的数据库。 |
-| `dir` | `dir=tools/custom-builder` | 为`build`、`dev`、`stop`或`status`选择单个定向命令目录，或为`wasm`选择单个显式动态插件源码目录。省略时执行对应命令的默认完整流程。 |
+| `dir` | `dir=tools/custom-builder` | 为`build`、`dev`、`stop`或`status`选择单个定向命令目录；为`wasm`选择单个显式动态插件源码目录；或为`lint.go`选择单个组件路径（解析为其所属`Go module`）。省略时执行对应命令的默认完整流程。 |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | 指定构建目标平台。 |
 | `plugins` | `plugins=0` | 覆盖构建、开发、镜像、`Go`测试和`Go`静态检查命令的自动插件完整模式探测。 |
 | `fix` | `fix=true` | 允许`lint.go`向`golangci-lint`传入`--fix`；默认不启用，避免检查路径改写文件。 |
@@ -116,10 +117,15 @@ status:
 make lint.go plugins=0
 make lint.go plugins=1
 make lint.go plugins=0 fix=true
+make lint dir=apps/lina-core plugins=0
+make lint dir=hack/tools/linactl plugins=0
+make lint dir=apps/lina-plugins/<plugin-id> plugins=1
 go run . lint.go plugins=0
 ```
 
 使用`plugins=0`检查宿主工作区，覆盖`apps/lina-core`和`hack/tools/linactl`。官方插件源码已初始化时，使用`plugins=1`；该模式会准备已忽略的`temp/go.work.plugins`工作区，并检查宿主、工具和官方插件`Go`模块。未传入`plugins`时，`linactl`沿用构建和测试命令的自动探测行为。
+
+可选`dir=<path>`会将扫描范围收敛到该路径所属的单个`Go module`。包含`plugin.yaml`且存在`backend/go.mod`的插件根目录会解析到`backend`模块；子包目录会向上查找仓库根内最近的`go.mod`。plan 与 summary 输出会打印`scope=dir`和解析后的模块路径，避免本地或 Agent 定向检查被误认为全量覆盖。`CI`与审查门禁仍以不传`dir`的工作区全量扫描为准。
 
 `golangci-lint`不启用独立`unused` linter。`linactl lint.go`会对所有包运行`staticcheck U1000`作为死代码检查；非测试文件包含`//go:build wasip1`或`//go:build !wasip1`的包使用宿主目标和`GOOS=wasip1 GOARCH=wasm`矩阵，避免 guest 专属桥接代码在默认宿主构建下被误报为死代码。
 
