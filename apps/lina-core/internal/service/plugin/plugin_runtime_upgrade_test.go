@@ -1044,6 +1044,8 @@ func TestRuntimeUpgradeClusterLockSerializesAcrossServices(t *testing.T) {
 }
 
 // findPluginItemFromService reads the plugin list and returns the target item.
+// ID filter is required because the management list default page size is smaller
+// than the official plugin workspace once multi-cloud storage plugins are present.
 func findPluginItemFromService(
 	t *testing.T,
 	service *serviceImpl,
@@ -1052,7 +1054,7 @@ func findPluginItemFromService(
 ) *PluginItem {
 	t.Helper()
 
-	out, err := service.List(ctx, ListInput{})
+	out, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("expected plugin list to succeed, got error: %v", err)
 	}
@@ -1210,7 +1212,7 @@ func TestValidateSourcePluginUpgradeReadinessAllowsPendingUpgrade(t *testing.T) 
 		t.Fatalf("expected source upgrade readiness scan not to fail for pending runtime upgrade, got error: %v", err)
 	}
 
-	out, err := service.List(ctx, ListInput{})
+	out, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("expected plugin list to succeed after pending source drift, got error: %v", err)
 	}
@@ -1263,7 +1265,7 @@ func TestSourcePluginListMarksLowerDiscoveredVersionAbnormal(t *testing.T) {
 		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
 	}
 
-	out, err := service.List(ctx, ListInput{})
+	out, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("expected plugin list to succeed after lower source version drift, got error: %v", err)
 	}

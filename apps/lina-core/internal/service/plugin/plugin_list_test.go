@@ -51,7 +51,9 @@ func TestManagementListCacheAvoidsRepeatedManifestScans(t *testing.T) {
 	createTestSourceDependencyPlugin(t, pluginID, "Source Management List Cache", "v0.1.0", "")
 	cleanupTestPluginIDs(t, context.Background(), pluginID)
 
-	first, err := service.List(ctx, ListInput{})
+	// Filter by plugin ID so the assertion is independent of default list page size.
+	// Official plugin workspaces with multi-cloud storage plugins exceed page size 20.
+	first, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("build first management list: %v", err)
 	}
@@ -59,7 +61,7 @@ func TestManagementListCacheAvoidsRepeatedManifestScans(t *testing.T) {
 		t.Fatalf("expected first management list to include %s", pluginID)
 	}
 
-	second, err := service.List(ctx, ListInput{})
+	second, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("read cached management list: %v", err)
 	}
@@ -73,7 +75,7 @@ func TestManagementListCacheAvoidsRepeatedManifestScans(t *testing.T) {
 	}
 
 	service.InvalidateManagementListCache(ctx, "test")
-	third, err := service.List(ctx, ListInput{})
+	third, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("rebuild invalidated management list: %v", err)
 	}
@@ -425,7 +427,7 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 		t.Fatalf("failed to remove dynamic artifact: %v", err)
 	}
 
-	out, err := service.List(ctx, ListInput{})
+	out, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("expected read-only list to tolerate missing dynamic artifact, got error: %v", err)
 	}
@@ -891,7 +893,7 @@ func TestListMarksInstalledDynamicPluginWithHigherArtifactPendingUpgrade(t *test
 		t.Fatalf("expected effective release_id %d to stay pinned, got %d", oldRelease.Id, registry.ReleaseId)
 	}
 
-	out, err := service.List(ctx, ListInput{})
+	out, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("expected plugin list to succeed, got error: %v", err)
 	}
@@ -1207,7 +1209,7 @@ func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
 		t.Fatalf("expected dynamic i18n plugin to remain uninstalled after sync, got %#v", registry)
 	}
 
-	out, err := service.List(ctx, ListInput{})
+	out, err := service.List(ctx, ListInput{ID: pluginID})
 	if err != nil {
 		t.Fatalf("expected plugin list to succeed, got error: %v", err)
 	}
