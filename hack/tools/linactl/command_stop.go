@@ -21,11 +21,11 @@ func runStop(ctx context.Context, a *app, input commandInput) error {
 // stopServices stops PID-file-backed development services and returns ports
 // whose recorded processes received a stop signal.
 func stopServices(a *app, input commandInput) ([]int, error) {
-	backendPort, err := input.Int("backend_port", defaultBackendPort)
+	backendPort, err := input.Int("backend_port", portFromEnv("LINA_CORE_PORT", defaultBackendPort))
 	if err != nil {
 		return nil, err
 	}
-	frontendPort, err := input.Int("frontend_port", defaultFrontendPort)
+	frontendPort, err := input.Int("frontend_port", portFromEnv("LINA_VBEN_PORT", defaultFrontendPort))
 	if err != nil {
 		return nil, err
 	}

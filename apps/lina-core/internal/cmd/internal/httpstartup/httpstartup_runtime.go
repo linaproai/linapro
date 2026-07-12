@@ -4,6 +4,11 @@ package httpstartup
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -136,6 +141,77 @@ func configureHTTPServer(
 	// can follow the runtime-effective sys.upload.maxSize value per request
 	// instead of being clipped by GoFrame's static 8MB default at server entry.
 	server.SetClientMaxBodySize(0)
+
+	// Optional process-level listen address override. Empty env keeps
+	// server.address from the configuration file unchanged.
+	if address, overridden, err := resolveServerAddressOverride(); err != nil {
+		return err
+	} else if overridden {
+		server.SetAddr(address)
+		logger.Infof(ctx, "HTTP listen address overridden by %s=%s", serverAddressEnvName, address)
+	}
+	return nil
+}
+
+// serverAddressEnvName is the optional process-level HTTP listen address
+// override. When non-empty after trim, it replaces server.address from config.
+const serverAddressEnvName = "LINAPRO_SERVER_ADDRESS"
+
+// resolveServerAddressOverride returns the listen address from
+// LINAPRO_SERVER_ADDRESS when set. An empty env value means "use config".
+// Invalid non-empty values return an error so startup fails closed.
+func resolveServerAddressOverride() (address string, overridden bool, err error) {
+	raw := strings.TrimSpace(os.Getenv(serverAddressEnvName))
+	if raw == "" {
+		return "", false, nil
+	}
+	if err := validateListenAddress(raw); err != nil {
+		return "", false, fmt.Errorf("%s is invalid: %w", serverAddressEnvName, err)
+	}
+	return raw, true, nil
+}
+
+// validateListenAddress accepts host:port or :port forms used by GoFrame
+// server.address. Port must be a decimal integer in [1, 65535].
+func validateListenAddress(address string) error {
+	trimmed := strings.TrimSpace(address)
+	if trimmed == "" {
+		return fmt.Errorf("listen address is empty")
+	}
+
+	// GoFrame allows comma-separated multi-address values; validate each part.
+	parts := strings.Split(trimmed, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return fmt.Errorf("listen address contains an empty segment")
+		}
+		if err := validateSingleListenAddress(part); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSingleListenAddress(address string) error {
+	// net.SplitHostPort requires host:port; bare ":9120" works, but host without
+	// brackets for IPv6 must already be valid for SplitHostPort.
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		// Retry common form missing host entirely without a leading colon edge.
+		if !strings.Contains(address, ":") {
+			return fmt.Errorf("must be host:port or :port, got %q", address)
+		}
+		return fmt.Errorf("must be host:port or :port, got %q: %w", address, err)
+	}
+	_ = host // empty host means all interfaces, which is valid for ":9120"
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("port %q is not a number", port)
+	}
+	if portNum < 1 || portNum > 65535 {
+		return fmt.Errorf("port %d is out of range 1-65535", portNum)
+	}
 	return nil
 }
 
@@ -199,19 +275,22 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		externalIdentityProviderManager = extidspi.NewManager()
 	)
 	var (
-		orgCapSvc    = orgspi.New(orgProviderManager, pluginRuntime, pluginRuntime.OrgProviderEnv)
-		tenantSvc    = tenantspi.New(tenantProviderManager, pluginRuntime, pluginRuntime.TenantProviderEnv, bizCtxSvc)
-		roleSvc      = role.New(pluginRuntime, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
-		scopeSvc     = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
-		dictSvc      = dict.New(i18nSvc)
-		menuSvc      = menu.New(pluginRuntime, i18nSvc, roleSvc, tenantSvc)
-		notifySvc    = notify.New(tenantSvc)
-		authSvc      = auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
-		fileSvc      = file.New(configSvc, objectStorage, bizCtxSvc, dictSvc, scopeSvc)
-		sysConfigSvc = sysconfig.New(configSvc, i18nSvc)
-		userSvc      = user.New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
-		userMsgSvc   = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
-		apiDocSvc    = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginRuntime)
+		orgCapSvc            = orgspi.New(orgProviderManager, pluginRuntime, pluginRuntime.OrgProviderEnv)
+		tenantSvc            = tenantspi.New(tenantProviderManager, pluginRuntime, pluginRuntime.TenantProviderEnv, bizCtxSvc)
+		roleSvc              = role.New(pluginRuntime, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+		scopeSvc             = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
+		dictSvc              = dict.New(i18nSvc)
+		menuSvc              = menu.New(pluginRuntime, i18nSvc, roleSvc, tenantSvc)
+		notifySvc            = notify.New(tenantSvc)
+		authSvc              = auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+		storageRuntime       = pluginsvc.NewStorageProviderRuntime(pluginRuntime)
+		localStorageProvider = pluginsvc.NewLocalStorageProvider(objectStorage)
+		fileStorage          = storagesvc.NewResolvingService(objectStorage, storageRuntime, localStorageProvider)
+		fileSvc              = file.New(configSvc, fileStorage, bizCtxSvc, dictSvc, scopeSvc)
+		sysConfigSvc         = sysconfig.New(configSvc, i18nSvc)
+		userSvc              = user.New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
+		userMsgSvc           = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
+		apiDocSvc            = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginRuntime)
 	)
 	// Bind the manager-backed external-identity provider seam. The bound value
 	// is the host manager-backed service (lazy, gated by plugin enablement), not
@@ -245,8 +324,6 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
-	storageRuntime := pluginsvc.NewStorageProviderRuntime(pluginRuntime)
-	localStorageProvider := pluginsvc.NewLocalStorageProvider(objectStorage)
 	capabilities, err := pluginsvc.NewHostServices(
 		apiDocSvc,
 		authSvc,

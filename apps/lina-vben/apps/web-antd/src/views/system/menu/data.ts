@@ -11,7 +11,6 @@ import { z } from '#/adapter/form';
 import { formatMenuPermissionShortLabel } from '#/components/tree';
 import { $t } from '#/locales';
 import { getDictOptions } from '#/utils/dict';
-import { renderDict } from '#/utils/render';
 import { formatTimestamp } from '#/utils/time';
 
 /** 查询表单配置 */
@@ -112,21 +111,13 @@ export const columns: VxeGridProps['columns'] = [
     title: $t('pages.common.status'),
     field: 'status',
     width: 100,
-    slots: {
-      default: ({ row }) => {
-        return renderDict(row.status, DictEnum.SYS_NORMAL_DISABLE);
-      },
-    },
+    slots: { default: 'status' },
   },
   {
     title: $t('pages.system.menu.fields.visible'),
     field: 'visible',
     width: 100,
-    slots: {
-      default: ({ row }) => {
-        return renderDict(row.visible, DictEnum.SYS_SHOW_HIDE);
-      },
-    },
+    slots: { default: 'visible' },
   },
   {
     title: $t('pages.common.createdAt'),

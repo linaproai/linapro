@@ -2035,11 +2035,19 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 			}
 			serviceEnv, _ := runCtx.Value(devservice.RunnerContextServiceEnvKey).([]string)
 			if got := toolutil.EnvValue(serviceEnv, "LINAPRO_FRONTEND_DEV_SERVER_URL"); got != "" {
-				t.Fatalf("frontend process must not receive backend proxy env, got %q", got)
+				t.Fatalf("frontend process must not receive backend-only env, got %q", got)
 			}
-		} else if serviceEnv, _ := runCtx.Value(devservice.RunnerContextServiceEnvKey).([]string); toolutil.EnvValue(serviceEnv, "LINAPRO_FRONTEND_DEV_SERVER_URL") != "http://127.0.0.1:5666" {
-			got := toolutil.EnvValue(serviceEnv, "LINAPRO_FRONTEND_DEV_SERVER_URL")
-			t.Fatalf("backend process must receive frontend dev server URL, got %q", got)
+			if got := toolutil.EnvValue(serviceEnv, "LINAPRO_BACKEND_PROXY_TARGET"); got != "http://127.0.0.1:9120" {
+				t.Fatalf("frontend process must receive backend proxy target, got %q", got)
+			}
+		} else {
+			serviceEnv, _ := runCtx.Value(devservice.RunnerContextServiceEnvKey).([]string)
+			if got := toolutil.EnvValue(serviceEnv, "LINAPRO_FRONTEND_DEV_SERVER_URL"); got != "http://127.0.0.1:5666" {
+				t.Fatalf("backend process must receive frontend dev server URL, got %q", got)
+			}
+			if got := toolutil.EnvValue(serviceEnv, "LINAPRO_SERVER_ADDRESS"); got != ":9120" {
+				t.Fatalf("backend process must receive LINAPRO_SERVER_ADDRESS, got %q", got)
+			}
 		}
 		return exec.Command(os.Args[0], "-test.run=TestHelperLongRunningProcess", "--")
 	}

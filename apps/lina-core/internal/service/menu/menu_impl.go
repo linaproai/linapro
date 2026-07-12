@@ -153,6 +153,8 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 }
 
 // Update updates menu information.
+// When status or visible is written, all descendant menus receive the same
+// field value in the same transaction, including enable and show.
 func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	if err := s.ensurePlatformMenuGovernance(ctx); err != nil {
 		return err
@@ -165,8 +167,12 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	if in.ParentId != nil {
 		parentId = *in.ParentId
 	}
-	if err := s.checkNameUnique(ctx, in.Name, parentId, in.Id); err != nil {
-		return err
+	// Partial updates (status/visible switches) may omit Name; only validate
+	// uniqueness when a new name is actually being written.
+	if in.Name != "" {
+		if err := s.checkNameUnique(ctx, in.Name, parentId, in.Id); err != nil {
+			return err
+		}
 	}
 	if in.ParentId != nil {
 		if *in.ParentId == in.Id {
@@ -187,6 +193,16 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	if err := s.checkIconUnique(ctx, menuType, menuIcon, in.Id); err != nil {
 		return err
 	}
+	data := buildMenuUpdateData(in)
+	if err := s.updateMenuWithCascade(ctx, in.Id, data, in.Status, in.Visible); err != nil {
+		return err
+	}
+	s.roleSvc.NotifyAccessTopologyChanged(ctx)
+	return nil
+}
+
+// buildMenuUpdateData maps partial UpdateInput fields onto a SysMenu DO payload.
+func buildMenuUpdateData(in UpdateInput) do.SysMenu {
 	data := do.SysMenu{}
 	if in.ParentId != nil {
 		data.ParentId = *in.ParentId
@@ -230,12 +246,45 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	if in.Remark != nil {
 		data.Remark = *in.Remark
 	}
-	_, err = dao.SysMenu.Ctx(ctx).Where(do.SysMenu{Id: in.Id}).Data(data).Update()
-	if err != nil {
+	return data
+}
+
+// updateMenuWithCascade updates one menu row and cascades any written status
+// or visibility value to all descendants in the same transaction.
+func (s *serviceImpl) updateMenuWithCascade(
+	ctx context.Context,
+	id int,
+	data do.SysMenu,
+	status *int,
+	visible *int,
+) error {
+	return dao.SysMenu.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		if _, err := dao.SysMenu.Ctx(ctx).Where(do.SysMenu{Id: id}).Data(data).Update(); err != nil {
+			return err
+		}
+		if status == nil && visible == nil {
+			return nil
+		}
+		descendantIds, err := s.getDescendantIds(ctx, id)
+		if err != nil {
+			return err
+		}
+		if len(descendantIds) == 0 {
+			return nil
+		}
+		cascadeData := do.SysMenu{}
+		if status != nil {
+			cascadeData.Status = *status
+		}
+		if visible != nil {
+			cascadeData.Visible = *visible
+		}
+		_, err = dao.SysMenu.Ctx(ctx).
+			WhereIn(dao.SysMenu.Columns().Id, descendantIds).
+			Data(cascadeData).
+			Update()
 		return err
-	}
-	s.roleSvc.NotifyAccessTopologyChanged(ctx)
-	return nil
+	})
 }
 
 // Delete deletes a menu.

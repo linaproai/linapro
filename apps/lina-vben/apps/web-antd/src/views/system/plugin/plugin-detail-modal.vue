@@ -51,6 +51,10 @@ const isAutoEnableManaged = computed(() => {
   return currentPlugin.value?.autoEnableManaged === 1;
 });
 
+const isBuiltinPlugin = computed(() => {
+  return currentPlugin.value?.distribution === 'builtin';
+});
+
 async function handleOpenChange(open: boolean) {
   if (!open) {
     return;
@@ -131,6 +135,20 @@ function formatAutoEnableManaged(managed: boolean) {
 
 function getAutoEnableManagedColor(managed: boolean) {
   return managed ? 'gold' : 'default';
+}
+
+function formatDistribution(distribution?: string) {
+  if (distribution === 'builtin') {
+    return $t('pages.system.plugin.builtinManaged');
+  }
+  if (distribution === 'managed') {
+    return $t('pages.system.plugin.managedDistribution');
+  }
+  return distribution || '-';
+}
+
+function getDistributionColor(distribution?: string) {
+  return distribution === 'builtin' ? 'purple' : 'default';
 }
 
 function formatBooleanValue(value: boolean) {
@@ -270,6 +288,14 @@ function formatFailurePhase(phase?: string) {
             {{ formatEnabledStatus(currentPlugin.enabled) }}
           </Tag>
         </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.distribution')">
+          <Tag
+            :color="getDistributionColor(currentPlugin.distribution)"
+            data-testid="plugin-detail-distribution"
+          >
+            {{ formatDistribution(currentPlugin.distribution) }}
+          </Tag>
+        </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.startupManagement')">
           <Tag :color="getAutoEnableManagedColor(isAutoEnableManaged)">
             {{ formatAutoEnableManaged(isAutoEnableManaged) }}
@@ -343,6 +369,14 @@ function formatFailurePhase(phase?: string) {
           </div>
         </DescriptionsItem>
       </Descriptions>
+
+      <Alert
+        v-if="isBuiltinPlugin"
+        data-testid="plugin-builtin-detail-alert"
+        show-icon
+        type="info"
+        :message="$t('pages.system.plugin.messages.builtinDetailAlert')"
+      />
 
       <Alert
         v-if="isAutoEnableManaged"

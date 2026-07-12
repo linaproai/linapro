@@ -63,6 +63,9 @@
     "scheduler": {
       "title": "任务调度"
     },
+    "storage": {
+      "title": "存储管理"
+    },
     "setting": {
       "title": "系统设置"
     },

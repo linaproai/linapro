@@ -76,9 +76,15 @@ type ProcessListFunc func() ([]process.Info, error)
 type ProcessKillFunc func(int) error
 
 // Services returns backend and frontend development service definitions.
+// Runtime listen and proxy ports are injected through process environment so
+// make dev LINA_CORE_PORT=/LINA_VBEN_PORT= (or matching env vars) can start the
+// stack without editing config.yaml or vite.config.mts proxy literals.
+// 通过进程环境注入监听与代理端口，使 make dev LINA_CORE_PORT=/LINA_VBEN_PORT=
+// （或等价环境变量）无需改配置文件即可启动。
 func Services(root string, backendPort int, frontendPort int) []Config {
 	tempDir := filepath.Join(root, "temp")
 	pidDir := filepath.Join(tempDir, "pids")
+	backendProxyTarget := fmt.Sprintf("http://127.0.0.1:%d", backendPort)
 	return []Config{
 		{
 			Name:        "Backend",
@@ -89,6 +95,10 @@ func Services(root string, backendPort int, frontendPort int) []Config {
 			LogPath:     filepath.Join(tempDir, "lina-core.log"),
 			WorkDir:     filepath.Join(root, "apps", "lina-core"),
 			Env: []string{
+				// Override config server.address so the binary listens on the
+				// requested port regardless of manifest defaults.
+				// 覆盖 config 中的 server.address，使后端监听请求端口。
+				fmt.Sprintf("LINAPRO_SERVER_ADDRESS=:%d", backendPort),
 				fmt.Sprintf("LINAPRO_FRONTEND_DEV_SERVER_URL=http://127.0.0.1:%d", frontendPort),
 			},
 		},
@@ -101,6 +111,12 @@ func Services(root string, backendPort int, frontendPort int) []Config {
 			LogPath:     filepath.Join(tempDir, "lina-vben.log"),
 			WorkDir:     filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"),
 			StartArgs:   []string{"--mode", "development", "--host", "127.0.0.1", "--port", strconv.Itoa(frontendPort), "--strictPort"},
+			Env: []string{
+				// Drive vite proxy targets without rewriting vite.config.mts.
+				// 通过环境变量驱动 vite 代理目标，无需改写 vite.config.mts。
+				fmt.Sprintf("LINAPRO_BACKEND_PROXY_TARGET=%s", backendProxyTarget),
+				fmt.Sprintf("VITE_PORT=%d", frontendPort),
+			},
 		},
 	}
 }
@@ -213,7 +229,7 @@ func EnsurePortsAvailable(probe PortInUseFunc, backendPort int, frontendPort int
 		return nil
 	}
 	return fmt.Errorf(
-		"%s already in use; stop the occupant or choose a different port via the BACKEND_PORT/FRONTEND_PORT make variables",
+		"%s already in use; stop the occupant or choose a different port via the LINA_CORE_PORT/LINA_VBEN_PORT make variables",
 		strings.Join(occupied, " and "),
 	)
 }

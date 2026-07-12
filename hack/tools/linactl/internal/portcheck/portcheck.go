@@ -5,7 +5,7 @@
 // instead of letting `make dev` start mismatched services.
 //
 // portcheck 子组件用于在 linactl 启动开发服务之前，校验三处端口配置一致：
-//  1. 命令侧传入的 backend_port（默认来自 Makefile 的 BACKEND_PORT）
+//  1. 命令侧传入的 backend_port（默认来自 Makefile 的 LINA_CORE_PORT）
 //  2. 后端配置 apps/lina-core/manifest/config/config.yaml 中的 server.address
 //  3. 前端 apps/lina-vben/apps/web-antd/vite.config.mts 中所有 proxy target
 //
@@ -35,7 +35,7 @@ const frontendViteConfigRelPath = "apps/lina-vben/apps/web-antd/vite.config.mts"
 
 // 命令传入端口在错误消息中显示的来源标识。
 // Source label used in error messages for the linactl-supplied port value.
-const commandSource = "linactl backend_port (Makefile BACKEND_PORT)"
+const commandSource = "linactl backend_port (Makefile LINA_CORE_PORT)"
 
 // PortFinding stores one discovered port with its human-readable source.
 // PortFinding 用来记录一处端口配置及其可读来源信息。

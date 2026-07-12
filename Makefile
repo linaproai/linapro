@@ -7,8 +7,12 @@ TEMP_DIR      := temp
 PID_DIR       := $(TEMP_DIR)/pids
 BACKEND_PID   := $(PID_DIR)/lina-core.pid
 FRONTEND_PID  := $(PID_DIR)/lina-vben.pid
-BACKEND_PORT  := 9120
-FRONTEND_PORT := 5666
+# Allow environment overrides, for example:
+#   LINA_CORE_PORT=18080 LINA_VBEN_PORT=3000 make dev
+# 允许环境变量覆盖端口，例如：
+#   LINA_CORE_PORT=18080 LINA_VBEN_PORT=3000 make dev
+LINA_CORE_PORT ?= 9120
+LINA_VBEN_PORT ?= 5666
 BACKEND_LOG   := $(TEMP_DIR)/lina-core.log
 FRONTEND_LOG  := $(TEMP_DIR)/lina-vben.log
 EMBED_DIR     := $(BACKEND_DIR)/internal/packed/public

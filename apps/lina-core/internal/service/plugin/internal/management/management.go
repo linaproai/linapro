@@ -43,7 +43,8 @@ type ListInput struct {
 	Status *int
 	// Installed filters by installed flag.
 	Installed *int
-	// IncludeBuiltin includes project built-in source plugins for read-only diagnostics.
+	// IncludeBuiltin is retained for API compatibility and no longer filters list results.
+	// Ordinary management lists always include distribution=builtin plugins.
 	IncludeBuiltin bool
 }
 

@@ -10,10 +10,10 @@ import { useRouter } from 'vue-router';
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { getPopupContainer } from '@vben/utils';
 
-import { Popconfirm, Space, Switch, Tooltip } from 'ant-design-vue';
+import { message, Popconfirm, Space, Switch, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { menuList, menuRemove } from '#/api/system/menu';
+import { menuList, menuRemove, menuUpdate } from '#/api/system/menu';
 import { $t } from '#/locales';
 import { refreshAccessibleState } from '#/router/access-refresh';
 import { eachTree, treeToList } from '#/utils/tree';
@@ -169,6 +169,108 @@ function setExpandOrCollapse(expand: boolean) {
   tableApi.grid?.setAllTreeExpand(expand);
 }
 
+const statusLabel = {
+  checked: $t('pages.status.enabled'),
+  unchecked: $t('pages.status.disabled'),
+};
+const visibleLabel = {
+  checked: $t('pages.system.menu.visible.shown'),
+  unchecked: $t('pages.system.menu.visible.hidden'),
+};
+
+/** Row IDs currently submitting a status or visibility switch. */
+const statusChangingIds = ref<Record<number, boolean>>({});
+const visibleChangingIds = ref<Record<number, boolean>>({});
+
+function isStatusChanging(row: Menu) {
+  return statusChangingIds.value[row.id] === true;
+}
+
+function isVisibleChanging(row: Menu) {
+  return visibleChangingIds.value[row.id] === true;
+}
+
+function setStatusChanging(id: number, changing: boolean) {
+  const next = { ...statusChangingIds.value };
+  if (changing) {
+    next[id] = true;
+  } else {
+    delete next[id];
+  }
+  statusChangingIds.value = next;
+}
+
+function setVisibleChanging(id: number, changing: boolean) {
+  const next = { ...visibleChangingIds.value };
+  if (changing) {
+    next[id] = true;
+  } else {
+    delete next[id];
+  }
+  visibleChangingIds.value = next;
+}
+
+async function reloadMenuSurfaces() {
+  await Promise.all([
+    tableApi.query(),
+    refreshAccessibleState(router, { showLoadingToast: false }),
+  ]);
+}
+
+/**
+ * Toggle menu status from the list switch. The server cascades the target
+ * status value to all descendants.
+ */
+async function handleStatusChange(row: Menu, checked: boolean) {
+  if (isStatusChanging(row)) {
+    return;
+  }
+  const previous = row.status;
+  const next = checked ? 1 : 0;
+  if (previous === next) {
+    return;
+  }
+  setStatusChanging(row.id, true);
+  row.status = next;
+  try {
+    await menuUpdate(row.id, { status: next });
+    await reloadMenuSurfaces();
+    message.success($t('pages.common.updateSuccess'));
+  } catch {
+    row.status = previous;
+    await tableApi.query();
+  } finally {
+    setStatusChanging(row.id, false);
+  }
+}
+
+/**
+ * Toggle menu visibility from the list switch. The server cascades the target
+ * visibility value to all descendants.
+ */
+async function handleVisibleChange(row: Menu, checked: boolean) {
+  if (isVisibleChanging(row)) {
+    return;
+  }
+  const previous = row.visible;
+  const next = checked ? 1 : 0;
+  if (previous === next) {
+    return;
+  }
+  setVisibleChanging(row.id, true);
+  row.visible = next;
+  try {
+    await menuUpdate(row.id, { visible: next });
+    await reloadMenuSurfaces();
+    message.success($t('pages.common.updateSuccess'));
+  } catch {
+    row.visible = previous;
+    await tableApi.query();
+  } finally {
+    setVisibleChanging(row.id, false);
+  }
+}
+
 /**
  * 菜单管理页面权限暂时不做前端校验
  * 后端API已有权限控制，前端仅展示
@@ -189,7 +291,10 @@ const canAccess = ref(true);
               <span class="mr-2 text-sm text-[#666666]">
                 {{ $t('pages.system.menu.fields.cascadeDelete') }}
               </span>
-              <Switch v-model:checked="cascadingDeletion" />
+              <Switch
+                v-model:checked="cascadingDeletion"
+                data-testid="menu-cascade-delete-switch"
+              />
             </div>
           </Tooltip>
 
@@ -204,6 +309,28 @@ const canAccess = ref(true);
             {{ $t('pages.common.add') }}
           </a-button>
         </Space>
+      </template>
+      <template #status="{ row }">
+        <Switch
+          :checked="row.status === 1"
+          :checked-children="statusLabel.checked"
+          :un-checked-children="statusLabel.unchecked"
+          :loading="isStatusChanging(row)"
+          :disabled="isStatusChanging(row)"
+          data-testid="menu-status-switch"
+          @change="(checked) => handleStatusChange(row, !!checked)"
+        />
+      </template>
+      <template #visible="{ row }">
+        <Switch
+          :checked="row.visible === 1"
+          :checked-children="visibleLabel.checked"
+          :un-checked-children="visibleLabel.unchecked"
+          :loading="isVisibleChanging(row)"
+          :disabled="isVisibleChanging(row)"
+          data-testid="menu-visible-switch"
+          @change="(checked) => handleVisibleChange(row, !!checked)"
+        />
       </template>
       <template #action="{ row }">
         <Space>

@@ -93,6 +93,7 @@ openspec/            -> OpenSpec相关文档
 
 ```bash
 make dev                         # 启动前后端（前端: 5666，后端: 9120）
+LINA_CORE_PORT=18080 LINA_VBEN_PORT=3000 make dev   # 通过环境变量覆盖端口（无需改配置文件）
 make dev plugins=0               # 强制宿主模式启动（不加载官方源码插件）
 make stop                        # 停止所有服务
 make status                      # 查看服务状态

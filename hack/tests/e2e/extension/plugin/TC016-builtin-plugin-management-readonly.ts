@@ -89,7 +89,7 @@ async function expectNoRawPluginI18nKeys(page: Page) {
   await expect(page.locator('body')).not.toContainText(/pages\.system\.plugin/u);
 }
 
-async function mockPluginApis(page: Page, options: { exposeBuiltinInList: boolean }) {
+async function mockPluginApis(page: Page) {
   const managedRow = pluginRow({
     distribution: 'managed',
     id: managedPluginID,
@@ -103,9 +103,7 @@ async function mockPluginApis(page: Page, options: { exposeBuiltinInList: boolea
     name: 'Builtin Readonly E2E',
     upgradeAvailable: true,
   });
-  const listRows = options.exposeBuiltinInList
-    ? [builtinRow]
-    : [managedRow];
+  const listRows = [managedRow, builtinRow];
   const listRequests: string[] = [];
 
   await page.route('**/api/v1/plugins**', async (route: Route) => {
@@ -162,40 +160,43 @@ async function mockPluginApis(page: Page, options: { exposeBuiltinInList: boolea
 }
 
 test.describe('TC-16 内建插件管理只读治理', () => {
-  test('TC-16a: 普通插件管理列表不请求 builtin 诊断参数', async ({
+  test('TC-16a: 普通插件管理列表默认展示 builtin 与内置标识', async ({
     adminPage,
   }) => {
     const pageErrors: string[] = [];
     adminPage.on('pageerror', (error) => pageErrors.push(error.message));
-    const api = await mockPluginApis(adminPage, { exposeBuiltinInList: false });
+    const api = await mockPluginApis(adminPage);
 
     const pluginPage = new PluginPage(adminPage);
     await pluginPage.gotoManage();
 
     await expect(pluginPage.pluginRow(managedPluginID)).toBeVisible();
-    await expect(pluginPage.pluginRow(builtinPluginID)).toHaveCount(0);
+    await expect(pluginPage.pluginRow(builtinPluginID)).toBeVisible();
+    await expect(pluginPage.pluginBuiltinTag(builtinPluginID)).toBeVisible();
+    // Default E2E locale is zh-CN; assert translated copy, not raw i18n keys.
+    await expect(pluginPage.pluginBuiltinTag(builtinPluginID)).toHaveText(
+      '内置插件',
+    );
+    await expect(pluginPage.pluginBuiltinTag(managedPluginID)).toHaveCount(0);
     expect(api.listRequests().length).toBeGreaterThan(0);
-    for (const search of api.listRequests()) {
-      const params = new URLSearchParams(search);
-      expect(params.has('includeBuiltin')).toBe(false);
-    }
     await expectNoRawPluginI18nKeys(adminPage);
     await captureEvidence(adminPage, 'builtin-plugin-management-default-list');
     expect(pageErrors).toEqual([]);
   });
 
-  test('TC-16b: 诊断返回 builtin 行时普通生命周期操作完全隐藏', async ({
+  test('TC-16b: builtin 行隐藏写操作并保留详情与管理入口', async ({
     adminPage,
   }) => {
     const pageErrors: string[] = [];
     adminPage.on('pageerror', (error) => pageErrors.push(error.message));
-    await mockPluginApis(adminPage, { exposeBuiltinInList: true });
+    await mockPluginApis(adminPage);
 
     const pluginPage = new PluginPage(adminPage);
     await pluginPage.gotoManage();
     await pluginPage.searchByPluginId(builtinPluginID);
 
     await expect(pluginPage.pluginRow(builtinPluginID)).toBeVisible();
+    await expect(pluginPage.pluginBuiltinTag(builtinPluginID)).toBeVisible();
     await expect(pluginPage.pluginEnabledSwitches(builtinPluginID)).toHaveCount(0);
     await expect(
       pluginPage.pluginTenantProvisioningSwitches(builtinPluginID),
@@ -204,10 +205,17 @@ test.describe('TC-16 内建插件管理只读治理', () => {
     await pluginPage.expectUpgradeActionHidden(builtinPluginID);
     await pluginPage.expectUninstallActionHidden(builtinPluginID);
     await expect(pluginPage.pluginDetailAction(builtinPluginID)).toBeVisible();
+    await expect(pluginPage.pluginManageAction(builtinPluginID)).toBeVisible();
     await captureEvidence(adminPage, 'builtin-plugin-management-readonly-row');
 
     await pluginPage.openPluginDetail(builtinPluginID);
     await expect(pluginPage.pluginDetailModal()).toContainText('Builtin Readonly E2E');
+    await expect(pluginPage.pluginDetailDistribution()).toBeVisible();
+    await expect(pluginPage.pluginDetailDistribution()).toHaveText('项目内建');
+    await expect(pluginPage.pluginBuiltinDetailAlert()).toBeVisible();
+    await expect(pluginPage.pluginBuiltinDetailAlert()).toContainText(
+      '项目内建能力',
+    );
     await expectNoRawPluginI18nKeys(adminPage);
     await captureEvidence(adminPage, 'builtin-plugin-management-detail');
     expect(pageErrors).toEqual([]);

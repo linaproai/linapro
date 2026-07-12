@@ -4,7 +4,6 @@ package plugin
 
 import (
 	"context"
-	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	i18nsvc "lina-core/internal/service/i18n"
@@ -91,9 +90,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		if in.Installed != nil && item.Installed != *in.Installed {
 			continue
 		}
-		if !in.IncludeBuiltin && item.Distribution == pluginv1.PluginDistributionBuiltin.String() {
-			continue
-		}
+		// Builtin plugins remain visible in ordinary management lists. Write
+		// operations stay blocked by lifecycle governance. IncludeBuiltin is
+		// retained only for request binding compatibility and is not applied.
 		filtered = append(filtered, item)
 	}
 	page, total := paginatePluginItems(filtered, in.PageNum, in.PageSize)

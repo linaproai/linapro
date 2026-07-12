@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -29,6 +30,22 @@ const (
 	// services to release their TCP ports after StopService sends a kill.
 	defaultPortReleaseTimeout = 5 * time.Second
 )
+
+// portFromEnv resolves a TCP port from the named environment variable, falling
+// back to fallback when unset or invalid.
+// Example: portFromEnv("LINA_CORE_PORT", defaultBackendPort)
+// portFromEnv 从指定环境变量读取端口，未设置或非法时返回 fallback。
+func portFromEnv(name string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback
+	}
+	port, err := strconv.Atoi(raw)
+	if err != nil || port <= 0 || port > 65535 {
+		return fallback
+	}
+	return port
+}
 
 // errHelpRequested marks help output as a successful early return.
 var errHelpRequested = errors.New("help requested")
@@ -93,7 +110,7 @@ type targetPlatform struct {
 func commandRegistry() map[string]commandSpec {
 	specs := []commandSpec{
 		{Name: "help", Description: "Show available cross-platform commands.", Usage: "linactl help [command|--all]", Run: runHelp},
-		{Name: "dev", Description: "Restart backend and frontend development services.", Usage: "linactl dev [dir=<path>] [backend_port=9120] [frontend_port=5666] [plugins=0|1] [skip_wasm=true]", Run: runDev},
+		{Name: "dev", Description: "Restart backend and frontend development services.", Usage: "linactl dev [dir=<path>] [backend_port=9120] [frontend_port=5666] [plugins=0|1] [skip_wasm=true] (ports also accept LINA_CORE_PORT/LINA_VBEN_PORT env)", Run: runDev},
 		{Name: "stop", Description: "Stop backend and frontend development services started by linactl.", Usage: "linactl stop [dir=<path>] [backend_port=9120] [frontend_port=5666]", Run: runStop},
 		{Name: "status", Description: "Show backend and frontend service status.", Usage: "linactl status [dir=<path>] [backend_port=9120] [frontend_port=5666]", Run: runStatus},
 		{Name: "pack.assets", Description: "Prepare host manifest assets for embedding.", Usage: "linactl pack.assets", Run: runPreparePackedAssets},

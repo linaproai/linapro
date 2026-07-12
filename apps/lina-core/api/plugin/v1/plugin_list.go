@@ -18,8 +18,8 @@ type ListReq struct {
 	Type      PluginType               `json:"type" dc:"Filter by plugin type: source=source plugin dynamic=dynamic plugin, if not passed, all will be queried; the current dynamic plugin implementation only supports WASM" eg:"dynamic"`
 	Status    *statusflag.Enabled      `json:"status" dc:"Filter by enabled status: 1=enabled 0=disabled, if not passed, query all" eg:"1"`
 	Installed *statusflag.Installation `json:"installed" dc:"Filter by installation status: 1=Installed 0=Not installed, if not uploaded, query all" eg:"1"`
-	// IncludeBuiltin includes project built-in source plugins for read-only diagnostics. The default false value hides builtin plugins from ordinary plugin management.
-	IncludeBuiltin bool `json:"includeBuiltin" dc:"Whether to include builtin plugins in this read-only diagnostic list query; default false hides builtin plugins from ordinary plugin management" eg:"false"`
+	// IncludeBuiltin is retained for client compatibility. Ordinary plugin management lists always include builtin plugins; this flag no longer filters results.
+	IncludeBuiltin bool `json:"includeBuiltin" dc:"Compatibility field retained for older clients; ordinary plugin management lists always include builtin plugins and this flag no longer filters results" eg:"true"`
 }
 
 // ListRes is the response for querying plugin list.

@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/service/datascope"
 	storagesvc "lina-core/internal/service/storage"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/storagecap"
 )
 
 // fileSuffixesByMimeType maps stable MIME filters to storage suffixes.
@@ -77,6 +78,9 @@ func (s *serviceImpl) openStoredFile(ctx context.Context, fileInfo *entity.SysFi
 	}
 	output, err := s.storage.Get(ctx, storagesvc.GetInput{Namespace: storagesvc.NamespaceFiles, Key: fileInfo.Path})
 	if err != nil {
+		if bizerr.Is(err, storagecap.CodeStorageProviderConflict) {
+			return nil, bizerr.WrapCode(err, CodeFileStorageConflict)
+		}
 		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, storagesvc.ErrPathInvalid) {
 			return nil, bizerr.NewCode(CodeFileNotFound)
 		}

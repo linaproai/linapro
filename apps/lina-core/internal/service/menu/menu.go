@@ -33,7 +33,9 @@ type Service interface {
 	// so permission/access-topology caches can refresh.
 	Create(ctx context.Context, in CreateInput) (int, error)
 	// Update updates menu information after existence, uniqueness, and
-	// descendant-move checks. Successful changes notify the role service so
+	// descendant-move checks. When status or visible is written, all
+	// descendant menus receive the same field value in the same transaction
+	// (including enable/show). Successful changes notify the role service so
 	// permission/access-topology caches can refresh.
 	Update(ctx context.Context, in UpdateInput) error
 	// Delete deletes a menu and, when requested, descendants and role-menu

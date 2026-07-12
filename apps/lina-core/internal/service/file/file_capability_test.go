@@ -19,10 +19,10 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	storagesvc "lina-core/internal/service/storage"
 	internalbizctx "lina-core/internal/service/bizctx"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	storagesvc "lina-core/internal/service/storage"
 	"lina-core/pkg/bizerr"
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/capability/bizctxcap"
@@ -303,6 +303,7 @@ func (s *fileCapabilityTestStorage) Get(_ context.Context, in storagesvc.GetInpu
 		Found:  true,
 	}, nil
 }
+
 
 // fileCapabilityPluginStorage is a plugin-private storage source fake.
 type fileCapabilityPluginStorage struct {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,7 @@ import (
 	storagesvc "lina-core/internal/service/storage"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
+	"lina-core/pkg/plugin/capability/storagecap"
 )
 
 // Upload handles file upload: computes SHA-256 hash, checks for duplicates, saves file via storage backend and records metadata in DB.
@@ -75,6 +77,12 @@ func (s *serviceImpl) createFromReader(ctx context.Context, in *CreateFromReader
 	}
 	if in.SizeBytes > uploadLimitBytes(uploadMaxSize) {
 		return nil, bizerr.NewCode(CodeFileTooLarge, bizerr.P("maxSizeMB", uploadMaxSize))
+	}
+	// Hash-dedup reuses an existing object and skips storage.Put. Still require a
+	// resolvable object backend so multi-cloud conflict fails closed for every
+	// upload path (file and image, new content and duplicate content).
+	if err = s.ensureFilesBackendReady(ctx); err != nil {
+		return nil, err
 	}
 	spooled, actualSize, fileHash, err := spoolUploadReader(in.Reader, uploadMaxSize)
 	if err != nil {
@@ -141,13 +149,24 @@ func (s *serviceImpl) createFromReader(ctx context.Context, in *CreateFromReader
 			return bizerr.WrapCode(err, CodeFileReadResetFailed)
 		}
 		storagePath := buildStorageKey(ctx, sanitizedFilename)
+		// Pass a non-closing ReadSeeker so cloud SDKs (e.g. COS TeeReader) cannot
+		// close the host-owned temp file before cleanupSpooledUpload runs.
 		_, err = s.storage.Put(ctx, storagesvc.PutInput{
 			Namespace: storagesvc.NamespaceFiles,
 			Key:       storagePath,
-			Body:      spooled,
+			Body:      storageUploadBody{ReadSeeker: spooled},
+			Size:      actualSize,
+			Overwrite: true,
 		})
 		if err != nil {
+			if bizerr.Is(err, storagecap.CodeStorageProviderConflict) {
+				return bizerr.WrapCode(err, CodeFileStorageConflict)
+			}
 			return bizerr.WrapCode(err, CodeFileStoreFailed)
+		}
+		engine := storagesvc.FilesProviderID(ctx, s.storage)
+		if strings.TrimSpace(engine) == "" {
+			engine = EngineLocal
 		}
 		storedName := gfile.Basename(storagePath)
 		url := storageURL(storagePath)
@@ -161,7 +180,7 @@ func (s *serviceImpl) createFromReader(ctx context.Context, in *CreateFromReader
 			Hash:      fileHash,
 			Url:       url,
 			Path:      storagePath,
-			Engine:    EngineLocal,
+			Engine:    engine,
 			CreatedBy: userId,
 		}).Insert()
 		if err != nil {
@@ -191,6 +210,22 @@ func (s *serviceImpl) createFromReader(ctx context.Context, in *CreateFromReader
 		return nil, err
 	}
 	return output, nil
+}
+
+// ensureFilesBackendReady fails closed when the host cannot select a single
+// object backend for NamespaceFiles (for example multiple cloud provider
+// plugins are enabled).
+func (s *serviceImpl) ensureFilesBackendReady(ctx context.Context) error {
+	if s == nil || s.storage == nil {
+		return bizerr.NewCode(CodeFileStoreFailed)
+	}
+	if _, err := storagesvc.ResolveFilesProviderID(ctx, s.storage); err != nil {
+		if bizerr.Is(err, storagecap.CodeStorageProviderConflict) {
+			return bizerr.WrapCode(err, CodeFileStorageConflict)
+		}
+		return bizerr.WrapCode(err, CodeFileStoreFailed)
+	}
+	return nil
 }
 
 // buildStorageKey returns the file-center object key persisted in sys_file.path.
@@ -238,16 +273,23 @@ func spoolUploadReader(reader io.Reader, uploadMaxSize int64) (*os.File, int64, 
 	return spooled, written, hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
+// storageUploadBody exposes only Read/Seek to storage backends.
+// It intentionally omits Close so HTTP/cloud SDKs that close request bodies
+// cannot take ownership of the host-managed spooled temp file.
+type storageUploadBody struct {
+	io.ReadSeeker
+}
+
 // cleanupSpooledUpload closes and removes the temporary upload file.
 func cleanupSpooledUpload(spooled *os.File, errp *error) {
 	if spooled == nil {
 		return
 	}
 	name := spooled.Name()
-	if closeErr := spooled.Close(); closeErr != nil && *errp == nil {
+	if closeErr := spooled.Close(); closeErr != nil && !errors.Is(closeErr, os.ErrClosed) && *errp == nil {
 		*errp = bizerr.WrapCode(closeErr, CodeFileReadResetFailed)
 	}
-	if removeErr := os.Remove(name); removeErr != nil && *errp == nil {
+	if removeErr := os.Remove(name); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) && *errp == nil {
 		*errp = bizerr.WrapCode(removeErr, CodeFileStoreFailed)
 	}
 }
@@ -258,10 +300,10 @@ func cleanupSpooledUploadError(spooled *os.File, primary error) error {
 		return primary
 	}
 	name := spooled.Name()
-	if closeErr := spooled.Close(); closeErr != nil {
+	if closeErr := spooled.Close(); closeErr != nil && !errors.Is(closeErr, os.ErrClosed) {
 		return bizerr.WrapCode(fmt.Errorf("%w; cleanup close error: %w", primary, closeErr), CodeFileRecordSaveCleanupFailed)
 	}
-	if removeErr := os.Remove(name); removeErr != nil {
+	if removeErr := os.Remove(name); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 		return bizerr.WrapCode(fmt.Errorf("%w; cleanup remove error: %w", primary, removeErr), CodeFileRecordSaveCleanupFailed)
 	}
 	return primary

@@ -13,7 +13,6 @@ import (
 
 	"linactl/internal/devservice"
 	"linactl/internal/frontend"
-	"linactl/internal/portcheck"
 	"linactl/internal/process"
 	"linactl/internal/toolutil"
 )
@@ -28,25 +27,20 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		return runBuildDir(ctx, a, input, options, dir)
 	}
 
-	backendPort, err := input.Int("backend_port", defaultBackendPort)
+	backendPort, err := input.Int("backend_port", portFromEnv("LINA_CORE_PORT", defaultBackendPort))
 	if err != nil {
 		return err
 	}
-	frontendPort, err := input.Int("frontend_port", defaultFrontendPort)
+	frontendPort, err := input.Int("frontend_port", portFromEnv("LINA_VBEN_PORT", defaultFrontendPort))
 	if err != nil {
 		return err
 	}
-	// 在重建/启动任何子进程之前，先校验三处端口一致性（命令传入的
-	// backend_port、后端 manifest config 的 server.address、前端 vite proxy
-	// target）；任一不一致都直接 fail-fast，避免错配端口启动后再以"探活
-	// 超时"或"接口 404"等间接形式暴露问题。
-	// Verify backend_port, backend manifest server.address, and frontend vite
-	// proxy targets all agree before launching any subprocess. Any mismatch is
-	// surfaced immediately instead of letting downstream services start with
-	// inconsistent ports.
-	if err = portcheck.Verify(a.root, backendPort); err != nil {
-		return err
-	}
+	// Runtime ports are applied via process env (LINAPRO_SERVER_ADDRESS and
+	// LINAPRO_BACKEND_PROXY_TARGET) when services start, so file-level port
+	// alignment against config.yaml / vite proxy literals is not required for
+	// make dev. Operators can keep default files and still override ports with
+	// LINA_CORE_PORT / LINA_VBEN_PORT environment variables.
+	// 运行时端口在启动子进程时通过环境变量注入，make dev 不再要求改配置文件。
 	if err = ensureFrontendDeps(ctx, a); err != nil {
 		return err
 	}

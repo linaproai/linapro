@@ -173,7 +173,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
         className: 'plugin-name-column',
         field: 'name',
         headerAlign: 'center',
-        minWidth: 200,
+        minWidth: 260,
+        showOverflow: false,
         slots: { default: 'name' },
         title: $t('pages.system.plugin.fields.name'),
       },
@@ -450,6 +451,12 @@ function isTenantProvisioningPolicySupported(row: PluginListItem) {
     row.scopeNature === 'tenant_aware' &&
     row.installMode === 'tenant_scoped'
   );
+}
+
+function buildBuiltinPluginTooltip(row: PluginListItem) {
+  return $t('pages.system.plugin.messages.builtinTooltip', {
+    pluginId: row.id,
+  });
 }
 
 function buildAutoEnableManagedTooltip(row: PluginListItem) {
@@ -928,6 +935,18 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
           :data-testid="`plugin-name-cell-${row.id}`"
         >
           <span class="shrink-0 whitespace-nowrap">{{ row.name }}</span>
+          <Tooltip
+            v-if="isBuiltinPlugin(row)"
+            :title="buildBuiltinPluginTooltip(row)"
+          >
+            <Tag
+              class="m-0 shrink-0 whitespace-nowrap leading-5"
+              :data-testid="`plugin-builtin-tag-${row.id}`"
+              color="purple"
+            >
+              {{ $t('pages.system.plugin.builtinBadge') }}
+            </Tag>
+          </Tooltip>
           <Tooltip
             v-if="isAutoEnableManaged(row)"
             :title="buildAutoEnableManagedTooltip(row)"

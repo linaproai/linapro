@@ -27,11 +27,11 @@ func runStatus(ctx context.Context, a *app, input commandInput) error {
 	if dir := input.Get("dir"); dir != "" {
 		return runConfiguredCommandDir(ctx, a, dir, "status")
 	}
-	backendPort, err := input.Int("backend_port", defaultBackendPort)
+	backendPort, err := input.Int("backend_port", portFromEnv("LINA_CORE_PORT", defaultBackendPort))
 	if err != nil {
 		return err
 	}
-	frontendPort, err := input.Int("frontend_port", defaultFrontendPort)
+	frontendPort, err := input.Int("frontend_port", portFromEnv("LINA_VBEN_PORT", defaultFrontendPort))
 	if err != nil {
 		return err
 	}

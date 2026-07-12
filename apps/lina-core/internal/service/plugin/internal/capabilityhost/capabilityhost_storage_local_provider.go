@@ -1,7 +1,9 @@
 // This file implements the host built-in local storage provider as an adapter
 // from the plugin storagecap.Provider contract to the host-internal object
 // storage service. The provider receives scoped provider object keys and never
-// plugin authorization snapshots.
+// plugin authorization snapshots. Keys under "files/" map to the host file-center
+// namespace without the plugin .capability-storage root so historical upload paths
+// stay stable; other keys continue to use NamespacePlugins.
 
 package capabilityhost
 
@@ -18,9 +20,11 @@ import (
 
 const (
 	localStorageProviderRootDir = ".capability-storage"
+	// hostFilesProviderKeyPrefix isolates file-center objects on shared providers.
+	hostFilesProviderKeyPrefix = "files/"
 )
 
-// localStorageProvider stores plugin objects through the host object storage service.
+// localStorageProvider stores objects through the host object storage service.
 type localStorageProvider struct {
 	storage storage.Service
 }
@@ -35,13 +39,13 @@ func (p *localStorageProvider) Put(ctx context.Context, in storagecap.ProviderPu
 	if err := p.ensureAvailable(); err != nil {
 		return nil, err
 	}
-	objectKey, err := normalizePluginStoragePath(in.Key, false)
+	namespace, storageKey, publicKey, err := resolveLocalStorageTarget(in.Key)
 	if err != nil {
 		return nil, err
 	}
 	output, err := p.storage.Put(ctx, storage.PutInput{
-		Namespace:   storage.NamespacePlugins,
-		Key:         localStorageKey(objectKey),
+		Namespace:   namespace,
+		Key:         storageKey,
 		Body:        in.Body,
 		Size:        in.Size,
 		ContentType: in.ContentType,
@@ -50,7 +54,7 @@ func (p *localStorageProvider) Put(ctx context.Context, in storagecap.ProviderPu
 	if err != nil {
 		return nil, mapLocalStorageError(err)
 	}
-	return p.providerObject(objectKey, outputObject(output), in.ContentType), nil
+	return p.providerObject(publicKey, outputObject(output), in.ContentType), nil
 }
 
 // Get reads one scoped object key.
@@ -58,11 +62,11 @@ func (p *localStorageProvider) Get(ctx context.Context, in storagecap.ProviderGe
 	if err := p.ensureAvailable(); err != nil {
 		return nil, err
 	}
-	objectKey, err := normalizePluginStoragePath(in.Key, false)
+	namespace, storageKey, publicKey, err := resolveLocalStorageTarget(in.Key)
 	if err != nil {
 		return nil, err
 	}
-	output, err := p.storage.Get(ctx, storage.GetInput{Namespace: storage.NamespacePlugins, Key: localStorageKey(objectKey)})
+	output, err := p.storage.Get(ctx, storage.GetInput{Namespace: namespace, Key: storageKey})
 	if err != nil {
 		return nil, mapLocalStorageError(err)
 	}
@@ -70,7 +74,7 @@ func (p *localStorageProvider) Get(ctx context.Context, in storagecap.ProviderGe
 		return &storagecap.ProviderGetOutput{Found: false}, nil
 	}
 	return &storagecap.ProviderGetOutput{
-		Object: p.providerObject(objectKey, output.Object, ""),
+		Object: p.providerObject(publicKey, output.Object, ""),
 		Body:   output.Body,
 		Found:  true,
 	}, nil
@@ -81,11 +85,11 @@ func (p *localStorageProvider) Delete(ctx context.Context, in storagecap.Provide
 	if err := p.ensureAvailable(); err != nil {
 		return err
 	}
-	objectKey, err := normalizePluginStoragePath(in.Key, false)
+	namespace, storageKey, _, err := resolveLocalStorageTarget(in.Key)
 	if err != nil {
 		return err
 	}
-	err = p.storage.Delete(ctx, storage.DeleteInput{Namespace: storage.NamespacePlugins, Key: localStorageKey(objectKey)})
+	err = p.storage.Delete(ctx, storage.DeleteInput{Namespace: namespace, Key: storageKey})
 	return mapLocalStorageError(err)
 }
 
@@ -94,16 +98,21 @@ func (p *localStorageProvider) DeleteMany(ctx context.Context, in storagecap.Pro
 	if err := p.ensureAvailable(); err != nil {
 		return err
 	}
-	keys := make([]string, 0, len(in.Keys))
+	// Group by namespace because host storage DeleteMany is namespace-scoped.
+	byNamespace := map[string][]string{}
 	for _, key := range in.Keys {
-		objectKey, err := normalizePluginStoragePath(key, false)
+		namespace, storageKey, _, err := resolveLocalStorageTarget(key)
 		if err != nil {
 			return err
 		}
-		keys = append(keys, localStorageKey(objectKey))
+		byNamespace[namespace] = append(byNamespace[namespace], storageKey)
 	}
-	err := p.storage.DeleteMany(ctx, storage.DeleteManyInput{Namespace: storage.NamespacePlugins, Keys: keys})
-	return mapLocalStorageError(err)
+	for namespace, keys := range byNamespace {
+		if err := p.storage.DeleteMany(ctx, storage.DeleteManyInput{Namespace: namespace, Keys: keys}); err != nil {
+			return mapLocalStorageError(err)
+		}
+	}
+	return nil
 }
 
 // List lists scoped object keys under one prefix.
@@ -111,14 +120,14 @@ func (p *localStorageProvider) List(ctx context.Context, in storagecap.ProviderL
 	if err := p.ensureAvailable(); err != nil {
 		return nil, err
 	}
-	prefix, err := normalizePluginStoragePath(in.Prefix, false)
+	namespace, storagePrefix, isFiles, err := resolveLocalStoragePrefix(in.Prefix)
 	if err != nil {
 		return nil, err
 	}
 	limit := normalizeStorageListLimit(in.Limit)
 	output, err := p.storage.List(ctx, storage.ListInput{
-		Namespace: storage.NamespacePlugins,
-		Prefix:    localStorageKey(prefix),
+		Namespace: namespace,
+		Prefix:    storagePrefix,
 		Limit:     limit,
 	})
 	if err != nil {
@@ -128,7 +137,7 @@ func (p *localStorageProvider) List(ctx context.Context, in storagecap.ProviderL
 	if output != nil {
 		objects = make([]*storagecap.ProviderObject, 0, len(output.Objects))
 		for _, object := range output.Objects {
-			providerKey := providerKeyFromLocalStorageObject(object)
+			providerKey := publicKeyFromLocalObject(object, isFiles)
 			if providerKey == "" {
 				continue
 			}
@@ -143,22 +152,23 @@ func (p *localStorageProvider) ListCursor(ctx context.Context, in storagecap.Pro
 	if err := p.ensureAvailable(); err != nil {
 		return nil, err
 	}
-	prefix, err := normalizePluginStoragePath(in.Prefix, false)
+	namespace, storagePrefix, isFiles, err := resolveLocalStoragePrefix(in.Prefix)
 	if err != nil {
 		return nil, err
 	}
 	cursor := ""
 	if strings.TrimSpace(in.Cursor) != "" {
-		cursor, err = normalizePluginStoragePath(in.Cursor, false)
+		_, cursorKey, _, err := resolveLocalStorageTarget(in.Cursor)
 		if err != nil {
 			return nil, err
 		}
+		cursor = cursorKey
 	}
 	limit := normalizeStorageListLimit(in.Limit)
 	output, err := p.storage.ListCursor(ctx, storage.ListCursorInput{
-		Namespace: storage.NamespacePlugins,
-		Prefix:    localStorageKey(prefix),
-		Cursor:    localStorageKey(cursor),
+		Namespace: namespace,
+		Prefix:    storagePrefix,
+		Cursor:    cursor,
 		Limit:     limit,
 	})
 	if err != nil {
@@ -169,13 +179,19 @@ func (p *localStorageProvider) ListCursor(ctx context.Context, in storagecap.Pro
 		return result, nil
 	}
 	for _, object := range output.Objects {
-		providerKey := providerKeyFromLocalStorageObject(object)
+		providerKey := publicKeyFromLocalObject(object, isFiles)
 		if providerKey == "" {
 			continue
 		}
 		result.Objects = append(result.Objects, p.providerObject(providerKey, object, ""))
 	}
-	result.NextCursor = providerKeyFromLocalStorageKey(output.NextCursor)
+	if next := strings.TrimSpace(output.NextCursor); next != "" {
+		if isFiles {
+			result.NextCursor = hostFilesProviderKeyPrefix + next
+		} else {
+			result.NextCursor = providerKeyFromLocalStorageKey(next)
+		}
+	}
 	return result, nil
 }
 
@@ -184,18 +200,18 @@ func (p *localStorageProvider) Stat(ctx context.Context, in storagecap.ProviderS
 	if err := p.ensureAvailable(); err != nil {
 		return nil, err
 	}
-	objectKey, err := normalizePluginStoragePath(in.Key, false)
+	namespace, storageKey, publicKey, err := resolveLocalStorageTarget(in.Key)
 	if err != nil {
 		return nil, err
 	}
-	output, err := p.storage.Stat(ctx, storage.StatInput{Namespace: storage.NamespacePlugins, Key: localStorageKey(objectKey)})
+	output, err := p.storage.Stat(ctx, storage.StatInput{Namespace: namespace, Key: storageKey})
 	if err != nil {
 		return nil, mapLocalStorageError(err)
 	}
 	if output == nil || !output.Found {
 		return &storagecap.ProviderStatOutput{Found: false}, nil
 	}
-	return &storagecap.ProviderStatOutput{Object: p.providerObject(objectKey, output.Object, ""), Found: true}, nil
+	return &storagecap.ProviderStatOutput{Object: p.providerObject(publicKey, output.Object, ""), Found: true}, nil
 }
 
 // BatchStat reads metadata for explicit scoped object keys.
@@ -203,35 +219,52 @@ func (p *localStorageProvider) BatchStat(ctx context.Context, in storagecap.Prov
 	if err := p.ensureAvailable(); err != nil {
 		return nil, err
 	}
-	keys := make([]string, 0, len(in.Keys))
-	keyByStorageKey := make(map[string]string, len(in.Keys))
+	result := &storagecap.ProviderBatchStatOutput{Objects: []*storagecap.ProviderObject{}}
+	// BatchStat is namespace-scoped; split files vs plugins.
+	type item struct {
+		namespace  string
+		storageKey string
+		publicKey  string
+	}
+	items := make([]item, 0, len(in.Keys))
 	for _, key := range in.Keys {
-		objectKey, err := normalizePluginStoragePath(key, false)
+		namespace, storageKey, publicKey, err := resolveLocalStorageTarget(key)
 		if err != nil {
 			return nil, err
 		}
-		storageKey := localStorageKey(objectKey)
-		keys = append(keys, storageKey)
-		keyByStorageKey[storageKey] = objectKey
+		items = append(items, item{namespace: namespace, storageKey: storageKey, publicKey: publicKey})
 	}
-	output, err := p.storage.BatchStat(ctx, storage.BatchStatInput{Namespace: storage.NamespacePlugins, Keys: keys})
-	if err != nil {
-		return nil, mapLocalStorageError(err)
-	}
-	result := &storagecap.ProviderBatchStatOutput{Objects: []*storagecap.ProviderObject{}}
-	if output == nil {
-		return result, nil
-	}
-	for _, object := range output.Objects {
-		providerKey := providerKeyFromLocalStorageObject(object)
-		if providerKey == "" {
+	for _, namespace := range []string{storage.NamespaceFiles, storage.NamespacePlugins} {
+		var keys []string
+		keyByStorage := map[string]string{}
+		for _, it := range items {
+			if it.namespace != namespace {
+				continue
+			}
+			keys = append(keys, it.storageKey)
+			keyByStorage[it.storageKey] = it.publicKey
+		}
+		if len(keys) == 0 {
 			continue
 		}
-		result.Objects = append(result.Objects, p.providerObject(providerKey, object, ""))
-	}
-	for _, missingKey := range output.MissingKeys {
-		if providerKey := keyByStorageKey[missingKey]; providerKey != "" {
-			result.MissingKeys = append(result.MissingKeys, providerKey)
+		output, err := p.storage.BatchStat(ctx, storage.BatchStatInput{Namespace: namespace, Keys: keys})
+		if err != nil {
+			return nil, mapLocalStorageError(err)
+		}
+		if output == nil {
+			continue
+		}
+		for _, object := range output.Objects {
+			publicKey := keyByStorage[object.Key]
+			if publicKey == "" {
+				continue
+			}
+			result.Objects = append(result.Objects, p.providerObject(publicKey, object, ""))
+		}
+		for _, missingKey := range output.MissingKeys {
+			if publicKey := keyByStorage[missingKey]; publicKey != "" {
+				result.MissingKeys = append(result.MissingKeys, publicKey)
+			}
 		}
 	}
 	return result, nil
@@ -273,19 +306,66 @@ func outputObject(output *storage.PutOutput) *storage.Object {
 	return output.Object
 }
 
+// resolveLocalStorageTarget maps a provider key to host namespace + storage key.
+// File-center keys use "files/<path>" and land in NamespaceFiles without the
+// plugin capability root. Plugin keys keep NamespacePlugins + .capability-storage.
+func resolveLocalStorageTarget(providerKey string) (namespace string, storageKey string, publicKey string, err error) {
+	objectKey, err := normalizePluginStoragePath(providerKey, false)
+	if err != nil {
+		return "", "", "", err
+	}
+	if objectKey == "files" {
+		return "", "", "", bizerr.NewCode(storagecap.CodeStoragePathInvalid)
+	}
+	if strings.HasPrefix(objectKey, hostFilesProviderKeyPrefix) {
+		rest := strings.TrimPrefix(objectKey, hostFilesProviderKeyPrefix)
+		if rest == "" {
+			return "", "", "", bizerr.NewCode(storagecap.CodeStoragePathInvalid)
+		}
+		return storage.NamespaceFiles, rest, objectKey, nil
+	}
+	return storage.NamespacePlugins, localStorageKey(objectKey), objectKey, nil
+}
+
+func resolveLocalStoragePrefix(prefix string) (namespace string, storagePrefix string, isFiles bool, err error) {
+	trimmed := strings.Trim(strings.ReplaceAll(strings.TrimSpace(prefix), "\\", "/"), "/")
+	if trimmed == "" {
+		// Empty prefix historically lists plugin objects only.
+		return storage.NamespacePlugins, localStorageKey(""), false, nil
+	}
+	objectKey, err := normalizePluginStoragePath(trimmed, false)
+	if err != nil {
+		return "", "", false, err
+	}
+	if objectKey == "files" {
+		return storage.NamespaceFiles, "", true, nil
+	}
+	if strings.HasPrefix(objectKey, hostFilesProviderKeyPrefix) {
+		return storage.NamespaceFiles, strings.TrimPrefix(objectKey, hostFilesProviderKeyPrefix), true, nil
+	}
+	return storage.NamespacePlugins, localStorageKey(objectKey), false, nil
+}
+
+func publicKeyFromLocalObject(object *storage.Object, isFiles bool) string {
+	if object == nil {
+		return ""
+	}
+	key := strings.Trim(strings.ReplaceAll(strings.TrimSpace(object.Key), "\\", "/"), "/")
+	if key == "" {
+		return ""
+	}
+	if isFiles {
+		return hostFilesProviderKeyPrefix + key
+	}
+	return providerKeyFromLocalStorageKey(key)
+}
+
 func localStorageKey(providerKey string) string {
 	providerKey = strings.Trim(strings.ReplaceAll(strings.TrimSpace(providerKey), "\\", "/"), "/")
 	if providerKey == "" {
 		return localStorageProviderRootDir
 	}
 	return path.Join(localStorageProviderRootDir, providerKey)
-}
-
-func providerKeyFromLocalStorageObject(object *storage.Object) string {
-	if object == nil {
-		return ""
-	}
-	return providerKeyFromLocalStorageKey(object.Key)
 }
 
 func providerKeyFromLocalStorageKey(key string) string {

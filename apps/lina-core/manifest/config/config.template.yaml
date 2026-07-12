@@ -3,8 +3,10 @@
 # Reference: https://goframe.org/docs/web/server-config-file-template
 # 参考文档：https://goframe.org/docs/web/server-config-file-template
 server:
-  # Server listen address
-  # 服务监听地址
+  # Server listen address. Optional process env LINAPRO_SERVER_ADDRESS overrides
+  # this value at runtime when non-empty (for example ":18080" or "127.0.0.1:9120").
+  # 服务监听地址。进程环境变量 LINAPRO_SERVER_ADDRESS 非空时在运行时覆盖该值
+  # （例如 ":18080" 或 "127.0.0.1:9120"）。
   address: ":9120"
   # Whether to dump the route table at startup
   # 是否在启动时输出路由表

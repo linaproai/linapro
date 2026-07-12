@@ -226,10 +226,10 @@ func TestManagementListCacheIsLocaleScoped(t *testing.T) {
 	}
 }
 
-// TestListHidesBuiltinByDefaultAndIncludesForDiagnostics verifies ordinary
-// management list reads filter builtin plugins without rebuilding or mutating
-// the underlying read model.
-func TestListHidesBuiltinByDefaultAndIncludesForDiagnostics(t *testing.T) {
+// TestListIncludesBuiltinByDefault verifies ordinary management list reads
+// return builtin plugins with distribution projection and reuse the cached
+// read model across repeated queries.
+func TestListIncludesBuiltinByDefault(t *testing.T) {
 	var (
 		service   = newTestService()
 		ctx       = startupstats.WithCollector(context.Background(), startupstats.New())
@@ -254,28 +254,29 @@ func TestListHidesBuiltinByDefaultAndIncludesForDiagnostics(t *testing.T) {
 	if findPluginItem(defaultOut, managedID) == nil {
 		t.Fatalf("expected managed plugin in default list")
 	}
-	if findPluginItem(defaultOut, builtinID) != nil {
-		t.Fatalf("expected builtin plugin to be hidden by default")
-	}
-
-	diagnosticOut, err := service.List(ctx, ListInput{
-		ID:             "plugin-dev-list-",
-		IncludeBuiltin: true,
-	})
-	if err != nil {
-		t.Fatalf("expected include-builtin list to succeed, got error: %v", err)
-	}
-	builtin := findPluginItem(diagnosticOut, builtinID)
+	builtin := findPluginItem(defaultOut, builtinID)
 	if builtin == nil {
-		t.Fatalf("expected builtin plugin in diagnostic list")
+		t.Fatalf("expected builtin plugin in default list")
 	}
 	if builtin.Distribution != pluginv1.PluginDistributionBuiltin.String() {
 		t.Fatalf("expected builtin distribution, got %#v", builtin)
 	}
 
+	// Compatibility flag must not hide builtin plugins or force a rebuild.
+	compatOut, err := service.List(ctx, ListInput{
+		ID:             "plugin-dev-list-",
+		IncludeBuiltin: false,
+	})
+	if err != nil {
+		t.Fatalf("expected compatibility list to succeed, got error: %v", err)
+	}
+	if findPluginItem(compatOut, builtinID) == nil {
+		t.Fatalf("expected builtin plugin even when includeBuiltin=false")
+	}
+
 	snapshot := startupstats.FromContext(ctx).Snapshot()
 	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 1 {
-		t.Fatalf("expected diagnostic filtering to reuse cached read model, got %d scans", got)
+		t.Fatalf("expected repeated list reads to reuse cached read model, got %d scans", got)
 	}
 }
 

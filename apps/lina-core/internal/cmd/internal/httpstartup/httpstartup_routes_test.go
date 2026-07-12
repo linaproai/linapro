@@ -207,12 +207,17 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		notifySvc = notify.New(tenantSvc)
 		authSvc   = auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 	)
-	objectStorage := storagesvc.New(storagesvc.Config{NamespaceRoots: map[string]string{
-		storagesvc.NamespaceFiles:   configSvc.GetUploadPath(ctx),
-		storagesvc.NamespacePlugins: configSvc.GetPluginDynamicStoragePath(ctx),
-	}})
-	fileSvc := filesvc.New(configSvc, objectStorage, bizCtxSvc, dictSvc, scopeSvc)
-	sysConfigSvc := sysconfig.New(configSvc, i18nService)
+	var (
+		objectStorage = storagesvc.New(storagesvc.Config{NamespaceRoots: map[string]string{
+			storagesvc.NamespaceFiles:   configSvc.GetUploadPath(ctx),
+			storagesvc.NamespacePlugins: configSvc.GetPluginDynamicStoragePath(ctx),
+		}})
+		storageRuntime       = pluginsvc.NewStorageProviderRuntime(pluginRuntime)
+		localStorageProvider = pluginsvc.NewLocalStorageProvider(objectStorage)
+		fileStorage          = storagesvc.NewResolvingService(objectStorage, storageRuntime, localStorageProvider)
+		fileSvc              = filesvc.New(configSvc, fileStorage, bizCtxSvc, dictSvc, scopeSvc)
+		sysConfigSvc         = sysconfig.New(configSvc, i18nService)
+	)
 	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, nil, cacheCoordSvc)
 	if err != nil {
 		panic(err)
@@ -249,8 +254,8 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		kvCacheSvc,
 		hostLockSvc,
 		pluginConfigFactory,
-		pluginsvc.NewStorageProviderRuntime(pluginRuntime),
-		pluginsvc.NewLocalStorageProvider(objectStorage),
+		storageRuntime,
+		localStorageProvider,
 	)
 	if err != nil {
 		panic(err)

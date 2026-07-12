@@ -32,7 +32,12 @@ export class PluginPage {
   }
 
   get tableTitle(): Locator {
-    return this.page.getByText(pluginTableTitlePattern).first();
+    // Prefer the visible grid title; keep-alive or secondary headers may leave
+    // a hidden matching node that would break `.first()`.
+    return this.page
+      .getByText(pluginTableTitlePattern)
+      .filter({ visible: true })
+      .first();
   }
 
   pluginListHelpIcon(): Locator {
@@ -552,6 +557,18 @@ export class PluginPage {
 
   pluginAutoEnableTag(pluginId: string): Locator {
     return this.page.getByTestId(`plugin-auto-enable-tag-${pluginId}`).first();
+  }
+
+  pluginBuiltinTag(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-builtin-tag-${pluginId}`).first();
+  }
+
+  pluginBuiltinDetailAlert(): Locator {
+    return this.page.getByTestId("plugin-builtin-detail-alert").last();
+  }
+
+  pluginDetailDistribution(): Locator {
+    return this.page.getByTestId("plugin-detail-distribution").last();
   }
 
   pluginNameCell(pluginId: string): Locator {

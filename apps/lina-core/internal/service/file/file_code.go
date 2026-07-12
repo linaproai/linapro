@@ -75,6 +75,13 @@ var (
 		"Failed to store uploaded file",
 		gcode.CodeInternalError,
 	)
+	// CodeFileStorageConflict reports that multiple cloud storage providers are
+	// enabled, so the host cannot choose a single object backend for file content.
+	CodeFileStorageConflict = bizerr.MustDefine(
+		"FILE_STORAGE_CONFLICT",
+		"Multiple cloud storage plugins are enabled; enable only one and try again",
+		gcode.CodeInvalidOperation,
+	)
 	// CodeFileStorageReadFailed reports that a stored file object cannot be read.
 	CodeFileStorageReadFailed = bizerr.MustDefine(
 		"FILE_STORAGE_READ_FAILED",

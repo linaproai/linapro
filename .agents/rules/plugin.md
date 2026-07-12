@@ -35,7 +35,8 @@ apps/lina-plugins/<plugin-id>/
 │   └── plugin.go                    # 插件注册入口
 ├── frontend/                        # 插件前端资源
 │   ├── pages/                       # 插件页面
-│   └── slots/                       # 插槽页面，可选
+│   ├── slots/                       # 插槽页面，可选
+│   └── icons/                       # 可选：侧栏菜单自定义 SVG
 ├── hack/                            # 插件自身脚本和工具
 │   ├── config.yaml                  # 插件开发期工具配置入口，包含代码生成、自定义构建等配置
 │   └── tests/                       # 插件测试内容

@@ -255,6 +255,7 @@
         "failed": "Failed to store uploaded file"
       },
       "storage": {
+        "conflict": "Multiple cloud storage plugins are enabled; enable only one and try again",
         "read": {
           "failed": "Failed to read stored file"
         }

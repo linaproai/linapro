@@ -5,6 +5,7 @@ export interface PluginListParams {
   pageNum?: number;
   pageSize?: number;
   id?: string;
+  /** Compatibility field; list always includes builtin plugins. */
   includeBuiltin?: boolean;
   installed?: number;
   name?: string;

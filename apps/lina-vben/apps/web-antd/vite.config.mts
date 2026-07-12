@@ -366,6 +366,14 @@ export default defineConfig(async (config) => {
   const appDependencyImporter = join(import.meta.dirname, 'src/main.ts');
   const appNodeModulesRoot = join(import.meta.dirname, 'node_modules');
   const env = loadEnv(config.mode, import.meta.dirname, 'VITE_');
+  // linactl/make dev injects LINAPRO_BACKEND_PROXY_TARGET so LINA_CORE_PORT can
+  // change without rewriting proxy literals below. Fallback keeps local vite
+  // alone pointing at the default host backend port.
+  // linactl/make dev 会注入 LINAPRO_BACKEND_PROXY_TARGET，便于用 LINA_CORE_PORT
+  // 改后端端口而无需改写下方 proxy 字面量；缺省仍指向默认宿主后端端口。
+  const backendProxyTarget =
+    process.env.LINAPRO_BACKEND_PROXY_TARGET?.trim() ||
+    'http://localhost:9120';
   const workspaceStoplightApiDocsPath = resolveWorkspaceStoplightApiDocsPath(
     env.VITE_BASE || '/',
   );
@@ -502,30 +510,30 @@ export default defineConfig(async (config) => {
         proxy: {
           '/api': {
             changeOrigin: true,
-            // Forward /api/* to backend at localhost:9120/api/*
-            target: 'http://localhost:9120',
+            // Forward /api/* to the backend (override with LINAPRO_BACKEND_PROXY_TARGET).
+            target: backendProxyTarget,
             ws: true,
           },
           '/x-assets': {
             changeOrigin: true,
             // Runtime plugin static assets are hosted by the backend even in
             // dev mode, so the frontend dev server must proxy these requests.
-            target: 'http://localhost:9120',
+            target: backendProxyTarget,
           },
           '/x': {
             changeOrigin: true,
             // Dynamic plugin backend routes share the frontend origin in
             // production; dev mode proxies them to the backend runtime.
-            target: 'http://localhost:9120',
+            target: backendProxyTarget,
           },
           '/portal': {
             changeOrigin: true,
             // Browser-facing OIDC login/callback routes are hosted by the
             // backend; proxy them so pure Vite dev can start third-party login.
-            target: 'http://localhost:9120',
+            target: backendProxyTarget,
           },
           [workspaceStoplightApiDocsPath]: {
-            target: 'http://localhost:9120',
+            target: backendProxyTarget,
             bypass(_req, res) {
               if (!res) {
                 return;
@@ -539,7 +547,7 @@ export default defineConfig(async (config) => {
             },
           },
           [stoplightApiDocsPath]: {
-            target: 'http://localhost:9120',
+            target: backendProxyTarget,
             bypass(_req, res) {
               if (!res) {
                 return;

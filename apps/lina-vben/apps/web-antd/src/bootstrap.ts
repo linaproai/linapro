@@ -14,12 +14,16 @@ import { useDictStore } from '#/store/dict';
 
 import { initComponentAdapter } from './adapter/component';
 import { initSetupVbenForm } from './adapter/form';
+import { loadPluginSvgIcons } from './plugins/icon-registry';
 import { syncPublicFrontendSettings } from './runtime/public-frontend';
 import App from './app.vue';
 import { setupGlobalComponent } from './components/global';
 import { router } from './router';
 
 async function bootstrap(namespace: string) {
+  // Register source-plugin frontend/icons SVGs before the shell renders menus.
+  loadPluginSvgIcons();
+
   // 初始化组件适配器
   await initComponentAdapter();
 

@@ -332,13 +332,79 @@ export class MenuPage {
     await waitForBusyIndicatorsToClear(this.page);
   }
 
+  /** Toolbar cascade-delete switch (not row status/visibility switches). */
+  cascadeDeleteSwitch() {
+    return this.page.getByTestId("menu-cascade-delete-switch");
+  }
+
+  /** Status switch for a menu row identified by visible name. */
+  statusSwitch(menuName: string) {
+    return this.page
+      .locator(".vxe-body--row", { hasText: menuName })
+      .first()
+      .getByTestId("menu-status-switch");
+  }
+
+  /** Visibility switch for a menu row identified by visible name. */
+  visibleSwitch(menuName: string) {
+    return this.page
+      .locator(".vxe-body--row", { hasText: menuName })
+      .first()
+      .getByTestId("menu-visible-switch");
+  }
+
+  /** Toggle a menu row status switch and wait for busy indicators. */
+  async toggleStatus(menuName: string) {
+    const statusSwitch = this.statusSwitch(menuName);
+    await statusSwitch.waitFor({ state: "visible", timeout: 10000 });
+    await statusSwitch.click();
+    await waitForBusyIndicatorsToClear(this.page);
+    await waitForTableReady(this.page);
+  }
+
+  /** Toggle a menu row visibility switch and wait for busy indicators. */
+  async toggleVisible(menuName: string) {
+    const visibleSwitch = this.visibleSwitch(menuName);
+    await visibleSwitch.waitFor({ state: "visible", timeout: 10000 });
+    await visibleSwitch.click();
+    await waitForBusyIndicatorsToClear(this.page);
+    await waitForTableReady(this.page);
+  }
+
+  /**
+   * Expand one tree row by clicking its name cell. Lazy trees only render
+   * children after the parent expand path is triggered.
+   */
+  async expandMenuRow(menuName: string) {
+    const row = this.page
+      .locator(".vxe-body--row", { hasText: menuName })
+      .first();
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    // Prefer the tree expand icon when present; fall back to the name cell.
+    const expandIcon = row.locator(".vxe-tree--node-btn, .vxe-tree-cell").first();
+    if (await expandIcon.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await expandIcon.click();
+    } else {
+      await row.locator(".system-menu-name-column, .vxe-body--column").first().click();
+    }
+    await waitForBusyIndicatorsToClear(this.page);
+  }
+
+  /** Scroll a menu row into view so virtualized cells can render switches. */
+  async revealMenuRow(menuName: string) {
+    const row = this.page
+      .locator(".vxe-body--row", { hasText: menuName })
+      .first();
+    await row.waitFor({ state: "attached", timeout: 10000 });
+    await row.scrollIntoViewIfNeeded();
+    await waitForBusyIndicatorsToClear(this.page);
+  }
+
   /** Delete a menu: find the row, click delete, confirm in Popconfirm */
   async deleteMenu(menuName: string, cascade: boolean = false) {
     // Enable cascade delete if needed
     if (cascade) {
-      const cascadeSwitch = this.page.locator(".ant-switch");
-      const switchContainer = this.page.locator("text=级联删除").locator("..");
-      const cascadeSwitchInContainer = switchContainer.locator(".ant-switch");
+      const cascadeSwitchInContainer = this.cascadeDeleteSwitch();
       if (!(await cascadeSwitchInContainer.isChecked())) {
         await cascadeSwitchInContainer.click();
         await waitForBusyIndicatorsToClear(this.page);
@@ -374,11 +440,8 @@ export class MenuPage {
   async deleteMenuByName(menuName: string, cascade: boolean = false) {
     // If cascade, enable the cascade switch first
     if (cascade) {
-      const cascadeContainer = this.page.locator("text=级联删除").locator("..");
-      const cascadeSwitchInContainer = cascadeContainer.locator(".ant-switch");
-      const isChecked = await cascadeSwitchInContainer.evaluate(
-        (el: any) => el.checked,
-      );
+      const cascadeSwitchInContainer = this.cascadeDeleteSwitch();
+      const isChecked = await cascadeSwitchInContainer.isChecked();
       if (!isChecked) {
         await cascadeSwitchInContainer.click();
         await waitForBusyIndicatorsToClear(this.page);

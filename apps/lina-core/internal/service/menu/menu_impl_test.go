@@ -123,6 +123,185 @@ func TestGetRoleMenuTreeFiltersCheckedKeys(t *testing.T) {
 	}
 }
 
+// TestUpdateCascadesDisableToDescendants verifies disabling a parent marks all
+// descendants disabled without changing their visibility.
+func TestUpdateCascadesDisableToDescendants(t *testing.T) {
+	var (
+		ctx    = context.Background()
+		prefix = fmt.Sprintf("menu-cascade-disable-%d", time.Now().UnixNano())
+		role   = &menuNotifyRoleService{}
+		svc    = &serviceImpl{roleSvc: role}
+	)
+
+	rootID := insertTestMenu(t, ctx, prefix+"-root", 0)
+	childID := insertTestMenu(t, ctx, prefix+"-child", rootID)
+	grandchildID := insertTestMenu(t, ctx, prefix+"-grandchild", childID)
+	siblingID := insertTestMenu(t, ctx, prefix+"-sibling", 0)
+	t.Cleanup(func() {
+		cleanupTestMenus(t, ctx, rootID, childID, grandchildID, siblingID)
+	})
+
+	statusDisabled := 0
+	if err := svc.Update(ctx, UpdateInput{Id: rootID, Status: &statusDisabled}); err != nil {
+		t.Fatalf("disable root menu: %v", err)
+	}
+	if role.notified == 0 {
+		t.Fatal("expected access topology notify after cascade disable")
+	}
+
+	assertMenuFlags(t, ctx, rootID, 1, 0)
+	assertMenuFlags(t, ctx, childID, 1, 0)
+	assertMenuFlags(t, ctx, grandchildID, 1, 0)
+	assertMenuFlags(t, ctx, siblingID, 1, 1)
+}
+
+// TestUpdateCascadesHideToDescendants verifies hiding a parent hides all
+// descendants without changing their status.
+func TestUpdateCascadesHideToDescendants(t *testing.T) {
+	var (
+		ctx    = context.Background()
+		prefix = fmt.Sprintf("menu-cascade-hide-%d", time.Now().UnixNano())
+		svc    = &serviceImpl{roleSvc: &menuNotifyRoleService{}}
+	)
+
+	rootID := insertTestMenu(t, ctx, prefix+"-root", 0)
+	childID := insertTestMenu(t, ctx, prefix+"-child", rootID)
+	grandchildID := insertTestMenu(t, ctx, prefix+"-grandchild", childID)
+	t.Cleanup(func() {
+		cleanupTestMenus(t, ctx, rootID, childID, grandchildID)
+	})
+
+	visibleHidden := 0
+	if err := svc.Update(ctx, UpdateInput{Id: rootID, Visible: &visibleHidden}); err != nil {
+		t.Fatalf("hide root menu: %v", err)
+	}
+
+	assertMenuFlags(t, ctx, rootID, 0, 1)
+	assertMenuFlags(t, ctx, childID, 0, 1)
+	assertMenuFlags(t, ctx, grandchildID, 0, 1)
+}
+
+// TestUpdateEnableCascadesToDescendants verifies enabling a parent restores
+// previously disabled descendants.
+func TestUpdateEnableCascadesToDescendants(t *testing.T) {
+	var (
+		ctx    = context.Background()
+		prefix = fmt.Sprintf("menu-cascade-enable-%d", time.Now().UnixNano())
+		svc    = &serviceImpl{roleSvc: &menuNotifyRoleService{}}
+	)
+
+	rootID := insertTestMenu(t, ctx, prefix+"-root", 0)
+	childID := insertTestMenu(t, ctx, prefix+"-child", rootID)
+	grandchildID := insertTestMenu(t, ctx, prefix+"-grandchild", childID)
+	t.Cleanup(func() {
+		cleanupTestMenus(t, ctx, rootID, childID, grandchildID)
+	})
+
+	statusDisabled := 0
+	statusEnabled := 1
+	if err := svc.Update(ctx, UpdateInput{Id: rootID, Status: &statusDisabled}); err != nil {
+		t.Fatalf("disable root menu: %v", err)
+	}
+	if err := svc.Update(ctx, UpdateInput{Id: rootID, Status: &statusEnabled}); err != nil {
+		t.Fatalf("enable root menu: %v", err)
+	}
+
+	assertMenuFlags(t, ctx, rootID, 1, 1)
+	assertMenuFlags(t, ctx, childID, 1, 1)
+	assertMenuFlags(t, ctx, grandchildID, 1, 1)
+}
+
+// TestUpdateShowCascadesToDescendants verifies showing a parent restores
+// previously hidden descendants.
+func TestUpdateShowCascadesToDescendants(t *testing.T) {
+	var (
+		ctx    = context.Background()
+		prefix = fmt.Sprintf("menu-cascade-show-%d", time.Now().UnixNano())
+		svc    = &serviceImpl{roleSvc: &menuNotifyRoleService{}}
+	)
+
+	rootID := insertTestMenu(t, ctx, prefix+"-root", 0)
+	childID := insertTestMenu(t, ctx, prefix+"-child", rootID)
+	grandchildID := insertTestMenu(t, ctx, prefix+"-grandchild", childID)
+	t.Cleanup(func() {
+		cleanupTestMenus(t, ctx, rootID, childID, grandchildID)
+	})
+
+	visibleHidden := 0
+	visibleShown := 1
+	if err := svc.Update(ctx, UpdateInput{Id: rootID, Visible: &visibleHidden}); err != nil {
+		t.Fatalf("hide root menu: %v", err)
+	}
+	if err := svc.Update(ctx, UpdateInput{Id: rootID, Visible: &visibleShown}); err != nil {
+		t.Fatalf("show root menu: %v", err)
+	}
+
+	assertMenuFlags(t, ctx, rootID, 1, 1)
+	assertMenuFlags(t, ctx, childID, 1, 1)
+	assertMenuFlags(t, ctx, grandchildID, 1, 1)
+}
+
+// TestUpdateDisableWithoutDescendants updates only the target row.
+func TestUpdateDisableWithoutDescendants(t *testing.T) {
+	var (
+		ctx    = context.Background()
+		prefix = fmt.Sprintf("menu-cascade-leaf-%d", time.Now().UnixNano())
+		svc    = &serviceImpl{roleSvc: &menuNotifyRoleService{}}
+	)
+
+	leafID := insertTestMenu(t, ctx, prefix+"-leaf", 0)
+	t.Cleanup(func() {
+		cleanupTestMenus(t, ctx, leafID)
+	})
+
+	statusDisabled := 0
+	if err := svc.Update(ctx, UpdateInput{Id: leafID, Status: &statusDisabled}); err != nil {
+		t.Fatalf("disable leaf menu: %v", err)
+	}
+	assertMenuFlags(t, ctx, leafID, 1, 0)
+}
+
+// menuNotifyRoleService records topology notifications for cascade update tests.
+type menuNotifyRoleService struct {
+	rolesvc.Service
+	notified int
+}
+
+// NotifyAccessTopologyChanged records that a topology revision was requested.
+func (s *menuNotifyRoleService) NotifyAccessTopologyChanged(context.Context) {
+	s.notified++
+}
+
+// assertMenuFlags loads one menu and asserts its visible/status values.
+func assertMenuFlags(t *testing.T, ctx context.Context, id int, visible int, status int) {
+	t.Helper()
+	var menu *entity.SysMenu
+	if err := dao.SysMenu.Ctx(ctx).Where(do.SysMenu{Id: id}).Scan(&menu); err != nil {
+		t.Fatalf("load menu %d: %v", id, err)
+	}
+	if menu == nil {
+		t.Fatalf("menu %d not found", id)
+	}
+	if menu.Visible != visible || menu.Status != status {
+		t.Fatalf("menu %d flags visible=%d status=%d, want visible=%d status=%d",
+			id, menu.Visible, menu.Status, visible, status)
+	}
+}
+
+// cleanupTestMenus hard-deletes the given menu rows after a cascade test.
+func cleanupTestMenus(t *testing.T, ctx context.Context, ids ...int) {
+	t.Helper()
+	if len(ids) == 0 {
+		return
+	}
+	if _, err := dao.SysMenu.Ctx(ctx).
+		Unscoped().
+		WhereIn(dao.SysMenu.Columns().Id, ids).
+		Delete(); err != nil {
+		t.Fatalf("cleanup test menus: %v", err)
+	}
+}
+
 // menuRoleTreeRoleService is the narrow role facade used by menu tree tests.
 type menuRoleTreeRoleService struct {
 	rolesvc.Service

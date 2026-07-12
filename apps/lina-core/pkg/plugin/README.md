@@ -77,7 +77,12 @@ New capabilities should enter `capability.Services` only when source plugins and
 `Storage()` provider selection is configuration-free. The host uses the only
 enabled storage provider plugin when exactly one is serviceable, falls back to
 the built-in local provider when none is serviceable, and rejects storage calls
-when multiple provider plugins are serviceable.
+when multiple provider plugins are serviceable. File-center object content
+(upload/download/delete) uses the same provider selection rules; list and search
+remain on `sys_file`. Official cloud backends
+(`linapro-storage-cos`, `linapro-storage-oss`, `linapro-storage-aws`, `linapro-storage-s3`) register via
+`storagecap.Provide` and expose credentials under the host stable **Storage**
+menu (`menu_key=storage`).
 
 ## Plugin Configuration Sources
 

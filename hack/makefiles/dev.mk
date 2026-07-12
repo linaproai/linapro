@@ -2,7 +2,7 @@
 # LinaPro 开发服务指令
 # ================================
 
-DEV_ARGS := backend_port=$(BACKEND_PORT) frontend_port=$(FRONTEND_PORT)
+DEV_ARGS := backend_port=$(LINA_CORE_PORT) frontend_port=$(LINA_VBEN_PORT)
 ifneq ($(origin plugins), undefined)
 DEV_ARGS += plugins=$(plugins)
 endif
@@ -17,7 +17,7 @@ endif
 dev:
 	@$(LINACTL) dev $(DEV_ARGS)
 
-STOP_ARGS := backend_port=$(BACKEND_PORT) frontend_port=$(FRONTEND_PORT)
+STOP_ARGS := backend_port=$(LINA_CORE_PORT) frontend_port=$(LINA_VBEN_PORT)
 ifneq ($(origin dir), undefined)
 STOP_ARGS += dir=$(dir)
 endif
@@ -29,7 +29,7 @@ endif
 stop:
 	@$(LINACTL) stop $(STOP_ARGS)
 
-STATUS_ARGS := backend_port=$(BACKEND_PORT) frontend_port=$(FRONTEND_PORT)
+STATUS_ARGS := backend_port=$(LINA_CORE_PORT) frontend_port=$(LINA_VBEN_PORT)
 ifneq ($(origin dir), undefined)
 STATUS_ARGS += dir=$(dir)
 endif

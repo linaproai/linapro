@@ -93,6 +93,7 @@ openspec/            -> OpenSpec documents
 
 ```bash
 make dev                         # Start frontend and backend (frontend: 5666, backend: 9120)
+LINA_CORE_PORT=18080 LINA_VBEN_PORT=3000 make dev   # Override ports via environment (no config edits)
 make dev plugins=0               # Force host-only mode without official source plugins
 make stop                        # Stop all services
 make status                      # Check service status

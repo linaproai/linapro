@@ -304,3 +304,94 @@ func (c *logCapture) WaitFor(t *testing.T, substring string) string {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+func TestValidateListenAddressAcceptsCommonForms(t *testing.T) {
+	t.Parallel()
+	cases := []string{
+		":9120",
+		"0.0.0.0:9120",
+		"127.0.0.1:18080",
+		"[::1]:9120",
+		":1",
+		":65535",
+		"127.0.0.1:9120,0.0.0.0:9121",
+	}
+	for _, address := range cases {
+		address := address
+		t.Run(address, func(t *testing.T) {
+			t.Parallel()
+			if err := validateListenAddress(address); err != nil {
+				t.Fatalf("expected %q valid, got %v", address, err)
+			}
+		})
+	}
+}
+
+func TestValidateListenAddressRejectsInvalidForms(t *testing.T) {
+	t.Parallel()
+	cases := []string{
+		"",
+		"   ",
+		"not-an-address",
+		"9120",
+		":0",
+		":65536",
+		"127.0.0.1:",
+		"127.0.0.1:abc",
+		",:9120",
+		":9120,",
+	}
+	for _, address := range cases {
+		address := address
+		t.Run(address, func(t *testing.T) {
+			t.Parallel()
+			if err := validateListenAddress(address); err == nil {
+				t.Fatalf("expected %q invalid", address)
+			}
+		})
+	}
+}
+
+func TestResolveServerAddressOverrideEmptyUsesConfig(t *testing.T) {
+	t.Setenv(serverAddressEnvName, "")
+	address, overridden, err := resolveServerAddressOverride()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if overridden || address != "" {
+		t.Fatalf("expected no override, got address=%q overridden=%v", address, overridden)
+	}
+}
+
+func TestResolveServerAddressOverrideWhitespaceUsesConfig(t *testing.T) {
+	t.Setenv(serverAddressEnvName, "   ")
+	address, overridden, err := resolveServerAddressOverride()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if overridden || address != "" {
+		t.Fatalf("expected no override, got address=%q overridden=%v", address, overridden)
+	}
+}
+
+func TestResolveServerAddressOverrideValid(t *testing.T) {
+	t.Setenv(serverAddressEnvName, "127.0.0.1:18080")
+	address, overridden, err := resolveServerAddressOverride()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !overridden || address != "127.0.0.1:18080" {
+		t.Fatalf("expected override 127.0.0.1:18080, got address=%q overridden=%v", address, overridden)
+	}
+}
+
+func TestResolveServerAddressOverrideInvalid(t *testing.T) {
+	t.Setenv(serverAddressEnvName, "bad-address")
+	_, overridden, err := resolveServerAddressOverride()
+	if err == nil {
+		t.Fatal("expected error for invalid address")
+	}
+	if overridden {
+		t.Fatal("invalid address must not report overridden")
+	}
+}

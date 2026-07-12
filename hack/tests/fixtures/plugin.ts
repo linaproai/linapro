@@ -133,7 +133,14 @@ export async function syncPlugins(adminApi: APIRequestContext) {
 export async function listPlugins(
   adminApi: APIRequestContext,
 ): Promise<PluginListItem[]> {
-  const response = await adminApi.get('plugins');
+  // Request a large page so findPlugin/prepareSourcePluginsBaseline remain
+  // reliable as official source plugins grow past the API default page size.
+  const response = await adminApi.get('plugins', {
+    params: {
+      page: 1,
+      pageSize: 100,
+    },
+  });
   assertOk(response, '查询插件列表失败');
   const payload = unwrapApiData(await response.json());
   return payload?.list ?? [];

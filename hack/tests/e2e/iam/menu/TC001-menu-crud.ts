@@ -51,8 +51,8 @@ test.describe("TC001 菜单管理 CRUD", () => {
     const menuPage = new MenuPage(adminPage);
     await menuPage.goto();
 
-    // Find the cascade delete switch
-    const cascadeSwitch = adminPage.locator(".ant-switch").first();
+    // Toolbar cascade-delete switch must not collide with row status switches.
+    const cascadeSwitch = menuPage.cascadeDeleteSwitch();
     await cascadeSwitch.waitFor({ state: "visible", timeout: 5000 });
 
     // Get initial state via aria-checked attribute

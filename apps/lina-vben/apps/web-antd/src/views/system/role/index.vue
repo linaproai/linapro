@@ -159,9 +159,43 @@ function handleMultiDelete() {
   });
 }
 
-async function handleStatusChange(row: Role) {
-  await roleStatusChange(row.id, row.status);
-  message.success($t('pages.system.role.messages.statusUpdated'));
+/** Row IDs currently submitting a status switch request. */
+const statusChangingIds = ref<Record<number, boolean>>({});
+
+function isStatusChanging(row: Role) {
+  return statusChangingIds.value[row.id] === true;
+}
+
+function setStatusChanging(id: number, changing: boolean) {
+  const next = { ...statusChangingIds.value };
+  if (changing) {
+    next[id] = true;
+  } else {
+    delete next[id];
+  }
+  statusChangingIds.value = next;
+}
+
+async function handleStatusChange(row: Role, checked: boolean) {
+  if (row.id === 1 || isStatusChanging(row)) {
+    return;
+  }
+  const previous = row.status;
+  const next = checked ? 1 : 0;
+  if (previous === next) {
+    return;
+  }
+  setStatusChanging(row.id, true);
+  row.status = next;
+  try {
+    await roleStatusChange(row.id, next);
+    message.success($t('pages.system.role.messages.statusUpdated'));
+  } catch {
+    row.status = previous;
+    await tableApi.query();
+  } finally {
+    setStatusChanging(row.id, false);
+  }
 }
 
 function onReload() {
@@ -194,13 +228,12 @@ function handleAssignRole(record: Role) {
       </template>
       <template #status="{ row }">
         <Switch
-          v-model:checked="row.status"
-          :checked-value="1"
-          :un-checked-value="0"
+          :checked="row.status === 1"
           :checked-children="statusLabel.checked"
           :un-checked-children="statusLabel.unchecked"
-          :disabled="row.id === 1"
-          @change="() => handleStatusChange(row)"
+          :loading="isStatusChanging(row)"
+          :disabled="row.id === 1 || isStatusChanging(row)"
+          @change="(checked) => handleStatusChange(row, !!checked)"
         />
       </template>
       <template #action="{ row }">

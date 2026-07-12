@@ -22,8 +22,8 @@ import (
 // fakeAccessStorage records object reads and returns deterministic content.
 type fakeAccessStorage struct {
 	storagesvc.Service
-	content string // content returned by Get
-	getPath string // getPath records the path requested by OpenByPath
+	content string
+	getPath string
 }
 
 // Get returns the configured test content and records the requested object path.
@@ -35,6 +35,7 @@ func (s *fakeAccessStorage) Get(_ context.Context, in storagesvc.GetInput) (*sto
 		Found:  true,
 	}, nil
 }
+
 
 // TestOpenByPathRejectsParentTraversalWithoutStorageAccess verifies unsafe URL
 // path segments are rejected before metadata lookup or storage access.

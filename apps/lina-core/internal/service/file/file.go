@@ -89,6 +89,7 @@ type serviceImpl struct {
 }
 
 // New creates and returns a new file service from explicit runtime-owned dependencies.
+// storage is the host-wide Storage Service used for file-center content Put/Get/Delete.
 func New(configSvc config.Service, storage storagesvc.Service, bizCtxSvc bizctx.Service, dictSvc dictsvc.Service, scopeSvc datascope.Service) Service {
 	return &serviceImpl{
 		configSvc: configSvc,

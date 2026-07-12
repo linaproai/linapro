@@ -64,6 +64,7 @@ docker compose -f hack/deploy/docker-compose.yaml up -d
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
 | `LINAPRO_HTTP_PORT` | `9120` | 映射到 LinaPro 容器`9120`端口的主机端口。 |
+| `LINAPRO_SERVER_ADDRESS` | （未设置） | 设置后覆盖进程监听地址（`server.address`），例如 `:18080` 或 `0.0.0.0:9120`。不替代 Docker 宿主机端口映射。 |
 | `LINAPRO_IMAGE` | `ghcr.io/linaproai/linapro:nightly` | 要运行的 LinaPro 镜像。 |
 | `LINAPRO_POSTGRES_IMAGE` | `postgres:14-alpine` | 要运行的 PostgreSQL 兼容镜像。 |
 

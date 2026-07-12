@@ -64,6 +64,7 @@ Common settings:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `LINAPRO_HTTP_PORT` | `9120` | Host port mapped to the LinaPro container port `9120`. |
+| `LINAPRO_SERVER_ADDRESS` | (unset) | When set, overrides process listen address (`server.address`), e.g. `:18080` or `0.0.0.0:9120`. Does not replace Docker host port mapping. |
 | `LINAPRO_IMAGE` | `ghcr.io/linaproai/linapro:nightly` | LinaPro image to run. |
 | `LINAPRO_POSTGRES_IMAGE` | `postgres:14-alpine` | PostgreSQL-compatible image to run. |
 
