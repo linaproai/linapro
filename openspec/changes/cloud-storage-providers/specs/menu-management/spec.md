@@ -6,8 +6,9 @@
 
 #### Scenario:查询默认后台菜单骨架
 - **当** 宿主为当前用户投射默认后台菜单时
-- **则** 一级目录按以下结构组织：`工作台`、`权限管理`、`组织管理`、`系统设置`、`内容管理`、`系统监控`、`任务调度`、`存储管理`、`扩展中心`、`开发中心`
-- **且** 这些一级目录对应的宿主稳定父级 `menu_key` 分别为 `dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`storage`、`extension`、`developer`
+- **则** 一级目录按以下结构组织：`工作台`、`权限管理`、`组织管理`、`系统设置`、`内容管理`、`系统监控`、`任务调度`、`扩展中心`、`开发中心`
+- **且** 这些一级目录对应的宿主稳定父级 `menu_key` 分别为 `dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`extension`、`developer`
+- **且** MUST NOT 将 `storage`（存储管理）作为一级宿主稳定目录
 
 #### Scenario:一级目录作为宿主稳定目录记录存在
 - **当** 宿主初始化或同步默认后台菜单骨架时
@@ -40,7 +41,8 @@
 
 #### Scenario:云存储 provider 插件挂载菜单
 - **当** `linapro-storage-cos`、`linapro-storage-oss`、`linapro-storage-obs`、`linapro-storage-qiniu`、`linapro-storage-aws`、`linapro-storage-azure` 或 `linapro-storage-s3` 将菜单同步到宿主时
-- **则** 其配置管理菜单 MUST 挂载到 `存储管理`（`parent_key: storage`）
+- **则** 其配置管理菜单 MUST 挂载到 `系统设置`（`parent_key: setting`）
+- **且** 不挂载到独立的 `存储管理` 一级目录
 - **且** 不挂载到 `扩展中心` 作为配置入口父目录
 - **且** `扩展中心/插件管理` 仍负责安装和启停管理
 
@@ -58,7 +60,7 @@
 - **且** 父目录 `系统监控` 继续保留
 - **且** 如果所有监控子菜单都不可见，父目录也将被隐藏
 
-#### Scenario:存储管理无可见菜单
+#### Scenario:系统设置下无云存储配置菜单
 - **当** 所有云存储 provider 插件未安装、未启用或当前用户无权访问其配置菜单时
-- **则** `存储管理` 不出现在左侧导航中
-- **且** 宿主不删除 `menu_key = storage` 的稳定目录记录
+- **则** 「系统设置」下不出现这些云存储配置子菜单
+- **且** 「系统设置」因仍有宿主内建设置菜单（如字典、参数、文件管理）而可继续可见

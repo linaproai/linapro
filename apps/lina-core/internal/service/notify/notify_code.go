@@ -22,6 +22,24 @@ var (
 		"Notification channel type {channelType} is not supported",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeNotifyEmailDeliveryUnavailable reports that mail-core email delivery is not registered.
+	CodeNotifyEmailDeliveryUnavailable = bizerr.MustDefine(
+		"NOTIFY_EMAIL_DELIVERY_UNAVAILABLE",
+		"Email notification delivery is unavailable; install and enable linapro-mail-core",
+		gcode.CodeInvalidOperation,
+	)
+	// CodeNotifyEmailRecipientRequired reports that email delivery has no recipients.
+	CodeNotifyEmailRecipientRequired = bizerr.MustDefine(
+		"NOTIFY_EMAIL_RECIPIENT_REQUIRED",
+		"Email notification recipients cannot be empty",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeNotifyEmailDeliveryFailed reports that email delivery failed after message creation.
+	CodeNotifyEmailDeliveryFailed = bizerr.MustDefine(
+		"NOTIFY_EMAIL_DELIVERY_FAILED",
+		"Email notification delivery failed",
+		gcode.CodeInternalError,
+	)
 	// CodeNotifyTitleRequired reports that a notification title is required.
 	CodeNotifyTitleRequired = bizerr.MustDefine(
 		"NOTIFY_TITLE_REQUIRED",

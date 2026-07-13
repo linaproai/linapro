@@ -511,6 +511,127 @@ func TestRunFrontendKeysCommandPasses(t *testing.T) {
 	}
 }
 
+// TestValidatePluginDisplayMetadataKeysReportsBareKeys verifies i18n-enabled
+// plugins cannot ship bare name/description keys for management-list localization.
+func TestValidatePluginDisplayMetadataKeysReportsBareKeys(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "plugin.yaml"),
+		"id: demo-mail\ni18n:\n  enabled: true\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "manifest", "i18n", "zh-CN", "plugin.json"),
+		"{\"name\":\"邮件演示\",\"description\":\"错误的顶层 key\"}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "manifest", "i18n", "en-US", "plugin.json"),
+		"{\"name\":\"Mail Demo\",\"description\":\"bare keys\"}\n",
+	)
+
+	errors, err := validatePluginDisplayMetadataKeys(repoRoot)
+	if err != nil {
+		t.Fatalf("expected validation to run, got error: %v", err)
+	}
+	if len(errors) == 0 {
+		t.Fatal("expected bare metadata key failures")
+	}
+	joined := strings.Join(errors, "\n")
+	for _, expected := range []string{
+		"plugin:demo-mail",
+		"plugin.demo-mail.name",
+		"plugin.demo-mail.description",
+		"bare name/description",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected error to mention %q, got:\n%s", expected, joined)
+		}
+	}
+}
+
+// TestValidatePluginDisplayMetadataKeysPassesWhenNamespaced verifies correct
+// plugin.<id>.name/description keys pass the management-list metadata check.
+func TestValidatePluginDisplayMetadataKeysPassesWhenNamespaced(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "plugin.yaml"),
+		"id: demo-mail\ni18n:\n  enabled: true\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "manifest", "i18n", "zh-CN", "plugin.json"),
+		"{\"plugin\":{\"demo-mail\":{\"name\":\"邮件演示\",\"description\":\"正确的命名空间\"}}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "manifest", "i18n", "en-US", "plugin.json"),
+		"{\"plugin\":{\"demo-mail\":{\"name\":\"Mail Demo\",\"description\":\"correct namespace\"}}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "single-lang", "plugin.yaml"),
+		"id: single-lang\ni18n:\n  enabled: false\n",
+	)
+
+	errors, err := validatePluginDisplayMetadataKeys(repoRoot)
+	if err != nil {
+		t.Fatalf("expected validation to run, got error: %v", err)
+	}
+	if len(errors) != 0 {
+		t.Fatalf("expected namespaced keys to pass, got %#v", errors)
+	}
+}
+
+// TestValidateRuntimeI18NMessagesIncludesPluginDisplayMetadata verifies the
+// consolidated messages check surfaces bare plugin display keys.
+func TestValidateRuntimeI18NMessagesIncludesPluginDisplayMetadata(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "manifest", "i18n", "zh-CN", "framework.json"),
+		"{\"framework\":{\"name\":\"LinaPro\"}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"),
+		"{\"framework\":{\"name\":\"LinaPro\"}}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "plugin.yaml"),
+		"id: demo-mail\ni18n:\n  enabled: true\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "manifest", "i18n", "zh-CN", "plugin.json"),
+		"{\"name\":\"邮件演示\",\"description\":\"错误的顶层 key\"}\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-plugins", "demo-mail", "manifest", "i18n", "en-US", "plugin.json"),
+		"{\"name\":\"Mail Demo\",\"description\":\"bare keys\"}\n",
+	)
+
+	errors, err := validateRuntimeI18NMessages(repoRoot)
+	if err != nil {
+		t.Fatalf("expected validation to run, got error: %v", err)
+	}
+	joined := strings.Join(errors, "\n")
+	if !strings.Contains(joined, "plugin.demo-mail.name") {
+		t.Fatalf("expected consolidated messages check to report display key gap, got:\n%s", joined)
+	}
+}
+
 // TestRunMessagesCommandPasses verifies the command prints the expected pass message.
 func TestRunMessagesCommandPasses(t *testing.T) {
 	t.Parallel()
@@ -542,6 +663,9 @@ func TestRunMessagesCommandPasses(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "bizerr messageKey coverage") {
 		t.Fatalf("expected bizerr coverage mention in pass message, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "plugin display metadata keys") {
+		t.Fatalf("expected plugin display metadata mention in pass message, got %q", out.String())
 	}
 }
 

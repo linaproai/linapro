@@ -16,7 +16,7 @@
 **Goals:**
 
 - 交付 COS / OSS / OBS / 七牛 / AWS / Azure / S3 兼容等官方 source provider 插件，业务调用面仍仅 `Storage()`
-- 宿主预留 `storage`（存储管理）稳定目录，云插件配置页挂载其下
+- 云插件配置页挂载到既有宿主目录 `setting`（系统设置），不新增独立「存储管理」一级目录
 - 配置页交互与密钥治理对齐授权登录子页
 - 保持唯一 active provider 语义（启用状态驱动，不新增主配置 active 项）
 
@@ -27,29 +27,25 @@
 - 跨 provider 迁移工具
 - 按租户选择不同云后端
 - 新建 `linapro-storage-core` 或任何仅为菜单存在的领域壳插件
+- 独立 `storage` 一级宿主稳定目录
 - 动态插件实现 Provider（SDK 与进程内注册要求 source）
 
 ## Decisions
 
-### 1. 父目录归宿主，不设 storage-core
+### 1. 配置入口挂系统设置，不设 storage 一级目录 / storage-core
 
-**决策**：在宿主菜单种子增加 `menu_key=storage`，`type=D`，名称「存储管理」；云插件 `parent_key: storage`。
+**决策**：云插件 `parent_key: setting`；不新增 `menu_key=storage` 一级目录，也不引入 `linapro-storage-core`。
 
-**理由**：Storage 是 core-owned；与 `monitor` 挂载监控插件同构。避免卸载某一云插件带走父目录。
+**理由**：云存储配置属于运维设置面，与字典、参数、文件管理等同属「系统设置」语义；避免一级导航膨胀。Storage 领域能力仍是 core-owned，仅配置入口复用既有宿主目录。
 
-**替代**：`linapro-storage-core` 只建目录——过重且误导「领域引擎在插件」。某云插件兼 owner——卸载副作用不可接受。
+**替代**：独立 `storage` 一级目录——增加空目录治理与侧栏层级，反馈要求去掉。`linapro-storage-core` 只建目录——过重且误导「领域引擎在插件」。
 
-### 2. 菜单 sort
+### 2. 一级目录 sort
 
-**决策**：
+**决策**：`extension` 保持 `sort=10`，`developer` 保持 `sort=11`。`sort=9` 仍留给授权登录域目录。一级侧栏不再插入「存储管理」。
 
-| menu_key | sort |
-|---|---|
-| storage | 10 |
-| extension | 11（由 10 顺延） |
-| developer | 12（由 11 顺延） |
+云存储配置子菜单在「系统设置」下的相对顺序（插件 `sort`）：COS 10 / OSS 20 / OBS 30 / 七牛 35 / AWS 40 / Azure 50 / S3 60。
 
-授权登录（插件 sort=9）保持不变，位于「存储管理」之前。侧栏顺序：授权登录 → **存储管理** → **扩展中心** → 开发中心。
 ### 3. 插件边界（厂商 + 协议）
 
 | 插件 ID | 后端 |
@@ -131,7 +127,7 @@ S3 协议：`accessKey` / `secret` / `endpoint` / `bucket` / `forcePathStyle` / 
 
 ## Migration Plan
 
-1. 升级宿主：执行菜单种子/迁移，写入 `storage` 目录，调整 `extension`/`developer` sort；已有环境无云插件时侧栏不出现空目录。
+1. 升级宿主：移除历史 `storage` 一级目录（若存在），将已挂载云存储菜单改挂到 `setting`；云插件 `parent_key: setting`。
 2. 安装并配置恰好一个云插件 → 启用 → `Storage()` 流量切到云。
 3. 回滚：禁用/卸载云插件 → 自动回退 local（仅影响新读写；云上对象不会自动拉回本地）。
 4. 无强制数据迁移步骤。

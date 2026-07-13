@@ -40,6 +40,8 @@ type sourcePlugin struct {
 	externalIdentityEngine extidspi.ProviderFactory
 	beforeInstall          SourcePluginBeforeLifecycleHandler
 	afterInstall           SourcePluginAfterLifecycleHandler
+	beforeEnable           SourcePluginBeforeLifecycleHandler
+	afterEnable            SourcePluginAfterLifecycleHandler
 	beforeUpgrade          SourcePluginBeforeUpgradeHandler
 	upgradeHandler         SourcePluginUpgradeHandler
 	afterUpgrade           SourcePluginUpgradeHandler
@@ -47,6 +49,10 @@ type sourcePlugin struct {
 	afterDisable           SourcePluginAfterLifecycleHandler
 	beforeUninstall        SourcePluginBeforeLifecycleHandler
 	afterUninstall         SourcePluginAfterLifecycleHandler
+	globalBeforeInstall    SourcePluginGlobalLifecycleHandler
+	globalBeforeEnable     SourcePluginGlobalLifecycleHandler
+	globalBeforeDisable    SourcePluginGlobalLifecycleHandler
+	globalBeforeUninstall  SourcePluginGlobalLifecycleHandler
 	beforeTenantDis        SourcePluginBeforeTenantLifecycleHandler
 	afterTenantDis         SourcePluginAfterTenantLifecycleHandler
 	beforeTenantDel        SourcePluginBeforeTenantLifecycleHandler
@@ -217,6 +223,54 @@ func (p *sourcePlugin) GetAfterInstallHandler() SourcePluginAfterLifecycleHandle
 		return nil
 	}
 	return p.afterInstall
+}
+
+// GetBeforeEnableHandler returns the registered source-plugin pre-enable callback.
+func (p *sourcePlugin) GetBeforeEnableHandler() SourcePluginBeforeLifecycleHandler {
+	if p == nil {
+		return nil
+	}
+	return p.beforeEnable
+}
+
+// GetAfterEnableHandler returns the registered source-plugin post-enable callback.
+func (p *sourcePlugin) GetAfterEnableHandler() SourcePluginAfterLifecycleHandler {
+	if p == nil {
+		return nil
+	}
+	return p.afterEnable
+}
+
+// GetGlobalBeforeInstallHandler returns the registered global pre-install callback.
+func (p *sourcePlugin) GetGlobalBeforeInstallHandler() SourcePluginGlobalLifecycleHandler {
+	if p == nil {
+		return nil
+	}
+	return p.globalBeforeInstall
+}
+
+// GetGlobalBeforeEnableHandler returns the registered global pre-enable callback.
+func (p *sourcePlugin) GetGlobalBeforeEnableHandler() SourcePluginGlobalLifecycleHandler {
+	if p == nil {
+		return nil
+	}
+	return p.globalBeforeEnable
+}
+
+// GetGlobalBeforeDisableHandler returns the registered global pre-disable callback.
+func (p *sourcePlugin) GetGlobalBeforeDisableHandler() SourcePluginGlobalLifecycleHandler {
+	if p == nil {
+		return nil
+	}
+	return p.globalBeforeDisable
+}
+
+// GetGlobalBeforeUninstallHandler returns the registered global pre-uninstall callback.
+func (p *sourcePlugin) GetGlobalBeforeUninstallHandler() SourcePluginGlobalLifecycleHandler {
+	if p == nil {
+		return nil
+	}
+	return p.globalBeforeUninstall
 }
 
 // GetBeforeUpgradeHandler returns the registered source-plugin pre-upgrade callback.

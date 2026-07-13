@@ -131,6 +131,140 @@ func TestRunLifecycleCallbacksRunsTenantDelete(t *testing.T) {
 	}
 }
 
+// TestGlobalLifecycleHookForTargetMapsBeforeHooks verifies target→global mapping.
+func TestGlobalLifecycleHookForTargetMapsBeforeHooks(t *testing.T) {
+	cases := []struct {
+		target LifecycleHook
+		global LifecycleHook
+	}{
+		{LifecycleHookBeforeInstall, LifecycleHookGlobalBeforeInstall},
+		{LifecycleHookBeforeEnable, LifecycleHookGlobalBeforeEnable},
+		{LifecycleHookBeforeDisable, LifecycleHookGlobalBeforeDisable},
+		{LifecycleHookBeforeUninstall, LifecycleHookGlobalBeforeUninstall},
+	}
+	for _, tc := range cases {
+		got, ok := GlobalLifecycleHookForTarget(tc.target)
+		if !ok || got != tc.global {
+			t.Fatalf("target %s: got %s ok=%v", tc.target, got, ok)
+		}
+		if !IsGlobalLifecycleHook(got) {
+			t.Fatalf("expected %s to be a global hook", got)
+		}
+	}
+	if _, ok := GlobalLifecycleHookForTarget(LifecycleHookAfterInstall); ok {
+		t.Fatal("AfterInstall must not map to a global hook")
+	}
+}
+
+// TestListSourcePluginGlobalLifecycleParticipantsOnlyExplicit verifies only
+// plugins that registered a global hook are listed.
+func TestListSourcePluginGlobalLifecycleParticipantsOnlyExplicit(t *testing.T) {
+	owner := NewDeclarations("test-global-owner")
+	if err := owner.Lifecycle().RegisterGlobalBeforeEnableHandler(func(
+		_ context.Context,
+		_ SourcePluginGlobalLifecycleInput,
+	) (bool, string, error) {
+		return false, "plugin.mail.transport.kind_conflict", nil
+	}); err != nil {
+		t.Fatalf("register global handler: %v", err)
+	}
+	observer := NewDeclarations("test-global-observer")
+	cleanupOwner, err := RegisterSourcePluginForTest(owner)
+	if err != nil {
+		t.Fatalf("register owner: %v", err)
+	}
+	t.Cleanup(cleanupOwner)
+	cleanupObserver, err := RegisterSourcePluginForTest(observer)
+	if err != nil {
+		t.Fatalf("register observer: %v", err)
+	}
+	t.Cleanup(cleanupObserver)
+
+	participants := ListSourcePluginGlobalLifecycleParticipants(LifecycleHookGlobalBeforeEnable)
+	if len(participants) != 1 || participants[0].PluginID != owner.ID() {
+		t.Fatalf("expected only owner participant, got %#v", participants)
+	}
+
+	result := RunLifecycleCallbacks(context.Background(), LifecycleRequest{
+		Hook: LifecycleHookGlobalBeforeEnable,
+		GlobalInput: NewSourcePluginGlobalLifecycleInput(
+			"target-smtp-b",
+			LifecycleHookGlobalBeforeEnable.String(),
+		),
+		Participants: participants,
+	})
+	if result.OK || len(result.Decisions) != 1 {
+		t.Fatalf("expected global veto, got %#v", result)
+	}
+	if result.Decisions[0].Reason != "plugin.mail.transport.kind_conflict" {
+		t.Fatalf("unexpected reason: %#v", result.Decisions[0])
+	}
+}
+
+// TestBeforeEnableAndGlobalInputIsolation verifies self BeforeEnable uses PluginInput
+// while global enable uses GlobalInput target identity.
+func TestBeforeEnableAndGlobalInputIsolation(t *testing.T) {
+	plugin := NewDeclarations("test-enable-isolation")
+	var selfPluginID string
+	var globalTargetID string
+	if err := plugin.Lifecycle().RegisterBeforeEnableHandler(func(
+		_ context.Context,
+		input SourcePluginLifecycleInput,
+	) (bool, string, error) {
+		selfPluginID = input.PluginID()
+		return true, "", nil
+	}); err != nil {
+		t.Fatalf("register before enable: %v", err)
+	}
+	if err := plugin.Lifecycle().RegisterGlobalBeforeEnableHandler(func(
+		_ context.Context,
+		input SourcePluginGlobalLifecycleInput,
+	) (bool, string, error) {
+		globalTargetID = input.TargetPluginID()
+		return true, "", nil
+	}); err != nil {
+		t.Fatalf("register global before enable: %v", err)
+	}
+
+	targetCallbacks := NewSourcePluginLifecycleCallbackAdapter(plugin.(SourcePluginDefinition))
+	targetResult := RunLifecycleCallbacks(context.Background(), LifecycleRequest{
+		Hook:        LifecycleHookBeforeEnable,
+		PluginInput: NewSourcePluginLifecycleInput(plugin.ID(), LifecycleHookBeforeEnable.String()),
+		Participants: []LifecycleParticipant{{
+			PluginID:  plugin.ID(),
+			Callbacks: targetCallbacks,
+		}},
+	})
+	if !targetResult.OK {
+		t.Fatalf("target before enable failed: %#v", targetResult)
+	}
+	if selfPluginID != plugin.ID() {
+		t.Fatalf("self before enable saw plugin id %q", selfPluginID)
+	}
+
+	globalCallbacks := NewSourcePluginGlobalLifecycleCallbackAdapter(
+		plugin.(SourcePluginDefinition),
+		LifecycleHookGlobalBeforeEnable,
+	)
+	globalResult := RunLifecycleCallbacks(context.Background(), LifecycleRequest{
+		Hook: LifecycleHookGlobalBeforeEnable,
+		GlobalInput: NewSourcePluginGlobalLifecycleInput(
+			"other-plugin",
+			LifecycleHookGlobalBeforeEnable.String(),
+		),
+		Participants: []LifecycleParticipant{{
+			PluginID:  plugin.ID(),
+			Callbacks: globalCallbacks,
+		}},
+	})
+	if !globalResult.OK {
+		t.Fatalf("global before enable failed: %#v", globalResult)
+	}
+	if globalTargetID != "other-plugin" {
+		t.Fatalf("global handler saw target %q", globalTargetID)
+	}
+}
+
 // TestRunLifecycleCallbacksRunsInstallModeChange verifies install-mode changes
 // are first-class lifecycle preconditions.
 func TestRunLifecycleCallbacksRunsInstallModeChange(t *testing.T) {

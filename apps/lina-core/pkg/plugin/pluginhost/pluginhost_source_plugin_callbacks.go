@@ -66,6 +66,14 @@ type SourcePluginBeforeLifecycleHandler func(ctx context.Context, input SourcePl
 // callback invoked after a generic source-plugin lifecycle operation succeeds.
 type SourcePluginAfterLifecycleHandler func(ctx context.Context, input SourcePluginLifecycleInput) error
 
+// SourcePluginGlobalLifecycleHandler defines one callback that may veto a
+// lifecycle operation targeting another plugin. Handlers receive the target
+// plugin identity and must not assume they are the install/enable subject.
+type SourcePluginGlobalLifecycleHandler func(
+	ctx context.Context,
+	input SourcePluginGlobalLifecycleInput,
+) (ok bool, reason string, err error)
+
 // SourcePluginBeforeUpgradeHandler defines one callback that may veto a
 // source-plugin runtime upgrade before side effects run.
 type SourcePluginBeforeUpgradeHandler func(ctx context.Context, input SourcePluginUpgradeInput) (ok bool, reason string, err error)

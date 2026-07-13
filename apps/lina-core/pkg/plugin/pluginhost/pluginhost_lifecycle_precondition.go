@@ -60,6 +60,18 @@ const (
 	LifecycleHookBeforeInstallModeChange LifecycleHook = "BeforeInstallModeChange"
 	// LifecycleHookAfterInstallModeChange observes successful install-mode changes.
 	LifecycleHookAfterInstallModeChange LifecycleHook = "AfterInstallModeChange"
+	// LifecycleHookBeforeEnable protects global plugin enable for the target plugin.
+	LifecycleHookBeforeEnable LifecycleHook = "BeforeEnable"
+	// LifecycleHookAfterEnable observes successful global plugin enable for the target plugin.
+	LifecycleHookAfterEnable LifecycleHook = "AfterEnable"
+	// LifecycleHookGlobalBeforeInstall lets owner plugins veto another plugin's install.
+	LifecycleHookGlobalBeforeInstall LifecycleHook = "GlobalBeforeInstall"
+	// LifecycleHookGlobalBeforeEnable lets owner plugins veto another plugin's enable.
+	LifecycleHookGlobalBeforeEnable LifecycleHook = "GlobalBeforeEnable"
+	// LifecycleHookGlobalBeforeDisable lets owner plugins veto another plugin's disable.
+	LifecycleHookGlobalBeforeDisable LifecycleHook = "GlobalBeforeDisable"
+	// LifecycleHookGlobalBeforeUninstall lets owner plugins veto another plugin's uninstall.
+	LifecycleHookGlobalBeforeUninstall LifecycleHook = "GlobalBeforeUninstall"
 )
 
 type lifecycleCallback func(ctx context.Context, req LifecycleRequest) (ok bool, reason string, err error)
@@ -141,6 +153,61 @@ func ListSourcePluginLifecycleParticipantsForPlugin(pluginID string) []Lifecycle
 	}}
 }
 
+// ListSourcePluginGlobalLifecycleParticipants returns participants that
+// explicitly registered the given global Before* hook. Plugins without that
+// registration are omitted so install/enable paths stay cheap.
+func ListSourcePluginGlobalLifecycleParticipants(hook LifecycleHook) []LifecycleParticipant {
+	if !IsGlobalLifecycleHook(hook) {
+		return nil
+	}
+	plugins := ListSourcePlugins()
+	items := make([]LifecycleParticipant, 0, len(plugins))
+	for _, plugin := range plugins {
+		if plugin == nil || plugin.ID() == "" {
+			continue
+		}
+		callbacks := NewSourcePluginGlobalLifecycleCallbackAdapter(plugin, hook)
+		if callbacks.empty() {
+			continue
+		}
+		items = append(items, LifecycleParticipant{
+			PluginID:  plugin.ID(),
+			Callbacks: callbacks,
+		})
+	}
+	return items
+}
+
+// IsGlobalLifecycleHook reports whether hook is a GlobalBefore* operation.
+func IsGlobalLifecycleHook(hook LifecycleHook) bool {
+	switch hook {
+	case LifecycleHookGlobalBeforeInstall,
+		LifecycleHookGlobalBeforeEnable,
+		LifecycleHookGlobalBeforeDisable,
+		LifecycleHookGlobalBeforeUninstall:
+		return true
+	default:
+		return false
+	}
+}
+
+// GlobalLifecycleHookForTarget maps a target-scoped Before* hook to its global twin.
+// ok is false when the target hook has no global counterpart.
+func GlobalLifecycleHookForTarget(hook LifecycleHook) (LifecycleHook, bool) {
+	switch hook {
+	case LifecycleHookBeforeInstall:
+		return LifecycleHookGlobalBeforeInstall, true
+	case LifecycleHookBeforeEnable:
+		return LifecycleHookGlobalBeforeEnable, true
+	case LifecycleHookBeforeDisable:
+		return LifecycleHookGlobalBeforeDisable, true
+	case LifecycleHookBeforeUninstall:
+		return LifecycleHookGlobalBeforeUninstall, true
+	default:
+		return "", false
+	}
+}
+
 // LifecycleRequest describes one lifecycle callback aggregation run.
 type LifecycleRequest struct {
 	Hook             LifecycleHook // Hook selects which callback function to invoke.
@@ -149,9 +216,11 @@ type LifecycleRequest struct {
 	UpgradeInput     SourcePluginUpgradeInput
 	TenantInput      SourcePluginTenantLifecycleInput
 	InstallModeInput SourcePluginInstallModeChangeInput
-	Participants     []LifecycleParticipant // Participants are invoked concurrently.
-	HookTimeout      time.Duration          // HookTimeout overrides the per-callback timeout.
-	TotalTimeout     time.Duration          // TotalTimeout overrides the aggregate timeout.
+	// GlobalInput carries target identity for GlobalBefore* participants.
+	GlobalInput  SourcePluginGlobalLifecycleInput
+	Participants []LifecycleParticipant // Participants are invoked concurrently.
+	HookTimeout  time.Duration          // HookTimeout overrides the per-callback timeout.
+	TotalTimeout time.Duration          // TotalTimeout overrides the aggregate timeout.
 }
 
 // LifecycleDecision is one plugin callback result.

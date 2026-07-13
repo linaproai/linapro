@@ -81,8 +81,8 @@ when multiple provider plugins are serviceable. File-center object content
 (upload/download/delete) uses the same provider selection rules; list and search
 remain on `sys_file`. Official cloud backends
 (`linapro-storage-cos`, `linapro-storage-oss`, `linapro-storage-aws`, `linapro-storage-s3`) register via
-`storagecap.Provide` and expose credentials under the host stable **Storage**
-menu (`menu_key=storage`).
+`storagecap.Provide` and expose credentials under the host stable **System Settings**
+menu (`menu_key=setting`).
 
 ## Plugin Configuration Sources
 
@@ -142,6 +142,31 @@ new `Provide<Domain>` facades, such as `ProvideAIText`, for non-core domains.
 Declaration-time capabilities are the plugin's static declarations and registration output. The host uses them before business execution to build governance state.
 
 Source plugins express declaration-time contracts through `pluginhost.Declarations`, including `Assets()`, `Lifecycle()`, `Hooks()`, `HTTP()`, `Jobs()`, and `Access()`.
+
+### Route registration: bind controller objects with `group.Bind`
+
+When registering source-plugin or host HTTP routes, `group.Bind` **defaults to controller objects** (for example `group.Bind(controller.NewV1(svc))` or `group.Bind(ctrl)`). GoFrame discovers route methods with metadata on the bound object.
+
+Within one middleware group, avoid listing individual methods unless necessary.
+
+When methods on the same logical controller must sit in **different middleware groups** (for example public login vs authenticated management APIs), the host keeps the original split-registration design: bind the public methods on the public group and the protected methods on the protected group, instead of adding Public/Protected controller wrapper types.
+
+### Lifecycle preconditions (target vs global)
+
+`Lifecycle()` supports two precondition styles:
+
+| Kind | Registration | Input | Semantics |
+|------|--------------|-------|-----------|
+| Target | `RegisterBeforeInstallHandler` / `RegisterBeforeEnableHandler`, etc. | `SourcePluginLifecycleInput` | Invoked only when **this** plugin is installed/enabled/disabled/uninstalled; may veto self |
+| Global | `RegisterGlobalBeforeInstallHandler` / `RegisterGlobalBeforeEnableHandler` / `RegisterGlobalBeforeDisableHandler` / `RegisterGlobalBeforeUninstallHandler` | `SourcePluginGlobalLifecycleInput` (includes `TargetPluginID`) | Invoked when **another** plugin is installed/enabled/disabled/uninstalled; owners implement cross-plugin governance (for example singleton kind slots) |
+
+Orchestration:
+
+- Install, enable, disable, and uninstall aggregate **target Before\*** plus explicitly registered **GlobalBefore\*** before state writes.
+- Enable exposes `BeforeEnable` / `AfterEnable`; `AfterEnable` is best-effort and does not roll back a successful enable.
+- Global participant lists include only plugins that registered that global hook (no empty fan-out).
+- The host never hard-codes domain rules (such as mail transport kinds); owners implement conflict logic inside global hooks.
+- Do not simulate global intercept by broadcasting self-scoped `BeforeInstall` to every plugin.
 
 Dynamic plugins express declaration-time contracts through `plugin.yaml`, WASM custom sections, `pluginbridge.Declarations.Routes().Group(...)`, `pluginbridge.Declarations.Jobs().Register(...)`, and embedded `protocol` contracts, such as routes, jobs, lifecycle handlers, backend resources, frontend assets, SQL, i18n resources, and `hostServices`.
 

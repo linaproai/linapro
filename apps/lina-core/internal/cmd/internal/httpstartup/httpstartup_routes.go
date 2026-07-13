@@ -67,10 +67,9 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			group,
 			authCtrl.Login,
 			authCtrl.Refresh,
-			i18nCtrl.RuntimeLocales,
-			i18nCtrl.RuntimeMessages,
+			i18nCtrl,
 			pluginCtrl.DynamicList,
-			publicCfgCtrl.Frontend,
+			publicCfgCtrl,
 			fileCtrl.Access,
 		)
 		bindProtectedStaticAPIRoutes(

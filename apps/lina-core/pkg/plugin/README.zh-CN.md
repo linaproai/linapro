@@ -74,7 +74,7 @@ plugin-owned 非核心能力不归属`capability.Services`。owner 插件在`app
 | 插件需要上传内容并登记到宿主文件中心。 | `Files().Upload` / `files.upload` | 宿主通过文件 owner 写入，让`sys_file`记录租户、上传人、场景、hash 和存储元数据。动态直传有大小上限；更大的动态 payload 应先使用`Storage().Put`。 |
 | 插件已经把对象写入私有存储，并需要宿主文件中心记录。 | `Files().CreateFromStorage` / `files.create_from_storage` | 宿主从插件作用域`Storage()`对象复制到文件中心存储。动态插件还必须为源路径声明`storage.get`。该操作不会移动或删除源对象，也不会暴露 provider key 或本地路径。 |
 
-`Storage()`provider 选择不依赖主配置项。宿主在恰好一个 storage provider 插件可服务时使用该插件，没有可服务 provider 时回退到内置本地 provider，多个 provider 插件同时可服务时拒绝 storage 调用。官方云后端（`linapro-storage-cos`、`linapro-storage-oss`、`linapro-storage-aws`、`linapro-storage-s3`）通过`storagecap.Provide`注册，并在宿主稳定目录**存储管理**（`menu_key=storage`）下提供凭证配置页。文件中心对象内容写入/读取/删除与插件`Storage()`共用同一套 provider 选择规则（0→local，1→云，≥2→冲突）；列表与检索仍基于`sys_file`。
+`Storage()`provider 选择不依赖主配置项。宿主在恰好一个 storage provider 插件可服务时使用该插件，没有可服务 provider 时回退到内置本地 provider，多个 provider 插件同时可服务时拒绝 storage 调用。官方云后端（`linapro-storage-cos`、`linapro-storage-oss`、`linapro-storage-aws`、`linapro-storage-s3`）通过`storagecap.Provide`注册，并在宿主稳定目录**系统设置**（`menu_key=setting`）下提供凭证配置页。文件中心对象内容写入/读取/删除与插件`Storage()`共用同一套 provider 选择规则（0→local，1→云，≥2→冲突）；列表与检索仍基于`sys_file`。
 
 ## 插件配置来源
 
@@ -116,6 +116,31 @@ Core-owned provider factory 声明归属`pluginhost.Declarations.Providers()`。
 声明期能力是插件的静态声明和注册输出。宿主在业务执行前使用这些内容构建治理状态。
 
 源码插件通过`pluginhost.Declarations`表达声明期契约，包括`Assets()`、`Lifecycle()`、`Hooks()`、`HTTP()`、`Jobs()`和`Access()`。
+
+### 路由注册：`group.Bind` 绑定控制器对象
+
+源码插件与宿主 HTTP 路由注册时，`group.Bind` **默认传入控制器对象**（例如`group.Bind(controller.NewV1(svc))` 或 `group.Bind(ctrl)`），由 GoFrame 自动发现对象上带路由元数据的方法。
+
+同一中间件组内应避免无必要地罗列`ctrl.Method1, ctrl.Method2, ...`。
+
+当**同一控制器的方法必须落在不同中间件组**（例如公开登录 vs 鉴权后管理接口）时，宿主沿用拆分注册：公开组与受保护组分别`Bind`对应方法，而不是再套一层 Public/Protected 控制器封装。
+
+### 生命周期前置 Hook（目标 vs 全局）
+
+源码插件`Lifecycle()`支持两类前置回调：
+
+| 类型 | 注册示例 | 输入 | 语义 |
+|------|----------|------|------|
+| 目标插件 | `RegisterBeforeInstallHandler` / `RegisterBeforeEnableHandler` 等 | `SourcePluginLifecycleInput` | 仅当**本插件**被装/启/禁/卸时调用，可否决自身操作 |
+| 全局前置 | `RegisterGlobalBeforeInstallHandler` / `RegisterGlobalBeforeEnableHandler` / `RegisterGlobalBeforeDisableHandler` / `RegisterGlobalBeforeUninstallHandler` | `SourcePluginGlobalLifecycleInput`（含`TargetPluginID`） | 当**其他插件**被装/启/禁/卸时调用，由 owner 做跨插件治理（例如同 kind 单例） |
+
+编排规则：
+
+- 安装、启用、禁用、卸载在写状态前会聚合**目标 Before\*** 与已显式注册的**全局 GlobalBefore\***。
+- 启用路径提供`BeforeEnable`/`AfterEnable`；`AfterEnable` 为 best-effort，不回滚已成功启用。
+- 全局参与者列表只包含注册了对应全局 Hook 的插件，未注册者不参与、无空调用。
+- 宿主不识别业务领域（如邮件 kind）；领域冲突逻辑由 owner 插件在全局 Hook 内实现。
+- 不得通过“向所有插件广播自管 `BeforeInstall`”模拟全局拦截，以免误触发自身安装语义。
 
 动态插件通过`plugin.yaml`、WASM 自定义 section、`pluginbridge.Declarations.Routes().Group(...)`、`pluginbridge.Declarations.Jobs().Register(...)`以及嵌入的`protocol`契约表达声明期契约，例如路由、任务、生命周期处理器、后端资源、前端资源、SQL、i18n 资源和`hostServices`。
 

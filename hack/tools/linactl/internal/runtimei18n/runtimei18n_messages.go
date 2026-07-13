@@ -19,8 +19,9 @@ const (
 )
 
 // validateRuntimeI18NMessages validates all host and plugin runtime i18n scopes
-// (locale key parity) and bizerr messageKey coverage for the host plus every
-// plugin with i18n.enabled=true.
+// (locale key parity), bizerr messageKey coverage for the host plus every
+// plugin with i18n.enabled=true, and plugin management display metadata keys
+// (plugin.<id>.name / plugin.<id>.description).
 func validateRuntimeI18NMessages(repoRoot string) ([]string, error) {
 	scopes, err := iterRuntimeI18NScopes(repoRoot)
 	if err != nil {
@@ -43,6 +44,14 @@ func validateRuntimeI18NMessages(repoRoot string) ([]string, error) {
 		return nil, bizerrErr
 	}
 	errors = append(errors, bizerrErrors...)
+
+	// Plugin management list localizes name/description via plugin.<id>.* keys.
+	// Locale parity alone cannot catch bare name/description JSON mistakes.
+	metadataErrors, metadataErr := validatePluginDisplayMetadataKeys(repoRoot)
+	if metadataErr != nil {
+		return nil, metadataErr
+	}
+	errors = append(errors, metadataErrors...)
 	return errors, nil
 }
 
@@ -226,7 +235,7 @@ func chooseRuntimeBaselineLocale(localeMaps map[string]map[string]string) string
 // emitMessageCoverage writes human-readable coverage results.
 func emitMessageCoverage(out io.Writer, errors []string) error {
 	if len(errors) == 0 {
-		return writeLine(out, "Runtime i18n message coverage passed for host and plugin scopes (locale parity and bizerr messageKey coverage).")
+		return writeLine(out, "Runtime i18n message coverage passed for host and plugin scopes.")
 	}
 	if err := writeLine(out, fmt.Sprintf("Runtime i18n message coverage found %d issue(s):", len(errors))); err != nil {
 		return err

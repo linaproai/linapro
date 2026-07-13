@@ -256,7 +256,7 @@ git grep -l "api/user" -- 'hack/tests/e2e/**/TC*.ts' 'apps/lina-plugins/**/TC*.t
 - 如果与当前变更相关，直接修复
 - 如果是独立问题，重新执行反馈分诊；达到 OpenSpec 门槛才作为新的 FB 任务添加，否则按直接修复或后续风险报告处理
 
-**g. 运行审查** — 完成后调用`lina-review`技能
+**g. 运行审查** — 完成后必须调用`lina-review`技能
 
 ### 7. 综合验证
 

@@ -85,7 +85,7 @@
 
 ### Requirement: 云存储插件必须提供管理配置页与 settings API
 
-每个云 storage provider 插件 SHALL 提供管理后台配置页面与受权限保护的 settings API（查询与保存）。配置页 MUST 挂载到宿主 `storage` 目录（`parent_key: storage`）。页面布局 MUST 与授权登录类设置页保持一致：外层卡片、顶部说明 Alert、水平表单、密钥掩码与「已配置可留空保持」语义。
+每个云 storage provider 插件 SHALL 提供管理后台配置页面与受权限保护的 settings API（查询与保存）。配置页 MUST 挂载到宿主 `setting` 目录（`parent_key: setting`）。页面布局 MUST 与授权登录类设置页保持一致：外层卡片、顶部说明 Alert、水平表单、密钥掩码与「已配置可留空保持」语义。
 
 #### Scenario: 保存并掩码回显密钥
 
@@ -123,6 +123,13 @@
 
 - **WHEN** 管理员提交该插件合法的必填配置（厂商插件含 region；协议插件含 endpoint）与密钥并触发测试连接
 - **THEN** 系统 MUST 对目标桶执行只读探测并返回成功
+
+#### Scenario: 测试连接失败以弹窗展示原因
+
+- **WHEN** 管理员在任一云存储插件配置页点击测试连接且探测失败
+- **THEN** 页面 MUST 以弹窗（或等价模态提示）展示完整可读失败原因，便于排查
+- **AND** MUST NOT 仅依赖页面顶部常驻 Alert 区域展示该错误详情
+- **AND** 成功路径的短 toast 提示 MAY 保留
 
 #### Scenario: 配置错误时探测失败
 

@@ -180,20 +180,33 @@ func (s *serviceImpl) updateSourceStatus(
 	status int,
 ) error {
 	if status == statusflag.EnabledValue.Int() {
-		return s.enableSourcePlugin(ctx, pluginID)
+		return s.enableSourcePlugin(ctx, manifest, pluginID)
 	}
 	return s.disableSourcePlugin(ctx, manifest, pluginID)
 }
 
-// enableSourcePlugin updates source governance state and publishes successful enable side effects.
-func (s *serviceImpl) enableSourcePlugin(ctx context.Context, pluginID string) error {
+// enableSourcePlugin runs BeforeEnable preconditions, updates source governance
+// state, and publishes successful enable side effects including AfterEnable.
+func (s *serviceImpl) enableSourcePlugin(ctx context.Context, manifest *catalog.Manifest, pluginID string) error {
+	if err := s.executeSourcePluginBeforeLifecycle(
+		ctx,
+		manifest,
+		pluginhost.LifecycleHookBeforeEnable,
+		sourceLifecyclePolicy{},
+	); err != nil {
+		return err
+	}
 	if err := s.storeSvc.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		return err
 	}
 	if err := s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_status_changed"); err != nil {
 		return err
 	}
-	return s.notifyPluginEnabled(ctx, pluginID)
+	if err := s.notifyPluginEnabled(ctx, pluginID); err != nil {
+		return err
+	}
+	s.executeSourcePluginAfterLifecycle(ctx, manifest, pluginhost.LifecycleHookAfterEnable, sourceLifecyclePolicy{})
+	return nil
 }
 
 // disableSourcePlugin runs BeforeDisable, updates source governance state, and

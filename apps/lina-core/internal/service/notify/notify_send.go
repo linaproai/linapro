@@ -30,6 +30,8 @@ func (s *serviceImpl) Send(ctx context.Context, in SendInput) (*SendOutput, erro
 	switch ChannelType(channel.ChannelType) {
 	case ChannelTypeInbox:
 		return s.sendInbox(ctx, channel, in)
+	case ChannelTypeEmail:
+		return s.sendEmail(ctx, channel, in)
 	default:
 		return nil, bizerr.NewCode(
 			CodeNotifyChannelTypeUnsupported,

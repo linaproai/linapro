@@ -178,38 +178,70 @@ func (s *serviceImpl) loadSourcePluginMockData(
 	return s.migrationSvc.ExecuteManifestMockSQLFiles(ctx, manifest)
 }
 
-// executeSourcePluginBeforeLifecycle invokes lifecycle facade precondition
-// callbacks registered by one source plugin before host side effects run.
+// executeSourcePluginBeforeLifecycle invokes target-plugin and global
+// lifecycle preconditions before host side effects run.
 func (s *serviceImpl) executeSourcePluginBeforeLifecycle(
 	ctx context.Context,
 	manifest *catalog.Manifest,
 	hook pluginhost.LifecycleHook,
 	policy sourceLifecyclePolicy,
 ) error {
-	if manifest == nil || manifest.SourcePlugin == nil {
+	if manifest == nil {
 		return nil
 	}
-	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
-		Hook: hook,
-		PluginInput: pluginhost.NewSourcePluginLifecycleInputWithPolicy(
-			manifest.ID,
-			hook.String(),
-			pluginhost.SourcePluginLifecyclePolicy{
-				StartupAutoEnable: policy.startupAutoEnable,
-				PurgeStorageData:  policy.purgeStorageData,
+	lifecyclePolicy := pluginhost.SourcePluginLifecyclePolicy{
+		StartupAutoEnable: policy.startupAutoEnable,
+		PurgeStorageData:  policy.purgeStorageData,
+	}
+	var decisions []pluginhost.LifecycleDecision
+	ok := true
+	if manifest.SourcePlugin != nil {
+		targetResult := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
+			Hook: hook,
+			PluginInput: pluginhost.NewSourcePluginLifecycleInputWithPolicy(
+				manifest.ID,
+				hook.String(),
+				lifecyclePolicy,
+			),
+			Participants: []pluginhost.LifecycleParticipant{
+				{
+					PluginID:  manifest.ID,
+					Callbacks: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
+				},
 			},
-		),
-		Participants: []pluginhost.LifecycleParticipant{
-			{
-				PluginID:  manifest.ID,
-				Callbacks: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
-			},
-		},
-	})
-	if result.OK {
+		})
+		if !targetResult.OK {
+			ok = false
+		}
+		decisions = append(decisions, targetResult.Decisions...)
+	}
+	if globalHook, hasGlobal := pluginhost.GlobalLifecycleHookForTarget(hook); hasGlobal {
+		globalParticipants := pluginhost.ListSourcePluginGlobalLifecycleParticipants(globalHook)
+		for _, participant := range globalParticipants {
+			observerServices := capability.Services(nil)
+			if s.capabilities != nil {
+				observerServices = capabilityowner.ServicesForPlugin(s.capabilities, participant.PluginID)
+			}
+			globalResult := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
+				Hook: globalHook,
+				GlobalInput: pluginhost.NewSourcePluginGlobalLifecycleInputWithServices(
+					manifest.ID,
+					globalHook.String(),
+					lifecyclePolicy,
+					observerServices,
+				),
+				Participants: []pluginhost.LifecycleParticipant{participant},
+			})
+			if !globalResult.OK {
+				ok = false
+			}
+			decisions = append(decisions, globalResult.Decisions...)
+		}
+	}
+	if ok {
 		return nil
 	}
-	reasons := s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)
+	reasons := s.summarizeLocalizedLifecycleVetoReasons(ctx, decisions)
 	if policy.force && hook == pluginhost.LifecycleHookBeforeUninstall {
 		if err := ensureForceUninstallEnabled(UninstallOptions{
 			Force:               true,

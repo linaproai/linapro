@@ -722,6 +722,15 @@
         "create": {
           "failed": "创建通知投递记录失败"
         }
+      },
+      "email": {
+        "delivery": {
+          "unavailable": "邮件通知投递不可用，请安装并启用 linapro-mail-core",
+          "failed": "邮件通知投递失败"
+        },
+        "recipient": {
+          "required": "邮件通知收件人不能为空"
+        }
       }
     },
     "permission": {

@@ -19,7 +19,7 @@ var (
 // RegisterSourcePlugin registers one source plugin into the host registry.
 func RegisterSourcePlugin(plugin Declarations) error {
 	if plugin == nil {
-		return gerror.New("pluginhost: source plugin is nil")
+		return gerror.New(errMsgSourcePluginNil)
 	}
 	definition, ok := plugin.(SourcePluginDefinition)
 	if !ok {
@@ -46,7 +46,7 @@ func RegisterSourcePlugin(plugin Declarations) error {
 // registry state.
 func RegisterSourcePluginForTest(plugin Declarations) (func(), error) {
 	if plugin == nil {
-		return nil, gerror.New("pluginhost: source plugin is nil")
+		return nil, gerror.New(errMsgSourcePluginNil)
 	}
 	definition, ok := plugin.(SourcePluginDefinition)
 	if !ok {

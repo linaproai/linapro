@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -227,23 +225,9 @@ func loadRuntimeLocaleMaps(i18nDir string) (map[string]map[string]string, error)
 	return localeMaps, nil
 }
 
-// pluginI18nYAML is the minimal plugin.yaml shape needed for i18n gating.
-type pluginI18nYAML struct {
-	I18n *struct {
-		Enabled bool `yaml:"enabled"`
-	} `yaml:"i18n"`
-}
-
 // pluginI18nEnabled reports whether a plugin explicitly enables runtime i18n.
 // Missing i18n config or enabled=false means single-language plugin (skip).
 func pluginI18nEnabled(pluginYAMLPath string) (bool, error) {
-	content, err := os.ReadFile(pluginYAMLPath)
-	if err != nil {
-		return false, fmt.Errorf("read plugin.yaml: %w", err)
-	}
-	var payload pluginI18nYAML
-	if err = yaml.Unmarshal(content, &payload); err != nil {
-		return false, fmt.Errorf("parse plugin.yaml: %w", err)
-	}
-	return payload.I18n != nil && payload.I18n.Enabled, nil
+	enabled, _, err := pluginI18nIdentity(pluginYAMLPath, "")
+	return enabled, err
 }

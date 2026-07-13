@@ -56,6 +56,26 @@ type SourcePluginLifecycleInput interface {
 	PurgeStorageData() bool
 }
 
+// SourcePluginGlobalLifecycleInput exposes one lifecycle operation on a target
+// plugin to a different source plugin's global precondition callback.
+type SourcePluginGlobalLifecycleInput interface {
+	// TargetPluginID returns the plugin identifier that is being installed,
+	// enabled, disabled, or uninstalled.
+	TargetPluginID() string
+	// Operation returns the stable global lifecycle operation key
+	// (for example GlobalBeforeEnable).
+	Operation() string
+	// StartupAutoEnable reports whether the target action was initiated by
+	// host startup plugin.autoEnable bootstrap.
+	StartupAutoEnable() bool
+	// PurgeStorageData reports whether an uninstall action should clear
+	// plugin-owned storage; false for non-uninstall operations.
+	PurgeStorageData() bool
+	// Services returns the observer plugin-scoped host service directory when
+	// the host lifecycle runner supplies one; it may be nil in unit tests.
+	Services() capability.Services
+}
+
 // SourcePluginTenantLifecycleInput exposes one tenant lifecycle operation to
 // source-plugin precondition callbacks.
 type SourcePluginTenantLifecycleInput interface {
@@ -108,6 +128,16 @@ type sourcePluginLifecycleInput struct {
 	operation         string
 	startupAutoEnable bool
 	purgeStorageData  bool
+}
+
+// sourcePluginGlobalLifecycleInput is the host-owned implementation passed to
+// global source-plugin lifecycle precondition callbacks.
+type sourcePluginGlobalLifecycleInput struct {
+	targetPluginID    string
+	operation         string
+	startupAutoEnable bool
+	purgeStorageData  bool
+	services          capability.Services
 }
 
 // sourcePluginTenantLifecycleInput is the host-owned implementation passed to
@@ -222,6 +252,47 @@ func NewSourcePluginLifecycleInputWithPolicy(
 	}
 }
 
+// NewSourcePluginGlobalLifecycleInput creates one published global lifecycle
+// input wrapper for owner plugins observing another plugin's action.
+func NewSourcePluginGlobalLifecycleInput(
+	targetPluginID string,
+	operation string,
+) SourcePluginGlobalLifecycleInput {
+	return NewSourcePluginGlobalLifecycleInputWithPolicy(targetPluginID, operation, SourcePluginLifecyclePolicy{})
+}
+
+// NewSourcePluginGlobalLifecycleInputWithPolicy creates one global lifecycle
+// input wrapper with host-owned lifecycle metadata attached.
+func NewSourcePluginGlobalLifecycleInputWithPolicy(
+	targetPluginID string,
+	operation string,
+	policy SourcePluginLifecyclePolicy,
+) SourcePluginGlobalLifecycleInput {
+	return NewSourcePluginGlobalLifecycleInputWithServices(
+		targetPluginID,
+		operation,
+		policy,
+		nil,
+	)
+}
+
+// NewSourcePluginGlobalLifecycleInputWithServices creates one global lifecycle
+// input with host services available to the observer plugin.
+func NewSourcePluginGlobalLifecycleInputWithServices(
+	targetPluginID string,
+	operation string,
+	policy SourcePluginLifecyclePolicy,
+	services capability.Services,
+) SourcePluginGlobalLifecycleInput {
+	return &sourcePluginGlobalLifecycleInput{
+		targetPluginID:    targetPluginID,
+		operation:         operation,
+		startupAutoEnable: policy.StartupAutoEnable,
+		purgeStorageData:  policy.PurgeStorageData,
+		services:          services,
+	}
+}
+
 // NewSourcePluginTenantLifecycleInput creates one published tenant lifecycle input wrapper.
 func NewSourcePluginTenantLifecycleInput(operation string, tenantID int) SourcePluginTenantLifecycleInput {
 	return &sourcePluginTenantLifecycleInput{
@@ -324,6 +395,46 @@ func (i *sourcePluginLifecycleInput) PluginID() string {
 		return ""
 	}
 	return i.pluginID
+}
+
+// TargetPluginID returns the plugin targeted by a global lifecycle callback.
+func (i *sourcePluginGlobalLifecycleInput) TargetPluginID() string {
+	if i == nil {
+		return ""
+	}
+	return i.targetPluginID
+}
+
+// Operation returns the global lifecycle operation key.
+func (i *sourcePluginGlobalLifecycleInput) Operation() string {
+	if i == nil {
+		return ""
+	}
+	return i.operation
+}
+
+// StartupAutoEnable reports whether the target action was started by autoEnable.
+func (i *sourcePluginGlobalLifecycleInput) StartupAutoEnable() bool {
+	if i == nil {
+		return false
+	}
+	return i.startupAutoEnable
+}
+
+// PurgeStorageData reports whether uninstall should clear plugin-owned data.
+func (i *sourcePluginGlobalLifecycleInput) PurgeStorageData() bool {
+	if i == nil {
+		return false
+	}
+	return i.purgeStorageData
+}
+
+// Services returns optional host services for the global lifecycle observer.
+func (i *sourcePluginGlobalLifecycleInput) Services() capability.Services {
+	if i == nil {
+		return nil
+	}
+	return i.services
 }
 
 // Operation returns the lifecycle operation key.

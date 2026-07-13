@@ -194,6 +194,54 @@ func (r *sourcePluginLifecycle) RegisterAfterInstallHandler(handler SourcePlugin
 	return r.plugin.registerAfterInstallHandler(handler)
 }
 
+// RegisterBeforeEnableHandler registers one pre-enable veto callback.
+func (r *sourcePluginLifecycle) RegisterBeforeEnableHandler(handler SourcePluginBeforeLifecycleHandler) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin lifecycle facade is nil")
+	}
+	return r.plugin.registerBeforeEnableHandler(handler)
+}
+
+// RegisterAfterEnableHandler registers one post-enable callback.
+func (r *sourcePluginLifecycle) RegisterAfterEnableHandler(handler SourcePluginAfterLifecycleHandler) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin lifecycle facade is nil")
+	}
+	return r.plugin.registerAfterEnableHandler(handler)
+}
+
+// RegisterGlobalBeforeInstallHandler registers one global pre-install veto callback.
+func (r *sourcePluginLifecycle) RegisterGlobalBeforeInstallHandler(handler SourcePluginGlobalLifecycleHandler) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin lifecycle facade is nil")
+	}
+	return r.plugin.registerGlobalBeforeInstallHandler(handler)
+}
+
+// RegisterGlobalBeforeEnableHandler registers one global pre-enable veto callback.
+func (r *sourcePluginLifecycle) RegisterGlobalBeforeEnableHandler(handler SourcePluginGlobalLifecycleHandler) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin lifecycle facade is nil")
+	}
+	return r.plugin.registerGlobalBeforeEnableHandler(handler)
+}
+
+// RegisterGlobalBeforeDisableHandler registers one global pre-disable veto callback.
+func (r *sourcePluginLifecycle) RegisterGlobalBeforeDisableHandler(handler SourcePluginGlobalLifecycleHandler) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin lifecycle facade is nil")
+	}
+	return r.plugin.registerGlobalBeforeDisableHandler(handler)
+}
+
+// RegisterGlobalBeforeUninstallHandler registers one global pre-uninstall veto callback.
+func (r *sourcePluginLifecycle) RegisterGlobalBeforeUninstallHandler(handler SourcePluginGlobalLifecycleHandler) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin lifecycle facade is nil")
+	}
+	return r.plugin.registerGlobalBeforeUninstallHandler(handler)
+}
+
 // RegisterBeforeUpgradeHandler registers one pre-upgrade veto callback.
 func (r *sourcePluginLifecycle) RegisterBeforeUpgradeHandler(handler SourcePluginBeforeUpgradeHandler) error {
 	if r == nil || r.plugin == nil {

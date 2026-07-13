@@ -10,6 +10,23 @@
 
 - **业务模块是否需要使用软删除设计**：以便确定对应的业务模块数据表是否需要增加`deleted_at`字段，编码时是否需要使用到软删除功能。
 
+## 插件业务表命名要求
+
+- 插件在`manifest/sql/`中新增或维护的**插件自有业务表**，表名必须使用**完整插件 ID** 作为前缀，不得使用截断或臆造的短前缀。
+- 命名格式：`plugin_<plugin_id_snake>_<entity>`
+  - `<plugin_id_snake>`：将`plugin.yaml`中的`id`（kebab-case）中的`-`全部替换为`_`，**保留完整 ID 段**（例如`linapro-mail-core` → `linapro_mail_core`，不得写成`linapro_mail`）。
+  - `<entity>`：表业务实体名，小写 snake_case（例如`connection`、`account`、`dept`）。
+- 索引、唯一约束等对象名称应与表前缀保持一致，便于按插件识别与卸载。
+- 正确示例：
+  - 插件`linapro-org-core` → `plugin_linapro_org_core_dept`
+  - 插件`linapro-tenant-core` → `plugin_linapro_tenant_core_tenant`
+  - 插件`linapro-mail-core` → `plugin_linapro_mail_core_connection`
+  - 插件`linapro-demo-source` → `plugin_linapro_demo_source_record`
+- 错误示例：
+  - 插件`linapro-mail-core`却使用`plugin_linapro_mail_connection`（缺少 ID 中的`core`段）
+- 宿主自有表继续使用既有`sys_*`等宿主命名约定，不适用本条插件前缀规则。
+- 插件`make dao`的`tables`与`removePrefix`必须与上述完整前缀一致（例如`removePrefix: "plugin_linapro_mail_core_"`）。
+
 ## Go 代码生成流程
 
 - 数据库变更应新增或修改当前迭代对应的`manifest/sql/{序号}-{迭代名称}.sql`，执行`make db.init`更新数据库，再执行`make dao`生成或更新 Go 源码文件。

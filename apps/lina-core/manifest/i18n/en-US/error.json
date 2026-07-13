@@ -722,6 +722,15 @@
         "create": {
           "failed": "Failed to create notification delivery"
         }
+      },
+      "email": {
+        "delivery": {
+          "unavailable": "Email notification delivery is unavailable; install and enable linapro-mail-core",
+          "failed": "Email notification delivery failed"
+        },
+        "recipient": {
+          "required": "Email notification recipients cannot be empty"
+        }
       }
     },
     "permission": {

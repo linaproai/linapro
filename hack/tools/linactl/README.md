@@ -173,7 +173,8 @@ Without a target parameter, generated code uses the `apps/lina-core` GoFrame pro
 1. Scans high-risk runtime-visible hard-coded copy;
 2. Validates host/plugin runtime locale **key parity**;
 3. Validates host and every plugin with `i18n.enabled: true` in `plugin.yaml`: **each `bizerr.MustDefine` derived `messageKey` must exist under that module's `manifest/i18n/<locale>/` catalogs**;
-4. Validates frontend static `$t(...)` key coverage.
+4. Validates every `i18n.enabled: true` plugin: **each runtime locale must provide management-list display keys `plugin.<plugin-id>.name` and `plugin.<plugin-id>.description`** (host list projection localizes via this convention; bare top-level `name`/`description` keys do not take effect);
+5. Validates frontend static `$t(...)` key coverage.
 
 ```bash
 make i18n.check

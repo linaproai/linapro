@@ -80,6 +80,28 @@ type LifecycleDeclarations interface {
 	// reconciliation. A failure is logged by the host and does not roll back the
 	// already-effective installation.
 	RegisterAfterInstallHandler(handler SourcePluginAfterLifecycleHandler) error
+	// RegisterBeforeEnableHandler registers a pre-enable lifecycle callback for
+	// the source plugin. The host invokes this callback before changing the
+	// plugin from disabled (or newly installed) to enabled. Return ok=false to
+	// veto enable with a stable reason key.
+	RegisterBeforeEnableHandler(handler SourcePluginBeforeLifecycleHandler) error
+	// RegisterAfterEnableHandler registers a post-enable lifecycle callback for
+	// the source plugin. The host invokes this callback after enable succeeds.
+	// A failure is logged and does not roll back enable.
+	RegisterAfterEnableHandler(handler SourcePluginAfterLifecycleHandler) error
+	// RegisterGlobalBeforeInstallHandler registers a global pre-install veto
+	// that observes another plugin's install. The handler receives the target
+	// plugin ID and must not assume self-install semantics.
+	RegisterGlobalBeforeInstallHandler(handler SourcePluginGlobalLifecycleHandler) error
+	// RegisterGlobalBeforeEnableHandler registers a global pre-enable veto that
+	// observes another plugin's enable action.
+	RegisterGlobalBeforeEnableHandler(handler SourcePluginGlobalLifecycleHandler) error
+	// RegisterGlobalBeforeDisableHandler registers a global pre-disable veto that
+	// observes another plugin's disable action.
+	RegisterGlobalBeforeDisableHandler(handler SourcePluginGlobalLifecycleHandler) error
+	// RegisterGlobalBeforeUninstallHandler registers a global pre-uninstall veto
+	// that observes another plugin's uninstall action.
+	RegisterGlobalBeforeUninstallHandler(handler SourcePluginGlobalLifecycleHandler) error
 	// RegisterBeforeUpgradeHandler registers a pre-upgrade lifecycle callback
 	// for the source plugin. The host invokes this callback after it has built
 	// the upgrade plan and before it runs the plugin's custom upgrade handler,
@@ -283,6 +305,18 @@ type SourcePluginDefinition interface {
 	GetBeforeInstallHandler() SourcePluginBeforeLifecycleHandler
 	// GetAfterInstallHandler returns the registered post-install callback.
 	GetAfterInstallHandler() SourcePluginAfterLifecycleHandler
+	// GetBeforeEnableHandler returns the registered pre-enable veto callback.
+	GetBeforeEnableHandler() SourcePluginBeforeLifecycleHandler
+	// GetAfterEnableHandler returns the registered post-enable callback.
+	GetAfterEnableHandler() SourcePluginAfterLifecycleHandler
+	// GetGlobalBeforeInstallHandler returns the registered global pre-install veto.
+	GetGlobalBeforeInstallHandler() SourcePluginGlobalLifecycleHandler
+	// GetGlobalBeforeEnableHandler returns the registered global pre-enable veto.
+	GetGlobalBeforeEnableHandler() SourcePluginGlobalLifecycleHandler
+	// GetGlobalBeforeDisableHandler returns the registered global pre-disable veto.
+	GetGlobalBeforeDisableHandler() SourcePluginGlobalLifecycleHandler
+	// GetGlobalBeforeUninstallHandler returns the registered global pre-uninstall veto.
+	GetGlobalBeforeUninstallHandler() SourcePluginGlobalLifecycleHandler
 	// GetBeforeUpgradeHandler returns the registered pre-upgrade veto callback.
 	GetBeforeUpgradeHandler() SourcePluginBeforeUpgradeHandler
 	// GetUpgradeHandler returns the registered source-plugin custom upgrade callback.

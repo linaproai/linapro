@@ -1071,7 +1071,7 @@
         "defaultWarning": "Uninstalling this plugin removes the runtime registration information. Review the impact before continuing.",
         "dynamicWarning": "Uninstalling a dynamic plugin removes the uploaded artifact and can optionally clear plugin-owned data and storage files.",
         "purgeStorage": "Also clear plugin-owned storage data",
-        "purgeStorageWarning": "When checked, the host runs uninstall SQL and physically deletes plugin-owned table data, authorized storage files, and governance resource references. This cannot be restored after confirmation.",
+        "purgeStorageWarning": "When checked, the host runs uninstall SQL and physically deletes plugin-owned table data, authorized storage files, and governance resource references. This cannot be restored after confirmation. If unchecked, uninstall only deactivates the plugin and keeps business tables/config; reinstalling will still show previous settings (for example mail account/connection config).",
         "sourceWarning": "Uninstalling a source plugin removes its synchronized governance records and can optionally clear plugin-owned data and storage files."
       },
       "upgrade": {

@@ -209,16 +209,13 @@ INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "per
 VALUES (0, 'scheduler', '任务调度', 'scheduler', '', '', 'lucide:calendar-range', 'D', 8, 1, 1, 0, 0, '宿主稳定目录：任务调度', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 -- sort=9 remains free for the Auth Login domain catalog installed by
--- linapro-extlogin-core (between scheduler at sort 8 and storage at sort 10).
--- Order: storage(10) → extension(11) → developer(12).
+-- linapro-extlogin-core (between scheduler at sort 8 and extension at sort 10).
+-- Cloud storage provider settings mount under setting (系统设置), not a top-level storage catalog.
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'storage', '存储管理', 'storage', '', '', 'lucide:hard-drive', 'D', 10, 1, 1, 0, 0, '宿主稳定目录：存储管理', NOW(), NOW())
+VALUES (0, 'extension', '扩展中心', 'extension', '', '', 'lucide:puzzle', 'D', 10, 1, 1, 0, 0, '宿主稳定目录：扩展中心', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'extension', '扩展中心', 'extension', '', '', 'lucide:puzzle', 'D', 11, 1, 1, 0, 0, '宿主稳定目录：扩展中心', NOW(), NOW())
-ON CONFLICT DO NOTHING;
-INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'developer', '开发中心', 'developer', '', '', 'lucide:flask-conical', 'D', 12, 1, 1, 0, 0, '宿主稳定目录：开发中心', NOW(), NOW())
+VALUES (0, 'developer', '开发中心', 'developer', '', '', 'lucide:flask-conical', 'D', 11, 1, 1, 0, 0, '宿主稳定目录：开发中心', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

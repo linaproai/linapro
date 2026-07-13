@@ -29,18 +29,18 @@
 
 **Reason**: 与现行实现及「Storage provider 选择不得依赖主配置项」冲突。运行时以「唯一可服务已注册 provider 插件」自动选中，0 个回退 local，多个冲突拒绝；不再通过宿主主配置 active provider plugin ID 选择后端。
 
-**Migration**: 运维通过插件管理安装/启停恰好一个云 storage provider 插件（如 `linapro-storage-cos`）选择后端；凭据与 bucket 在「存储管理」目录下各插件配置页维护。多插件同时启用将得到 `CodeStorageProviderConflict`。
+**Migration**: 运维通过插件管理安装/启停恰好一个云 storage provider 插件（如 `linapro-storage-cos`）选择后端；凭据与 bucket 在「系统设置」目录下各插件配置页维护。多插件同时启用将得到 `CodeStorageProviderConflict`。
 
 ## ADDED Requirements
 
 ### Requirement: 官方云 storage provider 插件必须可交付并接入管理目录
 
-系统 SHALL 提供官方源码插件实现主流云对象存储 provider，并使其管理配置页挂载到宿主 `storage`（存储管理）稳定目录。官方交付范围至少包括腾讯云 COS、阿里云 OSS、AWS S3 厂商插件，以及 S3 兼容协议插件。插件 MUST 通过 `storagecap.Provide` 注册，MUST NOT 改变插件可见 `storagecap.Service` 契约。
+系统 SHALL 提供官方源码插件实现主流云对象存储 provider，并使其管理配置页挂载到宿主 `setting`（系统设置）稳定目录。官方交付范围至少包括腾讯云 COS、阿里云 OSS、AWS S3 厂商插件，以及 S3 兼容协议插件。插件 MUST 通过 `storagecap.Provide` 注册，MUST NOT 改变插件可见 `storagecap.Service` 契约。
 
 #### Scenario: 安装云插件后出现配置入口
 
 - **WHEN** 管理员安装并同步 `linapro-storage-oss`（或 cos / obs / qiniu / aws / azure / s3）
-- **THEN** 「存储管理」目录下 MUST 出现对应配置菜单
+- **THEN** 「系统设置」目录下 MUST 出现对应配置菜单
 - **AND** 业务插件调用 `Storage()` 的代码路径 MUST 无需修改
 
 #### Scenario: 唯一云插件启用后承接写入

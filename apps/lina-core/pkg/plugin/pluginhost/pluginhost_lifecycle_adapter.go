@@ -23,6 +23,16 @@ func NewSourcePluginLifecycleCallbackAdapter(plugin SourcePluginDefinition) Life
 			return true, "", handler(ctx, req.PluginInput)
 		})
 	}
+	if handler := plugin.GetBeforeEnableHandler(); handler != nil {
+		callbacks.set(LifecycleHookBeforeEnable, func(ctx context.Context, req LifecycleRequest) (bool, string, error) {
+			return handler(ctx, req.PluginInput)
+		})
+	}
+	if handler := plugin.GetAfterEnableHandler(); handler != nil {
+		callbacks.set(LifecycleHookAfterEnable, func(ctx context.Context, req LifecycleRequest) (bool, string, error) {
+			return true, "", handler(ctx, req.PluginInput)
+		})
+	}
 	if handler := plugin.GetBeforeUpgradeHandler(); handler != nil {
 		callbacks.set(LifecycleHookBeforeUpgrade, func(ctx context.Context, req LifecycleRequest) (bool, string, error) {
 			return handler(ctx, req.UpgradeInput)
@@ -99,5 +109,38 @@ func NewSourcePluginLifecycleCallbackAdapter(plugin SourcePluginDefinition) Life
 			return true, "", handler(ctx, req.InstallModeInput)
 		})
 	}
+	return callbacks
+}
+
+// NewSourcePluginGlobalLifecycleCallbackAdapter returns callbacks for one
+// explicitly requested global Before* hook. Plugins without that registration
+// yield an empty set.
+func NewSourcePluginGlobalLifecycleCallbackAdapter(
+	plugin SourcePluginDefinition,
+	hook LifecycleHook,
+) LifecycleCallbacks {
+	if plugin == nil || !IsGlobalLifecycleHook(hook) {
+		return LifecycleCallbacks{}
+	}
+	var handler SourcePluginGlobalLifecycleHandler
+	switch hook {
+	case LifecycleHookGlobalBeforeInstall:
+		handler = plugin.GetGlobalBeforeInstallHandler()
+	case LifecycleHookGlobalBeforeEnable:
+		handler = plugin.GetGlobalBeforeEnableHandler()
+	case LifecycleHookGlobalBeforeDisable:
+		handler = plugin.GetGlobalBeforeDisableHandler()
+	case LifecycleHookGlobalBeforeUninstall:
+		handler = plugin.GetGlobalBeforeUninstallHandler()
+	default:
+		return LifecycleCallbacks{}
+	}
+	if handler == nil {
+		return LifecycleCallbacks{}
+	}
+	var callbacks LifecycleCallbacks
+	callbacks.set(hook, func(ctx context.Context, req LifecycleRequest) (bool, string, error) {
+		return handler(ctx, req.GlobalInput)
+	})
 	return callbacks
 }
