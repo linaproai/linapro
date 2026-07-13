@@ -1127,25 +1127,48 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
           >
             {{ $t('pages.system.plugin.actions.install') }}
           </ghost-button>
+          <!--
+            Builtin plugins keep a disabled uninstall affordance so the action
+            column has the same button count/width as managed installed rows.
+          -->
           <Tooltip
-            v-else-if="
-              !isBuiltinPlugin(row) &&
-              canUninstallPlugin() &&
-              isAutoEnableManaged(row)
-            "
+            v-else-if="isBuiltinPlugin(row) && canUninstallPlugin()"
+            :title="buildBuiltinPluginTooltip(row)"
+          >
+            <span
+              class="inline-flex"
+              :data-testid="`plugin-uninstall-wrapper-${row.id}`"
+              @click.stop
+            >
+              <ghost-button
+                danger
+                disabled
+                :data-testid="`plugin-uninstall-button-${row.id}`"
+              >
+                {{ $t('pages.system.plugin.actions.uninstall') }}
+              </ghost-button>
+            </span>
+          </Tooltip>
+          <Tooltip
+            v-else-if="canUninstallPlugin() && isAutoEnableManaged(row)"
             :title="
               buildAutoEnableManagedRuntimeHint(
                 $t('pages.system.plugin.actions.uninstall'),
               )
             "
           >
-            <ghost-button danger @click.stop="handleOpenUninstall(row)">
+            <ghost-button
+              danger
+              :data-testid="`plugin-uninstall-button-${row.id}`"
+              @click.stop="handleOpenUninstall(row)"
+            >
               {{ $t('pages.system.plugin.actions.uninstall') }}
             </ghost-button>
           </Tooltip>
           <ghost-button
-            v-else-if="!isBuiltinPlugin(row) && canUninstallPlugin()"
+            v-else-if="canUninstallPlugin()"
             danger
+            :data-testid="`plugin-uninstall-button-${row.id}`"
             @click.stop="handleOpenUninstall(row)"
           >
             {{ $t('pages.system.plugin.actions.uninstall') }}

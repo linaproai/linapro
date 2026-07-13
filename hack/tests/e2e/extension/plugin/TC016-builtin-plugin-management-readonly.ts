@@ -184,7 +184,7 @@ test.describe('TC-16 内建插件管理只读治理', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('TC-16b: builtin 行隐藏写操作并保留详情与管理入口', async ({
+  test('TC-16b: builtin 行限制写操作，卸载置灰，并保留详情与管理入口', async ({
     adminPage,
   }) => {
     const pageErrors: string[] = [];
@@ -203,7 +203,23 @@ test.describe('TC-16 内建插件管理只读治理', () => {
     ).toHaveCount(0);
     await pluginPage.expectInstallActionHidden(builtinPluginID);
     await pluginPage.expectUpgradeActionHidden(builtinPluginID);
-    await pluginPage.expectUninstallActionHidden(builtinPluginID);
+    // Builtin rows still show uninstall for action-column layout parity, but
+    // the control is disabled and must not open the uninstall dialog.
+    await pluginPage.expectUninstallActionDisabled(builtinPluginID);
+    await pluginPage.pluginUninstallActionWrapper(builtinPluginID).hover();
+    await expect(
+      pluginPage
+        .antTooltip()
+        .filter({
+          hasText:
+            /项目内建能力，不可卸载|project built-in capability and cannot be uninstalled/iu,
+        })
+        .last(),
+    ).toBeVisible();
+    await pluginPage.pluginUninstallAction(builtinPluginID).click({
+      force: true,
+    });
+    await expect(pluginPage.uninstallDialog()).toHaveCount(0);
     await expect(pluginPage.pluginDetailAction(builtinPluginID)).toBeVisible();
     await expect(pluginPage.pluginManageAction(builtinPluginID)).toBeVisible();
     await captureEvidence(adminPage, 'builtin-plugin-management-readonly-row');

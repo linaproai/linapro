@@ -1206,16 +1206,36 @@ export class PluginPage {
     ).toHaveCount(0);
   }
 
+  pluginUninstallAction(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-uninstall-button-${pluginId}`).last();
+  }
+
+  pluginUninstallActionWrapper(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-uninstall-wrapper-${pluginId}`).last();
+  }
+
   async expectUninstallActionVisible(pluginId: string) {
+    const byTestId = this.pluginUninstallAction(pluginId);
+    if ((await byTestId.count()) > 0) {
+      await expect(byTestId).toBeVisible();
+      return;
+    }
     await expect(
       await this.pluginActionButton(pluginId, pluginUninstallActionPattern),
     ).toBeVisible();
   }
 
   async expectUninstallActionHidden(pluginId: string) {
+    await expect(this.pluginUninstallAction(pluginId)).toHaveCount(0);
     await expect(
       await this.pluginActionButton(pluginId, pluginUninstallActionPattern),
     ).toHaveCount(0);
+  }
+
+  async expectUninstallActionDisabled(pluginId: string) {
+    const uninstallButton = this.pluginUninstallAction(pluginId);
+    await expect(uninstallButton).toBeVisible();
+    await expect(uninstallButton).toBeDisabled();
   }
 
   async expectPluginSwitchDisabled(pluginId: string) {
