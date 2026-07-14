@@ -86,9 +86,9 @@ func TestListKeepsCustomConfigValueRaw(t *testing.T) {
 	}
 }
 
-// TestGetByIdKeepsRawConfigMetadata verifies edit/detail backfill keeps the raw
-// config metadata so localized projections are not written back into sys_config.
-func TestGetByIdKeepsRawConfigMetadata(t *testing.T) {
+// TestGetByIdLocalizesMetadataKeepsRawValue verifies edit/detail returns
+// localized name/remark while keeping the stored value for form backfill.
+func TestGetByIdLocalizesMetadataKeepsRawValue(t *testing.T) {
 	ctx := newEnglishBizCtx()
 	record := ensureConfigRecordState(
 		t,
@@ -101,16 +101,61 @@ func TestGetByIdKeepsRawConfigMetadata(t *testing.T) {
 
 	item, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).GetById(ctx, record.Id)
 	if err != nil {
-		t.Fatalf("get raw config detail: %v", err)
+		t.Fatalf("get localized config detail: %v", err)
 	}
-	if item.Name != record.Name {
-		t.Fatalf("expected raw config name %q, got %q", record.Name, item.Name)
+	if item.Name != "Login - Page Title" {
+		t.Fatalf("expected localized config name %q, got %q", "Login - Page Title", item.Name)
 	}
-	if item.Remark != record.Remark {
-		t.Fatalf("expected raw config remark %q, got %q", record.Remark, item.Remark)
+	if item.Remark != "Controls the headline shown at the top of the login page." {
+		t.Fatalf("expected localized config remark %q, got %q", "Controls the headline shown at the top of the login page.", item.Remark)
 	}
 	if item.Value != record.Value {
 		t.Fatalf("expected raw config value %q, got %q", record.Value, item.Value)
+	}
+}
+
+// TestUpdateBuiltinIgnoresLocalizedNameRemark verifies built-in updates never
+// persist projected name/remark from the edit form back into sys_config.
+func TestUpdateBuiltinIgnoresLocalizedNameRemark(t *testing.T) {
+	ctx := newEnglishBizCtx()
+	record := ensureConfigRecordState(
+		t,
+		context.Background(),
+		hostconfig.PublicFrontendSettingKeyAuthPageTitle,
+		"登录展示-页面标题",
+		"面向可持续交付的 AI 原生全栈框架",
+		"控制登录页顶部主标题文案。",
+	)
+
+	svc := New(hostconfig.New(), i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)))
+	localizedName := "Login - Page Title"
+	localizedRemark := "Controls the headline shown at the top of the login page."
+	updatedValue := "Custom Login Title For Update Guard"
+	err := svc.Update(ctx, UpdateInput{
+		Id:     record.Id,
+		Name:   &localizedName,
+		Remark: &localizedRemark,
+		Value:  &updatedValue,
+	})
+	if err != nil {
+		t.Fatalf("update built-in config: %v", err)
+	}
+
+	var raw *entity.SysConfig
+	if err = dao.SysConfig.Ctx(context.Background()).Where(do.SysConfig{Id: record.Id}).Scan(&raw); err != nil {
+		t.Fatalf("reload raw config: %v", err)
+	}
+	if raw == nil {
+		t.Fatal("expected config row after update")
+	}
+	if raw.Name != "登录展示-页面标题" {
+		t.Fatalf("expected stored name to stay Chinese seed %q, got %q", "登录展示-页面标题", raw.Name)
+	}
+	if raw.Remark != "控制登录页顶部主标题文案。" {
+		t.Fatalf("expected stored remark to stay Chinese seed %q, got %q", "控制登录页顶部主标题文案。", raw.Remark)
+	}
+	if raw.Value != updatedValue {
+		t.Fatalf("expected value update %q, got %q", updatedValue, raw.Value)
 	}
 }
 

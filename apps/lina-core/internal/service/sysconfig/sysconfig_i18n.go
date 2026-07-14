@@ -29,8 +29,24 @@ func (s *serviceImpl) localizeConfigEntities(ctx context.Context, items []*entit
 	}
 }
 
-// localizeConfigEntity localizes one config entity in place.
+// localizeConfigEntity localizes one config entity in place for list and
+// key-based reads, including optional public-frontend default value projection.
 func (s *serviceImpl) localizeConfigEntity(ctx context.Context, item *entity.SysConfig) {
+	if item == nil {
+		return
+	}
+	s.localizeConfigEntityMetadata(ctx, item)
+	trimmedKey := strings.TrimSpace(item.Key)
+	if trimmedKey == "" {
+		return
+	}
+	item.Value = s.localizedConfigDisplayValue(ctx, trimmedKey, item.Value)
+}
+
+// localizeConfigEntityMetadata localizes name and remark for display without
+// projecting value. Edit/detail APIs use this so stored parameter values stay
+// authoritative for form backfill and save.
+func (s *serviceImpl) localizeConfigEntityMetadata(ctx context.Context, item *entity.SysConfig) {
 	if s == nil || s.i18nSvc == nil || item == nil {
 		return
 	}
@@ -40,7 +56,6 @@ func (s *serviceImpl) localizeConfigEntity(ctx context.Context, item *entity.Sys
 	}
 	item.Name = s.i18nSvc.Translate(ctx, "config."+trimmedKey+".name", item.Name)
 	item.Remark = s.i18nSvc.Translate(ctx, "config."+trimmedKey+".remark", item.Remark)
-	item.Value = s.localizedConfigDisplayValue(ctx, trimmedKey, item.Value)
 }
 
 // localizedConfigName returns one localized config display name.

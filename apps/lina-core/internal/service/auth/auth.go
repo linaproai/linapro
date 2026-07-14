@@ -223,8 +223,8 @@ type RegisterOutput struct {
 
 // PasswordResetRequestInput defines input for requesting a password-reset email.
 type PasswordResetRequestInput struct {
-	Email           string // Account email
-	PublicOrigin    string // Browser origin used to build the reset link
+	Email             string // Account email
+	PublicOrigin      string // Browser origin used to build the reset link
 	WorkspaceBasePath string // Admin workspace base path (for example /admin)
 }
 

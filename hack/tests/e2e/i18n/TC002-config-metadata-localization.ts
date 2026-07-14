@@ -53,7 +53,7 @@ test.describe('TC002 参数设置元数据国际化', () => {
     ).toBeVisible();
   });
 
-  test('TC002b: 英文环境下配置编辑回填继续使用数据库原始值', async ({
+  test('TC002b: 英文环境下配置编辑回填本地化元数据并保留库内 value', async ({
     adminPage,
     mainLayout,
   }) => {
@@ -71,10 +71,21 @@ test.describe('TC002 参数设置元数据国际化', () => {
     const dialog = adminPage.getByRole('dialog');
     await waitForDialogReady(dialog);
 
-    await expect(dialog.getByLabel(/参数名称|Parameter Name/i)).toHaveValue('登录展示-页面标题');
+    // Built-in name/remark are request-locale projections; value stays raw storage.
+    const nameInput = dialog.getByLabel(/参数名称|Parameter Name/i);
+    const remarkInput = dialog.getByLabel(/备注|Remark/i);
+    await expect(nameInput).toHaveValue('Login - Page Title');
+    await expect(nameInput).toBeDisabled();
     await expect(dialog.getByLabel(/参数键名|Parameter Key/i)).toHaveValue(seedConfigKey);
-    await expect(dialog.getByLabel(/参数键值|Parameter Value/i)).toHaveValue('面向可持续交付的 AI 原生全栈框架');
-    await expect(dialog.getByLabel(/备注|Remark/i)).toHaveValue('控制登录页顶部主标题文案。');
+    await expect(dialog.getByLabel(/参数键值|Parameter Value/i)).toHaveValue(
+      '面向可持续交付的 AI 原生全栈框架',
+    );
+    await expect(remarkInput).toHaveValue(
+      'Controls the headline shown at the top of the login page.',
+    );
+    await expect(remarkInput).toBeDisabled();
+    await expect(dialog.getByText('登录展示-页面标题')).toHaveCount(0);
+    await expect(dialog.getByText('控制登录页顶部主标题文案。')).toHaveCount(0);
 
     await closeDialogWithEscape(adminPage, dialog);
   });
@@ -103,7 +114,14 @@ test.describe('TC002 参数设置元数据国际化', () => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = xlsxUtils.sheet_to_json(sheet, { header: 1 }) as string[][];
 
-    expect(rows[0]).toEqual(['Parameter Name', 'Parameter Key', 'Parameter Value', 'Remark']);
+    expect(rows[0]).toEqual([
+      'Parameter Name',
+      'Parameter Key',
+      'Parameter Value',
+      'Value Type',
+      'Options',
+      'Remark',
+    ]);
     expect(rows[1]?.[0]).toBe('Authentication - JWT Expiration');
     expect(rows[1]?.[1]).toBe('sys.jwt.expire');
     expect(rows[1]?.[2]).toBe('24h');

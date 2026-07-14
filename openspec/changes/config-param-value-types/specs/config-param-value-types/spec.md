@@ -95,9 +95,16 @@
 | select | 下拉，选项来自 options |
 | radio | 单选组，选项来自 options |
 | multi_select | 多选，选项来自 options |
-| richtext | 富文本或增强多行文本（实现可选降级） |
+| richtext | 宿主富文本编辑器（Tiptap 或等价） |
 
 新增流程 MUST 允许选择 `valueType`；当类型为 `select`/`radio`/`multi_select` 时 MUST 提供 options 编辑能力。
+
+管理面 MUST 按 `valueType` 应用可扩展的弹窗密度策略（而非写死单次高度常量）：
+
+- **compact**（默认，短字段类型）：保持默认中等弹窗宽度，可不提供全屏入口。
+- **spacious**（`richtext`，以及长文 `textarea`）：弹窗加宽至约 720–960px 量级且不超过视口、提供全屏入口；`richtext` 编辑区高度 MUST 使用视口相对尺寸（如 `clamp`/`vh`），编辑区内滚动，避免固定过矮的像素高度。
+
+类型切换（新增时选择类型）与编辑加载 MUST 同步刷新弹窗 chrome 与值组件布局。
 
 #### Scenario: 编辑下拉型内置参数通过选择赋值
 
@@ -110,3 +117,17 @@
 - **WHEN** 管理员编辑 `valueType=boolean` 的参数
 - **THEN** 值输入区域展示开关或等价二值组件
 - **AND** 提交值为 `true` 或 `false` 字符串
+
+#### Scenario: 富文本参数使用宽弹窗与可全屏编辑区
+
+- **WHEN** 管理员新增或编辑 `valueType=richtext` 的参数
+- **THEN** 编辑弹窗宽度明显大于默认短表单弹窗（约 520px）
+- **AND** 弹窗提供全屏入口
+- **AND** 富文本编辑区最小高度不低于 360px 量级（或等价视口相对高度）
+- **AND** 编辑区在内容变长时内部滚动而不是把弹窗压成不可用的窄条
+
+#### Scenario: 从富文本切回短类型恢复紧凑弹窗
+
+- **WHEN** 管理员在新增流程中将 `valueType` 从 `richtext` 改为 `text`（或其它 compact 类型）
+- **THEN** 弹窗恢复默认紧凑宽度策略
+- **AND** 全屏入口按 compact 策略隐藏或关闭

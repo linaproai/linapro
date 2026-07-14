@@ -123,14 +123,14 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 		validator:    validateStrictBoolConfigValue,
 	},
 	{
-		Key: PublicFrontendSettingKeyAuthPrivacyPolicy,
+		Key:          PublicFrontendSettingKeyAuthPrivacyPolicy,
 		DefaultValue: "Privacy Policy\n\nThis service collects account information required for authentication and workspace access, including username and email. Data is used only to provide the host workspace and related security features. Contact your administrator for data retention and export requests.",
-		validator: validateRequiredTextConfigValue(20000),
+		validator:    validateRequiredTextConfigValue(20000),
 	},
 	{
-		Key: PublicFrontendSettingKeyAuthTermsOfService,
+		Key:          PublicFrontendSettingKeyAuthTermsOfService,
 		DefaultValue: "Terms of Service\n\nBy creating an account you agree to use this workspace in accordance with your organization's policies. Accounts may be suspended for abuse or security risk. The operator may update these terms; continued use after notice constitutes acceptance.",
-		validator: validateRequiredTextConfigValue(20000),
+		validator:    validateRequiredTextConfigValue(20000),
 	},
 	{
 		Key:          PublicFrontendSettingKeyUIThemeMode,

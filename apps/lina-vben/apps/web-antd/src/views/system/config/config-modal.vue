@@ -23,6 +23,7 @@ import {
   isEnumValueType,
   normalizeFormValue,
   parseOptionsText,
+  resolveConfigModalLayout,
   valueFieldSchema,
 } from './data';
 
@@ -33,6 +34,7 @@ const recordId = ref<number>(0);
 const isBuiltin = ref(false);
 const configKey = ref('');
 const loadedOptions = ref<ConfigValueOption[]>([]);
+const activeValueType = ref<ConfigValueType | string>('text');
 const title = computed(() =>
   isEdit.value
     ? $t('pages.system.config.drawer.editTitle')
@@ -84,6 +86,8 @@ const [BasicModal, modalApi] = useVbenModal({
     isBuiltin.value = false;
     configKey.value = '';
     loadedOptions.value = [];
+    activeValueType.value = 'text';
+    applyModalLayout('text');
 
     await formApi.setState({
       schema: buildModalSchema({
@@ -108,6 +112,21 @@ const [BasicModal, modalApi] = useVbenModal({
     modalApi.setState({ loading: false });
   },
 });
+
+/**
+ * Apply density policy for the active value type (width, fullscreen, content class).
+ * Always clear fullscreen when the type changes so compact forms do not stay expanded.
+ */
+function applyModalLayout(valueType?: ConfigValueType | string) {
+  const layout = resolveConfigModalLayout(valueType);
+  activeValueType.value = valueType || 'text';
+  modalApi.setState({
+    class: layout.modalClass,
+    contentClass: layout.contentClass,
+    fullscreenButton: layout.fullscreenButton,
+    fullscreen: false,
+  });
+}
 
 async function applyRecord(record: SysConfig) {
   isBuiltin.value = record.isBuiltin === 1;
@@ -142,6 +161,8 @@ async function applyRecord(record: SysConfig) {
 
 async function refreshValueFieldSchema(values: Record<string, any>) {
   const valueType = (values.valueType || 'text') as ConfigValueType;
+  applyModalLayout(valueType);
+
   const parsedFromText = parseOptionsText(values.optionsText);
   const options =
     parsedFromText.length > 0 ? parsedFromText : loadedOptions.value;
@@ -210,11 +231,26 @@ async function handleClosed() {
   isBuiltin.value = false;
   loadedOptions.value = [];
   configKey.value = '';
+  activeValueType.value = 'text';
+  // Restore compact chrome so the next open does not inherit spacious classes.
+  applyModalLayout('text');
 }
 </script>
 
 <template>
   <BasicModal :title="title">
-    <BasicForm />
+    <div :data-testid="`config-modal-value-type-${activeValueType}`">
+      <BasicForm />
+    </div>
   </BasicModal>
 </template>
+
+<style scoped>
+/*
+ * Spacious content types: keep the value editor full width inside the form grid
+ * so richtext/textarea use the expanded modal surface.
+ */
+:deep(.config-param-modal-content--richtext .tiptap-editor) {
+  width: 100%;
+}
+</style>

@@ -45,6 +45,239 @@ func setCellValue(file *excelize.File, sheet string, col int, row int, value any
 	return excelutil.SetCellValue(file, sheet, col, row, value)
 }
 
+// importConfigRowFields holds one Excel data row after column extraction.
+type importConfigRowFields struct {
+	name         string
+	key          string
+	value        string
+	valueTypeRaw string
+	optionsRaw   string
+	remark       string
+}
+
+// appendImportFail records one failed import row on the result aggregate.
+func appendImportFail(result *ImportResult, rowNum int, reason string) {
+	result.Fail++
+	result.FailList = append(result.FailList, ImportFailItem{
+		Row:    rowNum,
+		Reason: reason,
+	})
+}
+
+// parseImportConfigRow extracts and validates one Excel data row for import.
+// On validation failure it records the fail item and returns ok=false.
+func (s *serviceImpl) parseImportConfigRow(
+	ctx context.Context,
+	row []string,
+	rowNum int,
+	result *ImportResult,
+) (fields importConfigRowFields, ok bool) {
+	if len(row) < 3 {
+		appendImportFail(result, rowNum, s.localizedConfigImportFailure(
+			ctx,
+			"requiredColumns",
+			"Parameter name, key, and value are required",
+		))
+		return fields, false
+	}
+
+	fields = importConfigRowFields{
+		name:  row[0],
+		key:   row[1],
+		value: row[2],
+	}
+	if fields.name == "" || fields.key == "" || fields.value == "" {
+		appendImportFail(result, rowNum, s.localizedConfigImportFailure(
+			ctx,
+			"requiredValues",
+			"Parameter name, key, and value cannot be empty",
+		))
+		return fields, false
+	}
+	if len(row) > 3 {
+		fields.valueTypeRaw = strings.TrimSpace(row[3])
+	}
+	if len(row) > 4 {
+		fields.optionsRaw = strings.TrimSpace(row[4])
+	}
+	if len(row) > 5 {
+		fields.remark = row[5]
+	}
+	if fields.valueTypeRaw != "" {
+		if _, resolveErr := configvaluetype.ResolveCode(fields.valueTypeRaw); resolveErr != nil {
+			appendImportFail(result, rowNum, s.localizedConfigImportError(
+				ctx,
+				bizerr.WrapCode(resolveErr, CodeSysConfigValueTypeInvalid),
+			))
+			return fields, false
+		}
+	}
+	if fields.optionsRaw != "" {
+		if _, parseErr := configvaluetype.ParseOptions(fields.optionsRaw); parseErr != nil {
+			appendImportFail(result, rowNum, s.localizedConfigImportError(
+				ctx,
+				bizerr.WrapCode(parseErr, CodeSysConfigOptionsInvalid),
+			))
+			return fields, false
+		}
+	}
+	return fields, true
+}
+
+// applyImportedConfigUpdate updates an existing config row during Excel import.
+func applyImportedConfigUpdate(
+	ctx context.Context,
+	existing *entity.SysConfig,
+	fields importConfigRowFields,
+	finalValue *string,
+) error {
+	finalType := entityValueType(existing.ValueType)
+	finalOptions := existing.Options
+	data := do.SysConfig{
+		Name:   fields.name,
+		Remark: fields.remark,
+	}
+	if isBuiltInConfigRecord(existing) {
+		// Built-in type/options stay locked.
+		*finalValue = normalizePersistedValue(finalType, fields.value)
+		if validateErr := validateTypedConfigValue(finalType, finalOptions, *finalValue); validateErr != nil {
+			return validateErr
+		}
+	} else {
+		resolvedType, resolveErr := configvaluetype.ResolveCode(fields.valueTypeRaw)
+		if resolveErr != nil {
+			return bizerr.WrapCode(resolveErr, CodeSysConfigValueTypeInvalid)
+		}
+		finalType = resolvedType
+		if fields.optionsRaw != "" || fields.valueTypeRaw != "" {
+			parsedOptions, parseErr := configvaluetype.ParseOptions(fields.optionsRaw)
+			if parseErr != nil {
+				return bizerr.WrapCode(parseErr, CodeSysConfigOptionsInvalid)
+			}
+			encoded, encodeErr := configvaluetype.EncodeOptions(parsedOptions)
+			if encodeErr != nil {
+				return bizerr.WrapCode(encodeErr, CodeSysConfigOptionsInvalid)
+			}
+			finalOptions = encoded
+		}
+		*finalValue = normalizePersistedValue(finalType, fields.value)
+		if validateErr := validateTypedConfigValue(finalType, finalOptions, *finalValue); validateErr != nil {
+			return validateErr
+		}
+		data.ValueType = finalType.String()
+		data.Options = finalOptions
+	}
+	if validateErr := validateManagedConfigValue(fields.key, *finalValue); validateErr != nil {
+		return validateErr
+	}
+	data.Value = *finalValue
+	if hostconfig.IsManagedSysConfigKey(fields.key) {
+		data.IsBuiltin = 1
+	}
+	_, updateErr := dao.SysConfig.Ctx(ctx).
+		Where(do.SysConfig{Id: existing.Id}).
+		Data(data).
+		Update()
+	if updateErr != nil {
+		return bizerr.WrapCode(updateErr, CodeSysConfigImportUpdateFailed)
+	}
+	return nil
+}
+
+// applyImportedConfigCreate inserts a new config row during Excel import.
+func applyImportedConfigCreate(
+	ctx context.Context,
+	fields importConfigRowFields,
+	finalValue *string,
+) error {
+	createType, createOptions, inheritErr := resolveCreateTypeMetadata(
+		ctx,
+		fields.key,
+		fields.valueTypeRaw,
+		parseEntityOptions(fields.optionsRaw),
+	)
+	if inheritErr != nil {
+		return inheritErr
+	}
+	*finalValue = normalizePersistedValue(createType, fields.value)
+	if validateErr := validateTypedConfigValue(createType, createOptions, *finalValue); validateErr != nil {
+		return validateErr
+	}
+	if validateErr := validateManagedConfigValue(fields.key, *finalValue); validateErr != nil {
+		return validateErr
+	}
+
+	data := currentTenantConfigDO(ctx)
+	data.Name = fields.name
+	data.Key = fields.key
+	data.Value = *finalValue
+	data.ValueType = createType.String()
+	data.Options = createOptions
+	data.IsBuiltin = builtInConfigFlag(fields.key)
+	data.Remark = fields.remark
+	_, insertErr := dao.SysConfig.Ctx(ctx).Data(data).Insert()
+	if insertErr != nil {
+		return bizerr.WrapCode(insertErr, CodeSysConfigImportInsertFailed)
+	}
+	return nil
+}
+
+// importConfigRow processes one Excel data row and updates the import result.
+func (s *serviceImpl) importConfigRow(
+	ctx context.Context,
+	row []string,
+	rowNum int,
+	updateSupport bool,
+	result *ImportResult,
+) {
+	fields, ok := s.parseImportConfigRow(ctx, row, rowNum, result)
+	if !ok {
+		return
+	}
+
+	var (
+		previousValue string
+		created       bool
+		finalValue    = fields.value
+	)
+	err := s.withConfigMutation(ctx, func(ctx context.Context) error {
+		// Check if key exists (GoFrame auto-adds deleted_at IS NULL)
+		var existing *entity.SysConfig
+		existingModel := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{
+			TenantId: datascope.CurrentTenantID(ctx),
+			Key:      fields.key,
+		})
+		scanErr := existingModel.Scan(&existing)
+		if scanErr != nil {
+			return bizerr.WrapCode(scanErr, CodeSysConfigImportQueryFailed)
+		}
+
+		if existing != nil {
+			if !updateSupport {
+				return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", fields.key))
+			}
+			previousValue = existing.Value
+			return applyImportedConfigUpdate(ctx, existing, fields, &finalValue)
+		}
+
+		// Create new record (GoFrame auto-fills created_at and updated_at)
+		if createErr := applyImportedConfigCreate(ctx, fields, &finalValue); createErr != nil {
+			return createErr
+		}
+		created = true
+		return nil
+	})
+	if err != nil {
+		appendImportFail(result, rowNum, s.localizedConfigImportError(ctx, err))
+		return
+	}
+	if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, fields.key, previousValue, finalValue, created); err != nil {
+		appendImportFail(result, rowNum, s.localizedConfigImportError(ctx, err))
+		return
+	}
+	result.Success++
+}
+
 // Import reads an Excel file and creates configs from it.
 // If updateSupport is true, existing records (matched by key) will be updated; otherwise, they will be skipped.
 func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSupport bool) (result *ImportResult, err error) {
@@ -68,194 +301,9 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 	}
 
 	result = &ImportResult{}
-
 	for i, row := range rows[1:] { // Skip header
-		rowNum := i + 2
-		if len(row) < 3 {
-			result.Fail++
-			result.FailList = append(result.FailList, ImportFailItem{
-				Row:    rowNum,
-				Reason: s.localizedConfigImportFailure(ctx, "requiredColumns", "Parameter name, key, and value are required"),
-			})
-			continue
-		}
-
-		var (
-			name  = row[0]
-			key   = row[1]
-			value = row[2]
-		)
-		if name == "" || key == "" || value == "" {
-			result.Fail++
-			result.FailList = append(result.FailList, ImportFailItem{
-				Row:    rowNum,
-				Reason: s.localizedConfigImportFailure(ctx, "requiredValues", "Parameter name, key, and value cannot be empty"),
-			})
-			continue
-		}
-
-		valueTypeRaw := ""
-		if len(row) > 3 {
-			valueTypeRaw = strings.TrimSpace(row[3])
-		}
-		optionsRaw := ""
-		if len(row) > 4 {
-			optionsRaw = strings.TrimSpace(row[4])
-		}
-		remark := ""
-		if len(row) > 5 {
-			remark = row[5]
-		}
-		if valueTypeRaw != "" {
-			if _, resolveErr := configvaluetype.ResolveCode(valueTypeRaw); resolveErr != nil {
-				result.Fail++
-				result.FailList = append(result.FailList, ImportFailItem{
-					Row:    rowNum,
-					Reason: s.localizedConfigImportError(ctx, bizerr.WrapCode(resolveErr, CodeSysConfigValueTypeInvalid)),
-				})
-				continue
-			}
-		}
-		if optionsRaw != "" {
-			if _, parseErr := configvaluetype.ParseOptions(optionsRaw); parseErr != nil {
-				result.Fail++
-				result.FailList = append(result.FailList, ImportFailItem{
-					Row:    rowNum,
-					Reason: s.localizedConfigImportError(ctx, bizerr.WrapCode(parseErr, CodeSysConfigOptionsInvalid)),
-				})
-				continue
-			}
-		}
-
-		var (
-			previousValue string
-			created       bool
-			finalValue    = value
-		)
-		err = s.withConfigMutation(ctx, func(ctx context.Context) error {
-			// Check if key exists (GoFrame auto-adds deleted_at IS NULL)
-			var existing *entity.SysConfig
-			existingModel := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{
-				TenantId: datascope.CurrentTenantID(ctx),
-				Key:      key,
-			})
-			scanErr := existingModel.Scan(&existing)
-			if scanErr != nil {
-				return bizerr.WrapCode(scanErr, CodeSysConfigImportQueryFailed)
-			}
-
-			if existing != nil {
-				// Key exists
-				if !updateSupport {
-					return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", key))
-				}
-				previousValue = existing.Value
-				finalType := entityValueType(existing.ValueType)
-				finalOptions := existing.Options
-				data := do.SysConfig{
-					Name:   name,
-					Remark: remark,
-				}
-				if isBuiltInConfigRecord(existing) {
-					// Built-in type/options stay locked.
-					finalValue = normalizePersistedValue(finalType, value)
-					if validateErr := validateTypedConfigValue(finalType, finalOptions, finalValue); validateErr != nil {
-						return validateErr
-					}
-				} else {
-					resolvedType, resolveErr := configvaluetype.ResolveCode(valueTypeRaw)
-					if resolveErr != nil {
-						return bizerr.WrapCode(resolveErr, CodeSysConfigValueTypeInvalid)
-					}
-					finalType = resolvedType
-					if optionsRaw != "" || valueTypeRaw != "" {
-						parsedOptions, parseErr := configvaluetype.ParseOptions(optionsRaw)
-						if parseErr != nil {
-							return bizerr.WrapCode(parseErr, CodeSysConfigOptionsInvalid)
-						}
-						encoded, encodeErr := configvaluetype.EncodeOptions(parsedOptions)
-						if encodeErr != nil {
-							return bizerr.WrapCode(encodeErr, CodeSysConfigOptionsInvalid)
-						}
-						finalOptions = encoded
-					}
-					finalValue = normalizePersistedValue(finalType, value)
-					if validateErr := validateTypedConfigValue(finalType, finalOptions, finalValue); validateErr != nil {
-						return validateErr
-					}
-					data.ValueType = finalType.String()
-					data.Options = finalOptions
-				}
-				if validateErr := validateManagedConfigValue(key, finalValue); validateErr != nil {
-					return validateErr
-				}
-				data.Value = finalValue
-				if hostconfig.IsManagedSysConfigKey(key) {
-					data.IsBuiltin = 1
-				}
-				_, updateErr := dao.SysConfig.Ctx(ctx).
-					Where(do.SysConfig{Id: existing.Id}).
-					Data(data).
-					Update()
-				if updateErr != nil {
-					return bizerr.WrapCode(updateErr, CodeSysConfigImportUpdateFailed)
-				}
-				return nil
-			}
-
-			// Create new record (GoFrame auto-fills created_at and updated_at)
-			createType, createOptions, inheritErr := resolveCreateTypeMetadata(
-				ctx,
-				key,
-				valueTypeRaw,
-				parseEntityOptions(optionsRaw),
-			)
-			if inheritErr != nil {
-				return inheritErr
-			}
-			finalValue = normalizePersistedValue(createType, value)
-			if validateErr := validateTypedConfigValue(createType, createOptions, finalValue); validateErr != nil {
-				return validateErr
-			}
-			if validateErr := validateManagedConfigValue(key, finalValue); validateErr != nil {
-				return validateErr
-			}
-
-			data := currentTenantConfigDO(ctx)
-			data.Name = name
-			data.Key = key
-			data.Value = finalValue
-			data.ValueType = createType.String()
-			data.Options = createOptions
-			data.IsBuiltin = builtInConfigFlag(key)
-			data.Remark = remark
-			_, insertErr := dao.SysConfig.Ctx(ctx).Data(data).Insert()
-			if insertErr != nil {
-				return bizerr.WrapCode(insertErr, CodeSysConfigImportInsertFailed)
-			}
-			created = true
-			return nil
-		})
-		if err != nil {
-			result.Fail++
-			result.FailList = append(result.FailList, ImportFailItem{
-				Row:    rowNum,
-				Reason: s.localizedConfigImportError(ctx, err),
-			})
-			continue
-		}
-		if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, previousValue, finalValue, created); err != nil {
-			result.Fail++
-			result.FailList = append(result.FailList, ImportFailItem{
-				Row:    rowNum,
-				Reason: s.localizedConfigImportError(ctx, err),
-			})
-			continue
-		}
-
-		result.Success++
+		s.importConfigRow(ctx, row, i+2, updateSupport, result)
 	}
-
 	return result, nil
 }
 

@@ -83,6 +83,79 @@ export function isEnumValueType(valueType?: string) {
 }
 
 /**
+ * Modal density tiers for the parameter create/edit dialog.
+ * Compact keeps the default mid-size form; spacious expands width and editing
+ * surface for long content (richtext / long textarea).
+ */
+export type ConfigModalDensity = 'compact' | 'spacious';
+
+/**
+ * Layout chrome + value-editor sizing policy driven by `valueType`.
+ * Keep this as the single source of truth so new long-form types only need a
+ * new branch here instead of scattered pixel constants in the modal.
+ */
+export interface ConfigModalLayout {
+  density: ConfigModalDensity;
+  /** Merged into Vben Modal `class` (overrides default w-[520px] when set). */
+  modalClass: string;
+  /** Merged into Vben Modal `contentClass`. */
+  contentClass: string;
+  /** Whether the modal title bar shows the fullscreen control. */
+  fullscreenButton: boolean;
+  /**
+   * CSS length for richtext editor min/max height (viewport-relative).
+   * Empty when the active type is not richtext.
+   */
+  richtextEditorHeight: string;
+  /** Textarea min rows when valueType is textarea. */
+  textareaMinRows: number;
+}
+
+/** Default compact dialog matches Vben Modal base width (520px). */
+const COMPACT_MODAL_LAYOUT: ConfigModalLayout = {
+  density: 'compact',
+  modalClass: '',
+  contentClass: '',
+  fullscreenButton: false,
+  richtextEditorHeight: '',
+  textareaMinRows: 3,
+};
+
+/**
+ * Resolve modal + editor layout for one parameter value type.
+ * Spacious types get a wider dialog, fullscreen entry, and taller editors.
+ */
+export function resolveConfigModalLayout(
+  valueType?: ConfigValueType | string,
+): ConfigModalLayout {
+  switch (valueType) {
+    case 'richtext':
+      return {
+        density: 'spacious',
+        // Wider than the default 520px short form; capped by viewport.
+        modalClass: 'w-[min(960px,96vw)] max-w-[96vw]',
+        contentClass:
+          'config-param-modal-content config-param-modal-content--richtext',
+        fullscreenButton: true,
+        // Floor 360px, prefer ~half viewport, ceiling 640px for large screens.
+        richtextEditorHeight: 'clamp(360px, 52vh, 640px)',
+        textareaMinRows: 3,
+      };
+    case 'textarea':
+      return {
+        density: 'spacious',
+        modalClass: 'w-[min(720px,94vw)] max-w-[94vw]',
+        contentClass: 'config-param-modal-content',
+        fullscreenButton: true,
+        richtextEditorHeight: '',
+        textareaMinRows: 8,
+      };
+    default:
+      return { ...COMPACT_MODAL_LAYOUT };
+  }
+}
+
+/**
  * Parse admin-friendly option lines into structured options.
  * Supported lines:
  * - label=value
@@ -228,12 +301,18 @@ export function buildModalSchema(params: {
   isBuiltin: boolean;
 }): VbenFormSchema[] {
   const lockType = params.isEdit && params.isBuiltin;
+  // Built-in name/remark are i18n-owned display metadata; keep them read-only
+  // so operators edit the parameter value without rewriting localized labels.
+  const lockBuiltinMetadata = params.isEdit && params.isBuiltin;
   return [
     {
       component: 'Input',
       fieldName: 'name',
       label: $t('pages.system.config.fields.name'),
       rules: 'required',
+      componentProps: {
+        disabled: lockBuiltinMetadata,
+      },
     },
     {
       component: 'Input',
@@ -290,6 +369,7 @@ export function buildModalSchema(params: {
       label: $t('pages.common.remark'),
       componentProps: {
         rows: 3,
+        disabled: lockBuiltinMetadata,
       },
       formItemClass: 'items-start',
     },
@@ -348,13 +428,19 @@ export function valueFieldSchema(params: {
   const { valueType, configKey, options } = params;
   const selectOptions = buildSelectOptions(configKey, options);
 
+  const layout = resolveConfigModalLayout(valueType);
+
   switch (valueType) {
     case 'textarea':
       return {
         component: 'Textarea',
         componentProps: {
-          autoSize: { minRows: 3 },
-          rows: 3,
+          autoSize: {
+            minRows: layout.textareaMinRows,
+            maxRows: 20,
+          },
+          rows: layout.textareaMinRows,
+          class: 'w-full',
         },
         formItemClass: 'items-start',
       };
@@ -362,10 +448,13 @@ export function valueFieldSchema(params: {
       return {
         component: 'RichText',
         componentProps: {
-          height: 280,
+          // Viewport-relative pane: fixed band with internal scroll (not a short 280px strip).
+          height: layout.richtextEditorHeight,
+          maxHeight: layout.richtextEditorHeight,
+          class: 'w-full',
           placeholder: $t('pages.system.config.placeholders.richtext'),
         },
-        formItemClass: 'items-start',
+        formItemClass: 'items-start w-full',
       };
     case 'number':
       return {

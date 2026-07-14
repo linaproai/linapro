@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue';
+import { computed, onBeforeUnmount, useAttrs, watch } from 'vue';
 
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 
@@ -8,11 +8,22 @@ import { $t } from '#/locales';
 import { getExtensions } from './extensions';
 import Toolbar from './toolbar.vue';
 
+defineOptions({ inheritAttrs: false });
+
 const props = withDefaults(
   defineProps<{
     modelValue?: string;
     disabled?: boolean;
+    /**
+     * Content pane min-height. Number is treated as px; string may be any CSS
+     * length (including clamp/vh) for viewport-aware form layouts.
+     */
     height?: number | string;
+    /**
+     * Content pane max-height. Defaults to `height` so form embeddings keep a
+     * stable band with internal scroll instead of growing without bound.
+     */
+    maxHeight?: number | string;
     placeholder?: string;
     uploadHandler?: (file: File) => Promise<string>;
     /** 使用场景标识，用于记录文件用途 */
@@ -22,9 +33,12 @@ const props = withDefaults(
     modelValue: '',
     disabled: false,
     height: 300,
+    maxHeight: undefined,
     placeholder: $t('pages.editor.placeholder'),
   },
 );
+
+const attrs = useAttrs();
 
 const emit = defineEmits<{
   'update:modelValue': [value: string];
@@ -61,12 +75,26 @@ onBeforeUnmount(() => {
   editor.value?.destroy();
 });
 
-const heightStyle =
-  typeof props.height === 'number' ? `${props.height}px` : props.height;
+function toCssLength(value: number | string | undefined): string | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  return typeof value === 'number' ? `${value}px` : value;
+}
+
+const minHeightStyle = computed(() => toCssLength(props.height));
+// Prefer explicit maxHeight; otherwise pin to height so long HTML scrolls inside.
+const maxHeightStyle = computed(() =>
+  toCssLength(props.maxHeight ?? props.height),
+);
 </script>
 
 <template>
-  <div class="tiptap-editor" :class="{ 'tiptap-disabled': disabled }">
+  <div
+    class="tiptap-editor"
+    :class="[attrs.class, { 'tiptap-disabled': disabled }]"
+    data-testid="tiptap-editor"
+  >
     <Toolbar
       :editor="editor"
       :disabled="disabled"
@@ -76,7 +104,11 @@ const heightStyle =
     <EditorContent
       :editor="editor"
       class="tiptap-content"
-      :style="{ minHeight: heightStyle }"
+      data-testid="tiptap-editor-content"
+      :style="{
+        minHeight: minHeightStyle,
+        maxHeight: maxHeightStyle,
+      }"
     />
   </div>
 </template>

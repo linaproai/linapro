@@ -162,12 +162,36 @@ export class ConfigPage {
 
   async chooseBooleanValue(value: "true" | "false") {
     const label = value === "true" ? /是|True/i : /否|False/i;
-    await this.dialog.getByRole("radio", { name: label }).click();
+    // Ant Design button radios hide the native input; click the visible wrapper.
+    const wrapper = this.dialog
+      .locator(".ant-radio-button-wrapper")
+      .filter({ hasText: label })
+      .first();
+    if (await wrapper.isVisible().catch(() => false)) {
+      await wrapper.click();
+      return;
+    }
+    await this.dialog.getByRole("radio", { name: label }).click({ force: true });
+  }
+
+  /**
+   * Visible boolean option control (button-style Radio hides the native input).
+   */
+  booleanOption(label: RegExp | string) {
+    const pattern =
+      typeof label === "string"
+        ? new RegExp(this.escapeRegex(label), "i")
+        : label;
+    return this.dialog
+      .locator(".ant-radio-button-wrapper")
+      .filter({ hasText: pattern })
+      .first();
   }
 
   async selectDialogOption(fieldLabel: string, option: string | RegExp) {
+    // Vben form rows may not always expose .ant-form-item; cover both layouts.
     const item = this.dialog
-      .locator(".ant-form-item")
+      .locator(".ant-form-item, .form-is-required, .form-valid-error, .flex.flex-col, [class*='form-item']")
       .filter({ hasText: this.localizedLabelPattern(fieldLabel) })
       .first();
     const selector = item.locator(".ant-select").first();
@@ -177,7 +201,17 @@ export class ConfigPage {
       typeof option === "string"
         ? new RegExp(this.escapeRegex(option), "i")
         : option;
-    await dropdown.getByText(optionPattern).first().click();
+    // Ant Select options can sit in a portal; prefer role + evaluate click when
+    // the portal is clipped by modal overflow (outside viewport).
+    const optionLoc = dropdown
+      .locator(".ant-select-item-option, [role='option']")
+      .filter({ hasText: optionPattern })
+      .first();
+    await optionLoc.waitFor({ state: "attached", timeout: 5000 });
+    await optionLoc.evaluate((el: HTMLElement) => {
+      el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      el.click();
+    });
   }
 
   /**
@@ -195,6 +229,34 @@ export class ConfigPage {
   async openCreateDialog() {
     await this.page.getByRole("button", { name: /新\s*增/ }).click();
     await waitForDialogReady(this.dialog);
+  }
+
+  /** Root of the create/edit parameter dialog. */
+  get createEditDialog() {
+    return this.dialog;
+  }
+
+  /**
+   * Select a value type on the create form (labels are bilingual).
+   * Triggers schema remount and modal density layout refresh.
+   */
+  async selectValueType(option: string | RegExp) {
+    await this.selectDialogOption("参数类型", option);
+    await this.page.waitForTimeout(300);
+  }
+
+  /** Richtext editor shell inside the open dialog. */
+  get richtextEditor() {
+    return this.dialog.getByTestId("tiptap-editor");
+  }
+
+  get richtextEditorContent() {
+    return this.dialog.getByTestId("tiptap-editor-content");
+  }
+
+  /** Fullscreen toggle in the Vben modal header (visible for spacious types). */
+  get dialogFullscreenButton() {
+    return this.dialog.locator("button.absolute.top-3.right-10");
   }
 
   /**

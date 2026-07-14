@@ -20,7 +20,10 @@ type Service interface {
 	// is configured. Database errors are returned unchanged.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
 	// GetById retrieves one config record by ID within the current tenant data
-	// scope. Missing or out-of-scope records return a sysconfig not-found
+	// scope for edit/detail display. Name and remark are localized for the
+	// request language when an i18n translator is configured; value remains the
+	// raw stored text so editable values are not overwritten by display
+	// projections. Missing or out-of-scope records return a sysconfig not-found
 	// business error.
 	GetById(ctx context.Context, id int64) (*entity.SysConfig, error)
 	// Create creates a new config record in the current tenant scope. Protected
@@ -29,9 +32,11 @@ type Service interface {
 	// are refreshed after successful creation.
 	Create(ctx context.Context, in CreateInput) (int64, error)
 	// Update updates an existing config record in the current tenant scope.
-	// Built-in protected keys cannot be renamed, duplicate keys are rejected,
-	// protected values are validated, and sys_config runtime snapshots are
-	// refreshed after effective key or value changes.
+	// Built-in protected keys cannot be renamed, built-in name and remark are
+	// ignored on write so localized edit projections cannot pollute storage,
+	// duplicate keys are rejected, protected values are validated, and
+	// sys_config runtime snapshots are refreshed after effective key or value
+	// changes.
 	Update(ctx context.Context, in UpdateInput) error
 	// Delete soft-deletes a config record using GoFrame's auto soft-delete
 	// feature after tenant-scope visibility and built-in protection checks.

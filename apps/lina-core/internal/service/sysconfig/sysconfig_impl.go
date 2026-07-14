@@ -91,8 +91,21 @@ func (s *serviceImpl) refreshRuntimeParamSnapshotIfNeeded(
 	return s.configSvc.MarkRuntimeParamsChanged(ctx)
 }
 
-// GetById retrieves config by ID.
+// GetById retrieves config by ID for edit/detail display. Name and remark are
+// localized for the request language; value stays as the stored raw text.
 func (s *serviceImpl) GetById(ctx context.Context, id int64) (*entity.SysConfig, error) {
+	cfg, err := s.getByIdRaw(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.localizeConfigEntityMetadata(ctx, cfg)
+	return cfg, nil
+}
+
+// getByIdRaw loads one config row by ID without i18n projection. Mutation paths
+// must use this helper so localized name/remark never drive write-back or
+// built-in protection checks against display text.
+func (s *serviceImpl) getByIdRaw(ctx context.Context, id int64) (*entity.SysConfig, error) {
 	var cfg *entity.SysConfig
 	model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: id})
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
@@ -170,8 +183,8 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		finalValue    string
 	)
 	if err := s.withConfigMutation(ctx, func(ctx context.Context) error {
-		// Check config exists
-		existing, err := s.GetById(ctx, in.Id)
+		// Check config exists using raw storage values (not display projections).
+		existing, err := s.getByIdRaw(ctx, in.Id)
 		if err != nil {
 			return err
 		}
@@ -248,16 +261,15 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		}
 
 		data := do.SysConfig{}
-		if in.Name != nil {
-			data.Name = *in.Name
-		}
-		if in.Key != nil {
-			data.Key = *in.Key
-		}
-		if in.Value != nil {
-			data.Value = finalValue
-		}
+		// Built-in name/remark are framework display metadata owned by i18n
+		// resources; never persist edit-form projections back into sys_config.
 		if !isBuiltInConfigRecord(existing) {
+			if in.Name != nil {
+				data.Name = *in.Name
+			}
+			if in.Remark != nil {
+				data.Remark = *in.Remark
+			}
 			if in.ValueType != nil {
 				data.ValueType = finalValueType.String()
 			}
@@ -265,8 +277,11 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 				data.Options = finalOptionsRaw
 			}
 		}
-		if in.Remark != nil {
-			data.Remark = *in.Remark
+		if in.Key != nil {
+			data.Key = *in.Key
+		}
+		if in.Value != nil {
+			data.Value = finalValue
 		}
 
 		_, err = dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: in.Id}).Data(data).Update()
@@ -283,8 +298,8 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 // Delete soft-deletes a config record using GoFrame's auto soft-delete feature.
 func (s *serviceImpl) Delete(ctx context.Context, id int64) error {
-	// Check config exists
-	existing, err := s.GetById(ctx, id)
+	// Check config exists using raw storage values.
+	existing, err := s.getByIdRaw(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -403,11 +418,9 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 			return nil, err
 		}
 		// Export options in simple line format for human-friendly Excel editing.
-		exportedOptions := ""
+		exportedOptions := c.Options
 		if parsed, parseErr := configvaluetype.ParseOptions(c.Options); parseErr == nil {
 			exportedOptions = configvaluetype.FormatOptionsSimple(parsed)
-		} else {
-			exportedOptions = c.Options
 		}
 		if err = setCellValue(f, sheet, 5, row, exportedOptions); err != nil {
 			return nil, err

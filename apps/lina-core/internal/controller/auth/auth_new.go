@@ -13,8 +13,8 @@ import (
 
 // ControllerV1 is the authentication controller.
 type ControllerV1 struct {
-	authSvc   authsvc.Service  // auth service
-	bizCtxSvc bizctx.Service   // business context service
+	authSvc   authsvc.Service   // auth service
+	bizCtxSvc bizctx.Service    // business context service
 	configSvc configsvc.Service // host config for workspace base path
 }
 
