@@ -22,14 +22,35 @@ test.describe('TC002 参数设置导入完整流程', () => {
   const testKeyPrefix = `e2e.test.config.${Date.now()}`;
 
   /**
-   * Create an Excel file with config data
+   * Create an Excel file with config data.
+   * Column order must match the backend import template:
+   * 参数名称 / 参数键名 / 参数键值 / 参数类型 / 选项列表 / 备注
    */
-  function createConfigExcel(filePath: string, configs: Array<{ name: string; key: string; value: string; remark?: string }>) {
+  function createConfigExcel(
+    filePath: string,
+    configs: Array<{
+      name: string;
+      key: string;
+      value: string;
+      valueType?: string;
+      options?: string;
+      remark?: string;
+    }>,
+  ) {
     const workbook = xlsxUtils.book_new();
 
-    // Create worksheet with headers
-    const headers = ['参数名称', '参数键名', '参数键值', '备注'];
-    const rows = [headers, ...configs.map(c => [c.name, c.key, c.value, c.remark || ''])];
+    const headers = ['参数名称', '参数键名', '参数键值', '参数类型', '选项列表', '备注'];
+    const rows = [
+      headers,
+      ...configs.map((c) => [
+        c.name,
+        c.key,
+        c.value,
+        c.valueType || '',
+        c.options || '',
+        c.remark || '',
+      ]),
+    ];
 
     const worksheet = xlsxUtils.aoa_to_sheet(rows);
     xlsxUtils.book_append_sheet(workbook, worksheet, 'Sheet1');
@@ -108,11 +129,16 @@ test.describe('TC002 参数设置导入完整流程', () => {
     const sheet = workbook.Sheets[sheetNames[0]];
     expect(sheet).toBeDefined();
 
-    // Verify headers in row 1
+    // Verify headers in row 1 match the current import template
     const headerRow = xlsxUtils.sheet_to_json(sheet, { header: 1 })[0] as string[];
-    expect(headerRow).toContain('参数名称');
-    expect(headerRow).toContain('参数键名');
-    expect(headerRow).toContain('参数键值');
+    expect(headerRow).toEqual([
+      '参数名称',
+      '参数键名',
+      '参数键值',
+      '参数类型',
+      '选项列表',
+      '备注',
+    ]);
   });
 
   test('TC002b: 导入弹窗UI组件完整性', async ({ authenticatedPage: adminPage }) => {
@@ -143,8 +169,20 @@ test.describe('TC002 参数设置导入完整流程', () => {
     const importFilePath = path.join(tempDir, 'import-new-data.xlsx');
 
     createConfigExcel(importFilePath, [
-      { name: 'E2E测试配置1', key: testKey1, value: '测试值1', remark: '自动化测试创建' },
-      { name: 'E2E测试配置2', key: testKey2, value: '测试值2', remark: '自动化测试创建' },
+      {
+        name: 'E2E测试配置1',
+        key: testKey1,
+        value: '测试值1',
+        valueType: 'text',
+        remark: '自动化测试创建',
+      },
+      {
+        name: 'E2E测试配置2',
+        key: testKey2,
+        value: '测试值2',
+        valueType: 'text',
+        remark: '自动化测试创建',
+      },
     ]);
 
     // Open import modal
@@ -192,7 +230,13 @@ test.describe('TC002 参数设置导入完整流程', () => {
     // Create import file with duplicate key
     const importFilePath = path.join(tempDir, 'import-duplicate.xlsx');
     createConfigExcel(importFilePath, [
-      { name: '重复配置', key: testKey, value: '新值', remark: '尝试覆盖' },
+      {
+        name: '重复配置',
+        key: testKey,
+        value: '新值',
+        valueType: 'text',
+        remark: '尝试覆盖',
+      },
     ]);
 
     // Open import modal
@@ -242,7 +286,13 @@ test.describe('TC002 参数设置导入完整流程', () => {
     // Create import file with new value
     const importFilePath = path.join(tempDir, 'import-override.xlsx');
     createConfigExcel(importFilePath, [
-      { name: '已更新配置', key: testKey, value: '更新后的值', remark: '覆盖更新' },
+      {
+        name: '已更新配置',
+        key: testKey,
+        value: '更新后的值',
+        valueType: 'text',
+        remark: '覆盖更新',
+      },
     ]);
 
     // Open import modal
@@ -329,10 +379,10 @@ test.describe('TC002 参数设置导入完整流程', () => {
     const importFilePath = path.join(tempDir, 'import-invalid.xlsx');
     const workbook = xlsxUtils.book_new();
     const worksheet = xlsxUtils.aoa_to_sheet([
-      ['参数名称', '参数键名', '参数键值', '备注'],
-      ['', 'test.key.empty.name', '值1', ''], // Empty name
-      ['测试配置2', '', '值2', ''], // Empty key
-      ['测试配置3', 'test.key.empty.value', '', ''], // Empty value
+      ['参数名称', '参数键名', '参数键值', '参数类型', '选项列表', '备注'],
+      ['', 'test.key.empty.name', '值1', 'text', '', ''], // Empty name
+      ['测试配置2', '', '值2', 'text', '', ''], // Empty key
+      ['测试配置3', 'test.key.empty.value', '', 'text', '', ''], // Empty value
     ]);
     xlsxUtils.book_append_sheet(workbook, worksheet, 'Sheet1');
     (XLSX as any).writeFile(workbook, importFilePath);
