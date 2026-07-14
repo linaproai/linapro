@@ -102,6 +102,8 @@ func (s *serviceImpl) buildLocalizedImportTemplateHeaders(ctx context.Context) [
 		s.localizedConfigFieldLabel(ctx, "name", "Parameter Name"),
 		s.localizedConfigFieldLabel(ctx, "key", "Parameter Key"),
 		s.localizedConfigFieldLabel(ctx, "value", "Parameter Value"),
+		s.localizedConfigFieldLabel(ctx, "valueType", "Value Type"),
+		s.localizedConfigFieldLabel(ctx, "options", "Options"),
 		s.localizedConfigFieldLabel(ctx, "remark", "Remark"),
 	}
 }
@@ -112,6 +114,8 @@ func (s *serviceImpl) buildLocalizedExportHeaders(ctx context.Context) []string 
 		s.localizedConfigFieldLabel(ctx, "name", "Parameter Name"),
 		s.localizedConfigFieldLabel(ctx, "key", "Parameter Key"),
 		s.localizedConfigFieldLabel(ctx, "value", "Parameter Value"),
+		s.localizedConfigFieldLabel(ctx, "valueType", "Value Type"),
+		s.localizedConfigFieldLabel(ctx, "options", "Options"),
 		s.localizedConfigFieldLabel(ctx, "remark", "Remark"),
 		s.localizedConfigFieldLabel(ctx, "createdAt", "Created At"),
 		s.localizedConfigFieldLabel(ctx, "updatedAt", "Updated At"),

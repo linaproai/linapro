@@ -159,11 +159,13 @@ INSERT INTO sys_job_group ("tenant_id", "code", "name", "remark", "sort_order", 
 VALUES (0, 'default', 'Default Group', 'The system default job group. Jobs are moved here when other groups are deleted.', 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
-INSERT INTO sys_config ("name", "key", "value", "is_builtin", "remark", "created_at", "updated_at")
+INSERT INTO sys_config ("name", "key", "value", "value_type", "options", "is_builtin", "remark", "created_at", "updated_at")
 VALUES (
     '定时任务-Shell 模式全局开关',
     'sys.cron.shell.enabled',
     'true',
+    'boolean',
+    '',
     1,
     '控制 Shell 类型任务是否允许创建、修改、触发与终止，可选值：true、false。',
     NOW(),
@@ -171,11 +173,13 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
-INSERT INTO sys_config ("name", "key", "value", "is_builtin", "remark", "created_at", "updated_at")
+INSERT INTO sys_config ("name", "key", "value", "value_type", "options", "is_builtin", "remark", "created_at", "updated_at")
 VALUES (
     '定时任务-执行日志保留策略',
     'sys.cron.log.retention',
     '{"mode":"days","value":30}',
+    'textarea',
+    '',
     1,
     '控制定时任务执行日志默认保留策略，使用 JSON：{"mode":"days|count|none","value":N}。',
     NOW(),

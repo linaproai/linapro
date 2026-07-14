@@ -359,7 +359,9 @@
       "fields": {
         "name": "参数名称",
         "key": "参数键名",
-        "value": "参数键值"
+        "value": "参数键值",
+        "valueType": "参数类型",
+        "options": "选项列表"
       },
       "drawer": {
         "createTitle": "新增参数设置",
@@ -368,7 +370,8 @@
       "messages": {
         "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",
         "exportSelectedConfirm": "是否导出选中的记录？",
-        "exportAllConfirm": "是否导出全部数据？"
+        "exportAllConfirm": "是否导出全部数据？",
+        "optionsRequired": "枚举类型参数必须配置选项列表"
       },
       "import": {
         "title": "参数设置导入",
@@ -381,6 +384,29 @@
         "success": "成功导入 {count} 条参数设置数据",
         "summary": "成功 {success} 条，失败 {fail} 条",
         "rowReason": "第{row}行: {reason}"
+      },
+      "valueTypes": {
+        "text": "单行文本",
+        "textarea": "多行文本",
+        "number": "数字",
+        "boolean": "布尔",
+        "select": "下拉单选",
+        "radio": "单选",
+        "multi_select": "多选",
+        "richtext": "富文本"
+      },
+      "boolean": {
+        "true": "是",
+        "false": "否"
+      },
+      "help": {
+        "optionsJson": "JSON 数组，每项包含 label 与 value，例如 [{\"label\":\"左侧\",\"value\":\"panel-left\"}]",
+        "optionsSimple": "每行一个选项。格式：标签=值，或仅写值。例如：\n左侧=panel-left\n居中=panel-center"
+      },
+      "placeholders": {
+        "optionsJson": "[{\"label\":\"选项名\",\"value\":\"option-value\"}]",
+        "optionsSimple": "左侧=panel-left\n居中=panel-center\n右侧=panel-right",
+        "richtext": "请输入富文本内容"
       }
     },
     "dict": {

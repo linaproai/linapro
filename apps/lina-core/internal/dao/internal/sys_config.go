@@ -31,6 +31,8 @@ type SysConfigColumns struct {
 	CreatedAt string // Creation time
 	UpdatedAt string // Modification time
 	DeletedAt string // Deletion time
+	ValueType string // Parameter value input type: text, textarea, number, boolean, select, radio, multi_select, richtext
+	Options   string // JSON array of {label,value} options for select/radio/multi_select; empty for other types
 }
 
 // sysConfigColumns holds the columns for the table sys_config.
@@ -45,6 +47,8 @@ var sysConfigColumns = SysConfigColumns{
 	CreatedAt: "created_at",
 	UpdatedAt: "updated_at",
 	DeletedAt: "deleted_at",
+	ValueType: "value_type",
+	Options:   "options",
 }
 
 // NewSysConfigDao creates and returns a new DAO object for table data access.

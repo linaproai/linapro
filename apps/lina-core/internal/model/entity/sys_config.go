@@ -20,4 +20,6 @@ type SysConfig struct {
 	CreatedAt *time.Time `json:"createdAt" orm:"created_at" description:"Creation time"`
 	UpdatedAt *time.Time `json:"updatedAt" orm:"updated_at" description:"Modification time"`
 	DeletedAt *time.Time `json:"deletedAt" orm:"deleted_at" description:"Deletion time"`
+	ValueType string     `json:"valueType" orm:"value_type" description:"Parameter value input type: text, textarea, number, boolean, select, radio, multi_select, richtext"`
+	Options   string     `json:"options"   orm:"options"    description:"JSON array of {label,value} options for select/radio/multi_select; empty for other types"`
 }

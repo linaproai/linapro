@@ -88,4 +88,28 @@ var (
 		"Failed to insert system configuration during import",
 		gcode.CodeInternalError,
 	)
+	// CodeSysConfigValueTypeInvalid reports that the parameter value type is unsupported.
+	CodeSysConfigValueTypeInvalid = bizerr.MustDefine(
+		"SYSCONFIG_VALUE_TYPE_INVALID",
+		"System configuration value type is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeSysConfigOptionsInvalid reports that options JSON or structure is invalid.
+	CodeSysConfigOptionsInvalid = bizerr.MustDefine(
+		"SYSCONFIG_OPTIONS_INVALID",
+		"System configuration options are invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeSysConfigTypedValueInvalid reports that value does not match the declared type/options.
+	CodeSysConfigTypedValueInvalid = bizerr.MustDefine(
+		"SYSCONFIG_TYPED_VALUE_INVALID",
+		"System configuration value does not match its value type",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeSysConfigBuiltinTypeChangeDenied reports that built-in type/options cannot be changed.
+	CodeSysConfigBuiltinTypeChangeDenied = bizerr.MustDefine(
+		"SYSCONFIG_BUILTIN_TYPE_CHANGE_DENIED",
+		"Built-in system parameter type and options cannot be modified",
+		gcode.CodeNotAuthorized,
+	)
 )

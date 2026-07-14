@@ -19,6 +19,8 @@ async function initSetupVbenForm() {
       modelPropNameMap: {
         Checkbox: 'checked',
         Radio: 'checked',
+        // Tiptap uses Vue default v-model (modelValue), not ant-design value.
+        RichText: 'modelValue',
         Switch: 'checked',
         Upload: 'fileList',
       },

@@ -9,6 +9,7 @@ import (
 	v1 "lina-core/api/config/v1"
 	"lina-core/internal/service/sysconfig"
 	"lina-core/pkg/apitime"
+	"lina-core/pkg/configvaluetype"
 	"lina-core/pkg/fallbackoverride"
 	"lina-core/pkg/statusflag"
 )
@@ -39,11 +40,21 @@ func configItem(item *sysconfig.ConfigProjection) v1.ConfigItem {
 	if item == nil || item.SysConfig == nil {
 		return v1.ConfigItem{}
 	}
+	valueType := configvaluetype.Normalize(item.ValueType)
+	options := make([]v1.ConfigValueOption, 0)
+	for _, option := range parseConfigOptions(item.Options) {
+		options = append(options, v1.ConfigValueOption{
+			Label: option.Label,
+			Value: option.Value,
+		})
+	}
 	return v1.ConfigItem{
 		Id:             item.Id,
 		Name:           item.Name,
 		Key:            item.Key,
 		Value:          item.Value,
+		ValueType:      valueType,
+		Options:        options,
 		IsBuiltin:      statusflag.YesNo(item.IsBuiltin),
 		Remark:         item.Remark,
 		SourceTenantId: item.SourceTenantId,
@@ -54,4 +65,13 @@ func configItem(item *sysconfig.ConfigProjection) v1.ConfigItem {
 		CreatedAt:      apitime.Milli(item.CreatedAt),
 		UpdatedAt:      apitime.Milli(item.UpdatedAt),
 	}
+}
+
+// parseConfigOptions decodes stored options JSON into option structs.
+func parseConfigOptions(raw string) []configvaluetype.Option {
+	options, err := configvaluetype.ParseOptions(raw)
+	if err != nil || len(options) == 0 {
+		return []configvaluetype.Option{}
+	}
+	return options
 }

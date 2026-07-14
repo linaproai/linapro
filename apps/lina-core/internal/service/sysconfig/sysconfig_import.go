@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 
 	"github.com/xuri/excelize/v2"
 
@@ -16,6 +17,7 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/configvaluetype"
 	"lina-core/pkg/excelutil"
 )
 
@@ -91,24 +93,44 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			})
 			continue
 		}
-		if validateErr := validateManagedConfigValue(key, value); validateErr != nil {
-			result.Fail++
-			result.FailList = append(result.FailList, ImportFailItem{
-				Row:    rowNum,
-				Reason: s.localizedConfigImportError(ctx, validateErr),
-			})
-			continue
-		}
 
-		// Parse remark
-		remark := ""
+		valueTypeRaw := ""
 		if len(row) > 3 {
-			remark = row[3]
+			valueTypeRaw = strings.TrimSpace(row[3])
+		}
+		optionsRaw := ""
+		if len(row) > 4 {
+			optionsRaw = strings.TrimSpace(row[4])
+		}
+		remark := ""
+		if len(row) > 5 {
+			remark = row[5]
+		}
+		if valueTypeRaw != "" {
+			if _, resolveErr := configvaluetype.ResolveCode(valueTypeRaw); resolveErr != nil {
+				result.Fail++
+				result.FailList = append(result.FailList, ImportFailItem{
+					Row:    rowNum,
+					Reason: s.localizedConfigImportError(ctx, bizerr.WrapCode(resolveErr, CodeSysConfigValueTypeInvalid)),
+				})
+				continue
+			}
+		}
+		if optionsRaw != "" {
+			if _, parseErr := configvaluetype.ParseOptions(optionsRaw); parseErr != nil {
+				result.Fail++
+				result.FailList = append(result.FailList, ImportFailItem{
+					Row:    rowNum,
+					Reason: s.localizedConfigImportError(ctx, bizerr.WrapCode(parseErr, CodeSysConfigOptionsInvalid)),
+				})
+				continue
+			}
 		}
 
 		var (
 			previousValue string
 			created       bool
+			finalValue    = value
 		)
 		err = s.withConfigMutation(ctx, func(ctx context.Context) error {
 			// Check if key exists (GoFrame auto-adds deleted_at IS NULL)
@@ -128,12 +150,46 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 					return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", key))
 				}
 				previousValue = existing.Value
-				// Overwrite mode: update existing record (GoFrame auto-fills updated_at)
+				finalType := entityValueType(existing.ValueType)
+				finalOptions := existing.Options
 				data := do.SysConfig{
 					Name:   name,
-					Value:  value,
 					Remark: remark,
 				}
+				if isBuiltInConfigRecord(existing) {
+					// Built-in type/options stay locked.
+					finalValue = normalizePersistedValue(finalType, value)
+					if validateErr := validateTypedConfigValue(finalType, finalOptions, finalValue); validateErr != nil {
+						return validateErr
+					}
+				} else {
+					resolvedType, resolveErr := configvaluetype.ResolveCode(valueTypeRaw)
+					if resolveErr != nil {
+						return bizerr.WrapCode(resolveErr, CodeSysConfigValueTypeInvalid)
+					}
+					finalType = resolvedType
+					if optionsRaw != "" || valueTypeRaw != "" {
+						parsedOptions, parseErr := configvaluetype.ParseOptions(optionsRaw)
+						if parseErr != nil {
+							return bizerr.WrapCode(parseErr, CodeSysConfigOptionsInvalid)
+						}
+						encoded, encodeErr := configvaluetype.EncodeOptions(parsedOptions)
+						if encodeErr != nil {
+							return bizerr.WrapCode(encodeErr, CodeSysConfigOptionsInvalid)
+						}
+						finalOptions = encoded
+					}
+					finalValue = normalizePersistedValue(finalType, value)
+					if validateErr := validateTypedConfigValue(finalType, finalOptions, finalValue); validateErr != nil {
+						return validateErr
+					}
+					data.ValueType = finalType.String()
+					data.Options = finalOptions
+				}
+				if validateErr := validateManagedConfigValue(key, finalValue); validateErr != nil {
+					return validateErr
+				}
+				data.Value = finalValue
 				if hostconfig.IsManagedSysConfigKey(key) {
 					data.IsBuiltin = 1
 				}
@@ -148,10 +204,29 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			}
 
 			// Create new record (GoFrame auto-fills created_at and updated_at)
+			createType, createOptions, inheritErr := resolveCreateTypeMetadata(
+				ctx,
+				key,
+				valueTypeRaw,
+				parseEntityOptions(optionsRaw),
+			)
+			if inheritErr != nil {
+				return inheritErr
+			}
+			finalValue = normalizePersistedValue(createType, value)
+			if validateErr := validateTypedConfigValue(createType, createOptions, finalValue); validateErr != nil {
+				return validateErr
+			}
+			if validateErr := validateManagedConfigValue(key, finalValue); validateErr != nil {
+				return validateErr
+			}
+
 			data := currentTenantConfigDO(ctx)
 			data.Name = name
 			data.Key = key
-			data.Value = value
+			data.Value = finalValue
+			data.ValueType = createType.String()
+			data.Options = createOptions
 			data.IsBuiltin = builtInConfigFlag(key)
 			data.Remark = remark
 			_, insertErr := dao.SysConfig.Ctx(ctx).Data(data).Insert()
@@ -169,7 +244,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			})
 			continue
 		}
-		if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, previousValue, value, created); err != nil {
+		if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, previousValue, finalValue, created); err != nil {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
@@ -213,10 +288,16 @@ func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, 
 	if err = setCellValue(f, sheet, 3, 2, "24h"); err != nil {
 		return nil, err
 	}
+	if err = setCellValue(f, sheet, 4, 2, configvaluetype.Text.String()); err != nil {
+		return nil, err
+	}
+	if err = setCellValue(f, sheet, 5, 2, ""); err != nil {
+		return nil, err
+	}
 	if err = setCellValue(
 		f,
 		sheet,
-		4,
+		6,
 		2,
 		s.localizedConfigRemark(
 			ctx,

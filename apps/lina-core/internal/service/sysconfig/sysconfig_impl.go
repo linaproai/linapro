@@ -18,6 +18,7 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/configvaluetype"
 )
 
 // List queries config list with pagination and filters.
@@ -107,12 +108,20 @@ func (s *serviceImpl) GetById(ctx context.Context, id int64) (*entity.SysConfig,
 
 // Create creates a new config record.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int64, error) {
-	if err := validateManagedConfigValue(in.Key, in.Value); err != nil {
+	valueType, optionsRaw, err := resolveCreateTypeMetadata(ctx, in.Key, in.ValueType, in.Options)
+	if err != nil {
+		return 0, err
+	}
+	value := normalizePersistedValue(valueType, in.Value)
+	if err = validateTypedConfigValue(valueType, optionsRaw, value); err != nil {
+		return 0, err
+	}
+	if err = validateManagedConfigValue(in.Key, value); err != nil {
 		return 0, err
 	}
 
 	var createdID int64
-	err := s.withConfigMutation(ctx, func(ctx context.Context) error {
+	err = s.withConfigMutation(ctx, func(ctx context.Context) error {
 		// Check key uniqueness (GoFrame auto-adds deleted_at IS NULL)
 		model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Key: in.Key})
 		model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
@@ -128,7 +137,9 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int64, error)
 		data := currentTenantConfigDO(ctx)
 		data.Name = in.Name
 		data.Key = in.Key
-		data.Value = in.Value
+		data.Value = value
+		data.ValueType = valueType.String()
+		data.Options = optionsRaw
 		data.IsBuiltin = builtInConfigFlag(in.Key)
 		data.Remark = in.Remark
 
@@ -143,7 +154,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int64, error)
 		return 0, err
 	}
 
-	if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, in.Key, "", in.Value, true); err != nil {
+	if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, in.Key, "", value, true); err != nil {
 		return 0, err
 	}
 
@@ -194,6 +205,44 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		if in.Value != nil {
 			finalValue = *in.Value
 		}
+
+		finalValueType := entityValueType(existing.ValueType)
+		finalOptionsRaw := existing.Options
+		if isBuiltInConfigRecord(existing) {
+			if in.ValueType != nil && strings.TrimSpace(*in.ValueType) != "" &&
+				entityValueType(*in.ValueType) != finalValueType {
+				return bizerr.NewCode(CodeSysConfigBuiltinTypeChangeDenied)
+			}
+			if in.Options != nil {
+				encoded, encodeErr := configvaluetype.EncodeOptions(*in.Options)
+				if encodeErr != nil {
+					return bizerr.WrapCode(encodeErr, CodeSysConfigOptionsInvalid)
+				}
+				if encoded != strings.TrimSpace(existing.Options) {
+					return bizerr.NewCode(CodeSysConfigBuiltinTypeChangeDenied)
+				}
+			}
+		} else {
+			if in.ValueType != nil {
+				resolved, resolveErr := configvaluetype.ResolveCode(*in.ValueType)
+				if resolveErr != nil {
+					return bizerr.WrapCode(resolveErr, CodeSysConfigValueTypeInvalid)
+				}
+				finalValueType = resolved
+			}
+			if in.Options != nil {
+				encoded, encodeErr := configvaluetype.EncodeOptions(*in.Options)
+				if encodeErr != nil {
+					return bizerr.WrapCode(encodeErr, CodeSysConfigOptionsInvalid)
+				}
+				finalOptionsRaw = encoded
+			}
+		}
+
+		finalValue = normalizePersistedValue(finalValueType, finalValue)
+		if err = validateTypedConfigValue(finalValueType, finalOptionsRaw, finalValue); err != nil {
+			return err
+		}
 		if err = validateManagedConfigValue(finalKey, finalValue); err != nil {
 			return err
 		}
@@ -206,7 +255,15 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			data.Key = *in.Key
 		}
 		if in.Value != nil {
-			data.Value = *in.Value
+			data.Value = finalValue
+		}
+		if !isBuiltInConfigRecord(existing) {
+			if in.ValueType != nil {
+				data.ValueType = finalValueType.String()
+			}
+			if in.Options != nil {
+				data.Options = finalOptionsRaw
+			}
 		}
 		if in.Remark != nil {
 			data.Remark = *in.Remark
@@ -342,16 +399,29 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if err = setCellValue(f, sheet, 3, row, c.Value); err != nil {
 			return nil, err
 		}
-		if err = setCellValue(f, sheet, 4, row, c.Remark); err != nil {
+		if err = setCellValue(f, sheet, 4, row, entityValueType(c.ValueType).String()); err != nil {
+			return nil, err
+		}
+		// Export options in simple line format for human-friendly Excel editing.
+		exportedOptions := ""
+		if parsed, parseErr := configvaluetype.ParseOptions(c.Options); parseErr == nil {
+			exportedOptions = configvaluetype.FormatOptionsSimple(parsed)
+		} else {
+			exportedOptions = c.Options
+		}
+		if err = setCellValue(f, sheet, 5, row, exportedOptions); err != nil {
+			return nil, err
+		}
+		if err = setCellValue(f, sheet, 6, row, c.Remark); err != nil {
 			return nil, err
 		}
 		if c.CreatedAt != nil {
-			if err = setCellValue(f, sheet, 5, row, c.CreatedAt.String()); err != nil {
+			if err = setCellValue(f, sheet, 7, row, c.CreatedAt.String()); err != nil {
 				return nil, err
 			}
 		}
 		if c.UpdatedAt != nil {
-			if err = setCellValue(f, sheet, 6, row, c.UpdatedAt.String()); err != nil {
+			if err = setCellValue(f, sheet, 8, row, c.UpdatedAt.String()); err != nil {
 				return nil, err
 			}
 		}

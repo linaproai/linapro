@@ -107,7 +107,7 @@ func TestTenantSysconfigImportPersistsCurrentTenant(t *testing.T) {
 		tenantID   = 95
 		tenantCtx  = datascope.WithTenantScope(ctx, tenantID)
 		key        = fmt.Sprintf("tenant.import.%d", time.Now().UnixNano())
-		importData = buildConfigImportFile(t, []string{"Tenant import", key, "tenant-imported", "tenant import test"})
+		importData = buildConfigImportFile(t, []string{"Tenant import", key, "tenant-imported", "text", "", "tenant import test"})
 	)
 
 	result, err := New(nil, nil).Import(tenantCtx, bytes.NewReader(importData), false)
@@ -139,7 +139,7 @@ func TestTenantSysconfigImportCreatesOverrideInsteadOfUpdatingPlatformFallback(t
 		key       = fmt.Sprintf("tenant.import.override.%d", time.Now().UnixNano())
 	)
 	insertTenantFallbackConfig(t, ctx, datascope.PlatformTenantID, key, "platform-value")
-	importData := buildConfigImportFile(t, []string{"Tenant override", key, "tenant-value", "tenant import override"})
+	importData := buildConfigImportFile(t, []string{"Tenant override", key, "tenant-value", "text", "", "tenant import override"})
 
 	result, err := New(nil, nil).Import(tenantCtx, bytes.NewReader(importData), true)
 	if err != nil {

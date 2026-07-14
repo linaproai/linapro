@@ -9,6 +9,7 @@ import (
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/pkg/configvaluetype"
 )
 
 // Service defines the sysconfig service contract.
@@ -91,19 +92,23 @@ type ListOutput struct {
 
 // CreateInput defines input for Create function.
 type CreateInput struct {
-	Name   string // Parameter name
-	Key    string // Parameter key
-	Value  string // Parameter value
-	Remark string // Remark
+	Name      string                   // Parameter name
+	Key       string                   // Parameter key
+	Value     string                   // Parameter value
+	ValueType string                   // Parameter value input type; empty defaults to text
+	Options   []configvaluetype.Option // Selectable options for enum-like types
+	Remark    string                   // Remark
 }
 
 // UpdateInput defines input for Update function.
 type UpdateInput struct {
-	Id     int64   // Parameter ID
-	Name   *string // Parameter name
-	Key    *string // Parameter key
-	Value  *string // Parameter value
-	Remark *string // Remark
+	Id        int64                     // Parameter ID
+	Name      *string                   // Parameter name
+	Key       *string                   // Parameter key
+	Value     *string                   // Parameter value
+	ValueType *string                   // Parameter value input type
+	Options   *[]configvaluetype.Option // Selectable options for enum-like types
+	Remark    *string                   // Remark
 }
 
 // ExportInput defines input for Export function.

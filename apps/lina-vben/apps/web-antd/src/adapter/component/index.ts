@@ -91,6 +91,10 @@ const Image = defineAsyncComponent(() => import('ant-design-vue/es/image'));
 const PreviewGroup = defineAsyncComponent(() =>
   import('ant-design-vue/es/image').then((res) => res.ImagePreviewGroup),
 );
+// Host Tiptap editor for rich-text form fields (e.g. sys_config valueType=richtext).
+const RichText = defineAsyncComponent(() =>
+  import('#/components/tiptap').then((mod) => mod.TiptapEditor),
+);
 
 const withDefaultPlaceholder = <T extends Component>(
   component: T,
@@ -504,6 +508,7 @@ export type ComponentType =
   | 'RadioGroup'
   | 'RangePicker'
   | 'Rate'
+  | 'RichText'
   | 'Select'
   | 'Space'
   | 'Switch'
@@ -567,6 +572,7 @@ async function initComponentAdapter() {
     RadioGroup,
     RangePicker,
     Rate,
+    RichText,
     Select: withDefaultPlaceholder(Select, 'select'),
     Space,
     Switch,

@@ -147,6 +147,11 @@
           "rename": {
             "denied": "内置运行时参数不允许修改键名"
           }
+        },
+        "type": {
+          "change": {
+            "denied": "内置系统参数的类型与选项不可修改"
+          }
         }
       },
       "import": {
@@ -188,6 +193,19 @@
       "protected": {
         "value": {
           "invalid": "内置系统参数值校验失败"
+        }
+      },
+      "value": {
+        "type": {
+          "invalid": "系统参数值类型无效"
+        }
+      },
+      "options": {
+        "invalid": "系统参数选项无效"
+      },
+      "typed": {
+        "value": {
+          "invalid": "系统参数值与参数类型不匹配"
         }
       }
     },

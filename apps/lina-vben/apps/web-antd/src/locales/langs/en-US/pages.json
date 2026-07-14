@@ -359,7 +359,9 @@
       "fields": {
         "name": "Parameter Name",
         "key": "Parameter Key",
-        "value": "Parameter Value"
+        "value": "Parameter Value",
+        "valueType": "Value Type",
+        "options": "Options"
       },
       "drawer": {
         "createTitle": "Add Parameter Setting",
@@ -368,7 +370,8 @@
       "messages": {
         "deleteSelectedConfirm": "Delete the selected {count} record(s)?",
         "exportSelectedConfirm": "Export the selected records?",
-        "exportAllConfirm": "Export all data?"
+        "exportAllConfirm": "Export all data?",
+        "optionsRequired": "Enum parameter types require an options list"
       },
       "import": {
         "title": "Import Parameter Settings",
@@ -381,6 +384,29 @@
         "success": "Imported {count} parameter setting record(s) successfully.",
         "summary": "Imported {success} row(s) successfully and {fail} row(s) failed.",
         "rowReason": "Row {row}: {reason}"
+      },
+      "valueTypes": {
+        "text": "Text",
+        "textarea": "Textarea",
+        "number": "Number",
+        "boolean": "Boolean",
+        "select": "Select",
+        "radio": "Radio",
+        "multi_select": "Multi Select",
+        "richtext": "Rich Text"
+      },
+      "boolean": {
+        "true": "True",
+        "false": "False"
+      },
+      "help": {
+        "optionsJson": "JSON array of {label,value} objects, e.g. [{\"label\":\"Left\",\"value\":\"panel-left\"}]",
+        "optionsSimple": "One option per line. Format: label=value, or value only. Example:\nLeft=panel-left\nCenter=panel-center"
+      },
+      "placeholders": {
+        "optionsJson": "[{\"label\":\"Label\",\"value\":\"option-value\"}]",
+        "optionsSimple": "Left=panel-left\nCenter=panel-center\nRight=panel-right",
+        "richtext": "Enter rich text content"
       }
     },
     "dict": {

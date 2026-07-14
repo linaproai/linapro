@@ -6,7 +6,9 @@
       "name": "Parameter Name",
       "remark": "Remark",
       "updatedAt": "Updated At",
-      "value": "Parameter Value"
+      "value": "Parameter Value",
+      "valueType": "Value Type",
+      "options": "Options"
     },
     "cron": {
       "shell": {
@@ -49,7 +51,12 @@
         },
         "loginPanelLayout": {
           "name": "Login - Panel Layout",
-          "remark": "Controls the default login panel layout: panel-left, panel-center, or panel-right."
+          "remark": "Controls the default login panel layout: panel-left, panel-center, or panel-right.",
+          "option": {
+            "panel-left": "Left",
+            "panel-center": "Center",
+            "panel-right": "Right"
+          }
         },
         "loginSubtitle": {
           "name": "Login - Form Subtitle",
@@ -117,12 +124,26 @@
       "ui": {
         "layout": {
           "name": "UI - Workspace Layout",
-          "remark": "Controls the default workspace layout mode."
+          "remark": "Controls the default workspace layout mode.",
+          "option": {
+            "sidebar-nav": "Sidebar Nav",
+            "sidebar-mixed-nav": "Sidebar Mixed Nav",
+            "header-nav": "Header Nav",
+            "header-sidebar-nav": "Header Sidebar Nav",
+            "header-mixed-nav": "Header Mixed Nav",
+            "mixed-nav": "Mixed Nav",
+            "full-content": "Full Content"
+          }
         },
         "theme": {
           "mode": {
             "name": "UI - Theme Mode",
-            "remark": "Controls the default theme mode: light, dark, or auto."
+            "remark": "Controls the default theme mode: light, dark, or auto.",
+            "option": {
+              "light": "Light",
+              "dark": "Dark",
+              "auto": "Auto"
+            }
           }
         },
         "watermark": {

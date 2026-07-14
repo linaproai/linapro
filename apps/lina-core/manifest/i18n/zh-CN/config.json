@@ -6,7 +6,9 @@
       "name": "参数名称",
       "remark": "备注",
       "updatedAt": "修改时间",
-      "value": "参数键值"
+      "value": "参数键值",
+      "valueType": "参数类型",
+      "options": "选项列表"
     },
     "cron": {
       "shell": {
@@ -49,7 +51,12 @@
         },
         "loginPanelLayout": {
           "name": "登录展示-登录框位置",
-          "remark": "控制登录框默认布局，可选值：panel-left、panel-center、panel-right。"
+          "remark": "控制登录框默认布局，可选值：panel-left、panel-center、panel-right。",
+          "option": {
+            "panel-left": "左侧",
+            "panel-center": "居中",
+            "panel-right": "右侧"
+          }
         },
         "loginSubtitle": {
           "name": "登录展示-登录副标题",
@@ -117,12 +124,26 @@
       "ui": {
         "layout": {
           "name": "界面风格-工作台布局",
-          "remark": "控制后台默认布局，可选值：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content。"
+          "remark": "控制后台默认布局，可选值：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content。",
+          "option": {
+            "sidebar-nav": "侧边导航",
+            "sidebar-mixed-nav": "侧边混合导航",
+            "header-nav": "顶部导航",
+            "header-sidebar-nav": "顶部侧边导航",
+            "header-mixed-nav": "顶部混合导航",
+            "mixed-nav": "混合导航",
+            "full-content": "全内容"
+          }
         },
         "theme": {
           "mode": {
             "name": "界面风格-主题模式",
-            "remark": "控制默认主题模式，可选值：light、dark、auto。"
+            "remark": "控制默认主题模式，可选值：light、dark、auto。",
+            "option": {
+              "light": "浅色",
+              "dark": "深色",
+              "auto": "跟随系统"
+            }
           }
         },
         "watermark": {

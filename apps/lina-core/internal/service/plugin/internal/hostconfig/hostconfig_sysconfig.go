@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/configvaluetype"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilityhostconfigcap "lina-core/pkg/plugin/capability/hostconfigcap"
 )
@@ -205,6 +206,8 @@ func (a *sysConfigCapabilityAdapter) SetValue(ctx context.Context, key capabilit
 					Name:      normalizedKey,
 					Key:       normalizedKey,
 					Value:     value,
+					ValueType: configvaluetype.Text.String(),
+					Options:   "",
 					IsBuiltin: 0,
 				}).
 				Insert()

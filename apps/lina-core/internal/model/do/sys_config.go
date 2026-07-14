@@ -23,4 +23,6 @@ type SysConfig struct {
 	CreatedAt *time.Time // Creation time
 	UpdatedAt *time.Time // Modification time
 	DeletedAt *time.Time // Deletion time
+	ValueType any        // Parameter value input type: text, textarea, number, boolean, select, radio, multi_select, richtext
+	Options   any        // JSON array of {label,value} options for select/radio/multi_select; empty for other types
 }

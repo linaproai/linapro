@@ -21,6 +21,8 @@ export class ConfigPage {
       参数名称: /参数名称|Parameter Name/i,
       参数键名: /参数键名|Parameter Key/i,
       参数键值: /参数键值|Parameter Value/i,
+      参数类型: /参数类型|Value Type/i,
+      选项列表: /选项列表|Options/i,
       备注: /备注|Remark/i,
     };
     return (
@@ -106,13 +108,142 @@ export class ConfigPage {
     await this.page.getByRole("button", { name: /新\s*增/ }).click();
     await waitForDialogReady(this.dialog);
 
-    await this.dialog.getByLabel("参数名称").fill(name);
-    await this.dialog.getByLabel("参数键名").fill(key);
-    await this.dialog.getByLabel("参数键值").fill(value);
+    await this.fillDialogField("参数名称", name);
+    await this.fillDialogField("参数键名", key);
+    await this.fillDialogField("参数键值", value);
     if (remark) {
-      await this.dialog.getByLabel("备注").fill(remark);
+      await this.fillDialogField("备注", remark);
     }
 
+    await this.dialog.getByRole("button", { name: /确\s*认/ }).click();
+    await waitForRouteReady(this.page);
+    await this.dialog
+      .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
+  }
+
+  /**
+   * Create a select-typed parameter with simple-line options and choose one option value.
+   */
+  async createSelect(
+    name: string,
+    key: string,
+    optionsText: string,
+    optionLabel: string,
+    remark?: string,
+  ) {
+    await this.page.getByRole("button", { name: /新\s*增/ }).click();
+    await waitForDialogReady(this.dialog);
+
+    await this.fillDialogField("参数名称", name);
+    await this.fillDialogField("参数键名", key);
+    await this.selectDialogOption("参数类型", /下拉单选|Select/i);
+    await this.fillDialogField("选项列表", optionsText);
+    await this.page.waitForTimeout(300);
+    await this.selectDialogOption("参数键值", optionLabel);
+    if (remark) {
+      await this.fillDialogField("备注", remark);
+    }
+
+    await this.dialog.getByRole("button", { name: /确\s*认/ }).click();
+    await waitForRouteReady(this.page);
+    await this.dialog
+      .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
+  }
+
+  async openEditByKey(key: string) {
+    await this.fillSearchField("参数键名", key);
+    await this.clickSearch();
+    const editButton = await this.getEditButtonByKey(key);
+    await editButton.click();
+    await waitForDialogReady(this.dialog);
+  }
+
+  async chooseBooleanValue(value: "true" | "false") {
+    const label = value === "true" ? /是|True/i : /否|False/i;
+    await this.dialog.getByRole("radio", { name: label }).click();
+  }
+
+  async selectDialogOption(fieldLabel: string, option: string | RegExp) {
+    const item = this.dialog
+      .locator(".ant-form-item")
+      .filter({ hasText: this.localizedLabelPattern(fieldLabel) })
+      .first();
+    const selector = item.locator(".ant-select").first();
+    await selector.click();
+    const dropdown = await waitForDropdown(this.page);
+    const optionPattern =
+      typeof option === "string"
+        ? new RegExp(this.escapeRegex(option), "i")
+        : option;
+    await dropdown.getByText(optionPattern).first().click();
+  }
+
+  /**
+   * Vben FormItem row (shadcn FormItem). Prefer form-valid-error after validate;
+   * form-is-required covers empty required fields before/after validate.
+   */
+  dialogFieldItem(label: string): Locator {
+    const pattern = this.localizedLabelPattern(label);
+    return this.dialog
+      .locator(".form-valid-error, .form-is-required")
+      .filter({ hasText: pattern })
+      .first();
+  }
+
+  async openCreateDialog() {
+    await this.page.getByRole("button", { name: /新\s*增/ }).click();
+    await waitForDialogReady(this.dialog);
+  }
+
+  /**
+   * Click confirm without waiting for dialog close — used for validation failures.
+   */
+  async clickDialogConfirm() {
+    await this.dialog.getByRole("button", { name: /确\s*认/ }).click();
+  }
+
+  async fillDialogField(label: string, value: string) {
+    // Prefer accessible label association from Vben FormControl id/for.
+    const byLabel = this.resolveLocalizedLabel(this.dialog, label);
+    if (await byLabel.isVisible().catch(() => false)) {
+      const tag = await byLabel.evaluate((el) => el.tagName.toLowerCase());
+      if (tag === "textarea" || tag === "input") {
+        await byLabel.clear();
+        await byLabel.fill(value);
+        return;
+      }
+    }
+
+    const item = this.dialog
+      .locator(".ant-form-item, .form-is-required, .form-valid-error")
+      .filter({ hasText: this.localizedLabelPattern(label) })
+      .first();
+    const textarea = item.locator("textarea").first();
+    if (await textarea.isVisible().catch(() => false)) {
+      await textarea.clear();
+      await textarea.fill(value);
+      return;
+    }
+    const input = item.locator("input").first();
+    await input.clear();
+    await input.fill(value);
+  }
+
+  /**
+   * Validation error message under a dialog field (vee-validate FormMessage).
+   */
+  dialogFieldError(label: string): Locator {
+    return this.dialogFieldItem(label).locator("p.text-destructive").first();
+  }
+
+  dialogFieldControl(label: string): Locator {
+    const byLabel = this.resolveLocalizedLabel(this.dialog, label);
+    return byLabel;
+  }
+
+  async confirmDialog() {
     await this.dialog.getByRole("button", { name: /确\s*认/ }).click();
     await waitForRouteReady(this.page);
     await this.dialog
@@ -137,24 +268,16 @@ export class ConfigPage {
     await waitForDialogReady(this.dialog);
 
     if (fields.name) {
-      const input = this.dialog.getByLabel("参数名称");
-      await input.clear();
-      await input.fill(fields.name);
+      await this.fillDialogField("参数名称", fields.name);
     }
     if (fields.key) {
-      const input = this.dialog.getByLabel("参数键名");
-      await input.clear();
-      await input.fill(fields.key);
+      await this.fillDialogField("参数键名", fields.key);
     }
     if (fields.value) {
-      const input = this.dialog.getByLabel("参数键值");
-      await input.clear();
-      await input.fill(fields.value);
+      await this.fillDialogField("参数键值", fields.value);
     }
     if (fields.remark) {
-      const input = this.dialog.getByLabel("备注");
-      await input.clear();
-      await input.fill(fields.remark);
+      await this.fillDialogField("备注", fields.remark);
     }
 
     await this.dialog.getByRole("button", { name: /确\s*认/ }).click();

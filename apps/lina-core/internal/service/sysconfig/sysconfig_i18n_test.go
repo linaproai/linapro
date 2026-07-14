@@ -136,7 +136,14 @@ func TestGenerateImportTemplateLocalizesHeaders(t *testing.T) {
 	}
 
 	headers := row1[0]
-	expectedHeaders := []string{"Parameter Name", "Parameter Key", "Parameter Value", "Remark"}
+	expectedHeaders := []string{
+		"Parameter Name",
+		"Parameter Key",
+		"Parameter Value",
+		"Value Type",
+		"Options",
+		"Remark",
+	}
 	for index, expected := range expectedHeaders {
 		if headers[index] != expected {
 			t.Fatalf("expected header[%d] to be %q, got %q", index, expected, headers[index])
@@ -153,8 +160,11 @@ func TestGenerateImportTemplateLocalizesHeaders(t *testing.T) {
 	if example[2] != "24h" {
 		t.Fatalf("expected example value %q, got %q", "24h", example[2])
 	}
-	if example[3] != "Controls the lifetime of newly issued JWT tokens using Go duration format such as 12h or 24h." {
-		t.Fatalf("expected localized example remark, got %q", example[3])
+	if example[3] != "text" {
+		t.Fatalf("expected example value type %q, got %q", "text", example[3])
+	}
+	if example[5] != "Controls the lifetime of newly issued JWT tokens using Go duration format such as 12h or 24h." {
+		t.Fatalf("expected localized example remark, got %q", example[5])
 	}
 }
 
@@ -192,6 +202,8 @@ func TestExportLocalizesHeadersButKeepsRawRows(t *testing.T) {
 		"Parameter Name",
 		"Parameter Key",
 		"Parameter Value",
+		"Value Type",
+		"Options",
 		"Remark",
 		"Created At",
 		"Updated At",
@@ -212,8 +224,8 @@ func TestExportLocalizesHeadersButKeepsRawRows(t *testing.T) {
 	if row[2] != record.Value {
 		t.Fatalf("expected exported raw config value %q, got %q", record.Value, row[2])
 	}
-	if row[3] != record.Remark {
-		t.Fatalf("expected exported raw config remark %q, got %q", record.Remark, row[3])
+	if row[5] != record.Remark {
+		t.Fatalf("expected exported raw config remark %q, got %q", record.Remark, row[5])
 	}
 }
 

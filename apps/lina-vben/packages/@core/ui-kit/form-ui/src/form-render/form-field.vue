@@ -327,11 +327,16 @@ onUnmounted(() => {
         </template>
       </FormLabel>
       <!--
-        Use overflow-x-hidden (not overflow-hidden) so absolute FormMessage can
-        extend into the FormItem bottom padding without being clipped.
+        Positioning context for absolute FormMessage must be the control column
+        (not FormItem). FormItem is relative for other reasons; if FormMessage
+        uses left-0 against FormItem, horizontal forms pin errors under labels.
+        Keep overflow clipping on the control row only so FormMessage can still
+        extend into FormItem bottom padding without being clipped.
       -->
-      <div class="flex-auto overflow-x-hidden p-px">
-        <div :class="cn('relative flex w-full items-center', wrapperClass)">
+      <div class="relative flex-auto p-px">
+        <div
+          :class="cn('relative flex w-full items-center overflow-x-hidden', wrapperClass)"
+        >
           <FormControl :class="cn(controlClass)">
             <slot
               v-bind="{

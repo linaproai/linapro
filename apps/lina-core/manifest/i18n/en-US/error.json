@@ -147,6 +147,11 @@
           "rename": {
             "denied": "Built-in runtime configuration keys cannot be renamed"
           }
+        },
+        "type": {
+          "change": {
+            "denied": "Built-in system parameter type and options cannot be modified"
+          }
         }
       },
       "import": {
@@ -188,6 +193,19 @@
       "protected": {
         "value": {
           "invalid": "Built-in system configuration value is invalid"
+        }
+      },
+      "value": {
+        "type": {
+          "invalid": "System configuration value type is invalid"
+        }
+      },
+      "options": {
+        "invalid": "System configuration options are invalid"
+      },
+      "typed": {
+        "value": {
+          "invalid": "System configuration value does not match its value type"
         }
       }
     },

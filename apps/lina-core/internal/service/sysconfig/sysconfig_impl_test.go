@@ -358,6 +358,8 @@ func TestImportProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 		"认证管理-JWT Token 有效期",
 		hostconfig.RuntimeParamKeyJWTExpire,
 		"6h",
+		"text",
+		"",
 		"test import update",
 	})
 
@@ -547,7 +549,7 @@ func buildConfigImportFile(t *testing.T, row []string) []byte {
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 
-	headers := []string{"参数名称", "参数键名", "参数键值", "备注"}
+	headers := []string{"参数名称", "参数键名", "参数键值", "参数类型", "选项列表", "备注"}
 	for i, header := range headers {
 		cell, err := excelize.CoordinatesToCellName(i+1, 1)
 		if err != nil {
