@@ -80,3 +80,7 @@
   - 补齐 ListRes.list/total、CreateRes.id、AccountItem 全部字段的 `dc`
   - 完善请求字段 `dc`：status 枚举、筛选默认行为、时间字段 Unix 毫秒说明
   - 验证：`GOWORK=off go test ./backend/api/account/... ./backend/internal/controller/account/...` 通过
+- [x] **FB-15**: 邮件管理页输入域标题使用粗体（对齐对象存储/认证设置页 `font-weight: 500`）；同步 E2E 断言
+  - 主表单与测试发送弹窗 Form 增加 `mail-settings-form`，`:deep(.ant-form-item-label > label) { font-weight: 500 }`
+  - TC002 断言账号 label 计算字重 ≥ 500；`pnpm -C hack/tests test:module -- plugin:linapro-mail-core` 3 passed
+  - `openspec validate plugin-mail-foundation --strict` 通过
