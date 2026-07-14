@@ -9,17 +9,7 @@
       "value": "Parameter Value"
     },
     "cron": {
-      "log": {
-        "retention": {
-          "name": "Scheduled Jobs - Execution Log Retention Policy",
-          "remark": "Controls the default retention policy for scheduled-job execution logs. Use JSON: {\"mode\":\"days|count|none\",\"value\":N}."
-        }
-      },
       "shell": {
-        "enabled": {
-          "name": "Scheduled Jobs - Global Shell Mode Switch",
-          "remark": "Controls whether Shell-type jobs can be created, updated, triggered, and stopped. Supported values: true, false."
-        },
         "unsupportedReason": "Current platform does not support shell mode"
       }
     },
@@ -53,6 +43,10 @@
         }
       },
       "auth": {
+        "forgetPasswordEnabled": {
+          "name": "Login - Forget Password Entry",
+          "remark": "Controls whether the login page shows the forget-password entry. Allowed values: true, false. When false, visiting the forget-password route redirects to login."
+        },
         "loginPanelLayout": {
           "name": "Login - Panel Layout",
           "remark": "Controls the default login panel layout: panel-left, panel-center, or panel-right."
@@ -68,16 +62,32 @@
         "pageTitle": {
           "name": "Login - Page Title",
           "remark": "Controls the headline shown at the top of the login page."
+        },
+        "privacyPolicy": {
+          "name": "Login - Privacy Policy Body",
+          "remark": "Controls the privacy-policy body shown in the registration consent dialog. Multi-line plain text is supported."
+        },
+        "registerEnabled": {
+          "name": "Login - Create Account Entry",
+          "remark": "Controls whether the login page shows the create-account entry. Allowed values: true, false. When false, visiting the register route redirects to login."
+        },
+        "termsOfService": {
+          "name": "Login - Terms of Service Body",
+          "remark": "Controls the terms-of-service body shown in the registration consent dialog. Multi-line plain text is supported."
         }
       },
       "cron": {
-        "logRetention": {
-          "name": "Cron - Log Retention Policy",
-          "remark": "Controls the default cleanup policy for cron logs in JSON format."
+        "log": {
+          "retention": {
+            "name": "Scheduled Jobs - Execution Log Retention Policy",
+            "remark": "Controls the default retention policy for scheduled-job execution logs. Use JSON: {\"mode\":\"days|count|none\",\"value\":N}."
+          }
         },
-        "shellEnabled": {
-          "name": "Cron - Shell Mode Switch",
-          "remark": "Controls whether Shell-type scheduled jobs may be created, updated, and executed."
+        "shell": {
+          "enabled": {
+            "name": "Scheduled Jobs - Global Shell Mode Switch",
+            "remark": "Controls whether Shell-type jobs can be created, updated, triggered, and stopped. Supported values: true, false."
+          }
         }
       },
       "jwt": {

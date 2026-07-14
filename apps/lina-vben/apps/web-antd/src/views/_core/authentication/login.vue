@@ -99,6 +99,18 @@ const loginSubtitle = computed(
     $t('authentication.loginSubtitle'),
 );
 
+/** Host-managed public switches; default true when public config has not loaded. */
+const forgetPasswordEnabled = computed(
+  () => publicFrontendSettings.auth.forgetPasswordEnabled !== false,
+);
+const registerEnabled = computed(
+  () => publicFrontendSettings.auth.registerEnabled !== false,
+);
+
+function goToRegister() {
+  router.push('/auth/register');
+}
+
 const tenantSubtitle = computed(() =>
   $t('pages.multiTenant.login.selectTenantSubtitle'),
 );
@@ -208,7 +220,7 @@ async function handleSelectTenant() {
       :form-schema="formSchema"
       :loading="authStore.loginLoading"
       :show-code-login="false"
-      :show-forget-password="false"
+      :show-forget-password="forgetPasswordEnabled"
       :show-qrcode-login="false"
       :show-register="false"
       :show-third-party-login="false"
@@ -278,6 +290,24 @@ async function handleSelectTenant() {
         class="mt-4 flex flex-wrap justify-center"
         data-testid="login-social-auth-slot"
       />
+    </div>
+    <!--
+      创建账号入口放在「其他登录方式」之后，对齐 Vben 登录页截图顺序。
+      是否展示由系统参数 sys.auth.registerEnabled 控制。
+    -->
+    <div
+      v-if="registerEnabled && !authStore.pendingPreToken && !authStore.tenantLoginTransitioning"
+      class="mt-3 w-full text-center text-sm sm:mx-auto md:max-w-md"
+      data-testid="login-create-account"
+    >
+      {{ $t('authentication.accountTip') }}
+      <span
+        class="vben-link text-sm font-normal"
+        data-testid="login-create-account-link"
+        @click="goToRegister"
+      >
+        {{ $t('authentication.createAccount') }}
+      </span>
     </div>
   </div>
 </template>

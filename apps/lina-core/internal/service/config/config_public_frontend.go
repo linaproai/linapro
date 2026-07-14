@@ -31,6 +31,18 @@ const (
 	PublicFrontendSettingKeyAuthLoginSubtitle = "sys.auth.loginSubtitle"
 	// PublicFrontendSettingKeyAuthLoginPanelLayout stores the login-form panel layout.
 	PublicFrontendSettingKeyAuthLoginPanelLayout = "sys.auth.loginPanelLayout"
+	// PublicFrontendSettingKeyAuthForgetPasswordEnabled stores whether the
+	// login-page forget-password entry is exposed.
+	PublicFrontendSettingKeyAuthForgetPasswordEnabled = "sys.auth.forgetPasswordEnabled"
+	// PublicFrontendSettingKeyAuthRegisterEnabled stores whether the
+	// login-page create-account entry is exposed.
+	PublicFrontendSettingKeyAuthRegisterEnabled = "sys.auth.registerEnabled"
+	// PublicFrontendSettingKeyAuthPrivacyPolicy stores the privacy-policy body
+	// shown on the public registration page.
+	PublicFrontendSettingKeyAuthPrivacyPolicy = "sys.auth.privacyPolicy"
+	// PublicFrontendSettingKeyAuthTermsOfService stores the terms-of-service body
+	// shown on the public registration page.
+	PublicFrontendSettingKeyAuthTermsOfService = "sys.auth.termsOfService"
 	// PublicFrontendSettingKeyUIThemeMode stores the frontend theme mode.
 	PublicFrontendSettingKeyUIThemeMode = "sys.ui.theme.mode"
 	// PublicFrontendSettingKeyUILayout stores the admin layout mode.
@@ -101,6 +113,26 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 		),
 	},
 	{
+		Key:          PublicFrontendSettingKeyAuthForgetPasswordEnabled,
+		DefaultValue: "true",
+		validator:    validateStrictBoolConfigValue,
+	},
+	{
+		Key:          PublicFrontendSettingKeyAuthRegisterEnabled,
+		DefaultValue: "true",
+		validator:    validateStrictBoolConfigValue,
+	},
+	{
+		Key: PublicFrontendSettingKeyAuthPrivacyPolicy,
+		DefaultValue: "Privacy Policy\n\nThis service collects account information required for authentication and workspace access, including username and email. Data is used only to provide the host workspace and related security features. Contact your administrator for data retention and export requests.",
+		validator: validateRequiredTextConfigValue(20000),
+	},
+	{
+		Key: PublicFrontendSettingKeyAuthTermsOfService,
+		DefaultValue: "Terms of Service\n\nBy creating an account you agree to use this workspace in accordance with your organization's policies. Accounts may be suspended for abuse or security risk. The operator may update these terms; continued use after notice constitutes acceptance.",
+		validator: validateRequiredTextConfigValue(20000),
+	},
+	{
 		Key:          PublicFrontendSettingKeyUIThemeMode,
 		DefaultValue: "light",
 		validator:    validateAllowedStringConfigValue("light", "dark", "auto"),
@@ -157,12 +189,16 @@ type PublicFrontendAppConfig struct {
 	LogoDark string `json:"logoDark"` // LogoDark is the dark-theme logo source.
 }
 
-// PublicFrontendAuthConfig stores login-page copy settings.
+// PublicFrontendAuthConfig stores login-page copy and entry-switch settings.
 type PublicFrontendAuthConfig struct {
-	PageTitle     string                        `json:"pageTitle"`     // PageTitle is the login-page headline.
-	PageDesc      string                        `json:"pageDesc"`      // PageDesc is the login-page description.
-	LoginSubtitle string                        `json:"loginSubtitle"` // LoginSubtitle is the form subtitle.
-	PanelLayout   PublicFrontendAuthPanelLayout `json:"panelLayout"`   // PanelLayout selects the login-panel placement.
+	PageTitle             string                        `json:"pageTitle"`             // PageTitle is the login-page headline.
+	PageDesc              string                        `json:"pageDesc"`              // PageDesc is the login-page description.
+	LoginSubtitle         string                        `json:"loginSubtitle"`         // LoginSubtitle is the form subtitle.
+	PanelLayout           PublicFrontendAuthPanelLayout `json:"panelLayout"`           // PanelLayout selects the login-panel placement.
+	ForgetPasswordEnabled bool                          `json:"forgetPasswordEnabled"` // ForgetPasswordEnabled reports whether the forget-password entry is exposed.
+	RegisterEnabled       bool                          `json:"registerEnabled"`       // RegisterEnabled reports whether the create-account entry is exposed.
+	PrivacyPolicy         string                        `json:"privacyPolicy"`         // PrivacyPolicy is the privacy-policy body for registration consent.
+	TermsOfService        string                        `json:"termsOfService"`        // TermsOfService is the terms body for registration consent.
 }
 
 // PublicFrontendUserConfig stores user-facing fallback settings.
@@ -289,6 +325,22 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendCon
 	if err != nil {
 		return nil, err
 	}
+	authForgetPasswordEnabled, err := s.getProtectedConfigBoolOrDefault(ctx, PublicFrontendSettingKeyAuthForgetPasswordEnabled)
+	if err != nil {
+		return nil, err
+	}
+	authRegisterEnabled, err := s.getProtectedConfigBoolOrDefault(ctx, PublicFrontendSettingKeyAuthRegisterEnabled)
+	if err != nil {
+		return nil, err
+	}
+	authPrivacyPolicy, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthPrivacyPolicy)
+	if err != nil {
+		return nil, err
+	}
+	authTermsOfService, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthTermsOfService)
+	if err != nil {
+		return nil, err
+	}
 	userDefaultAvatar, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUserDefaultAvatar)
 	if err != nil {
 		return nil, err
@@ -313,10 +365,14 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendCon
 			LogoDark: appLogoDark,
 		},
 		Auth: PublicFrontendAuthConfig{
-			PageTitle:     authPageTitle,
-			PageDesc:      authPageDesc,
-			LoginSubtitle: authLoginSubtitle,
-			PanelLayout:   PublicFrontendAuthPanelLayout(authPanelLayout),
+			PageTitle:             authPageTitle,
+			PageDesc:              authPageDesc,
+			LoginSubtitle:         authLoginSubtitle,
+			PanelLayout:           PublicFrontendAuthPanelLayout(authPanelLayout),
+			ForgetPasswordEnabled: authForgetPasswordEnabled,
+			RegisterEnabled:       authRegisterEnabled,
+			PrivacyPolicy:         authPrivacyPolicy,
+			TermsOfService:        authTermsOfService,
 		},
 		User: PublicFrontendUserConfig{
 			DefaultAvatar: userDefaultAvatar,

@@ -2,14 +2,60 @@
 import type { VbenFormSchema } from '@vben/common-ui';
 import type { Recordable } from '@vben/types';
 
-import { computed, h, ref } from 'vue';
+import { computed, h, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { AuthenticationRegister, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
+import { Modal, notification } from 'ant-design-vue';
+
+import { registerApi } from '#/api/core/auth';
+import { publicFrontendSettings } from '#/runtime/public-frontend';
+
 defineOptions({ name: 'Register' });
 
+const router = useRouter();
 const loading = ref(false);
+const privacyOpen = ref(false);
+const termsOpen = ref(false);
+
+const registerEnabled = computed(
+  () => publicFrontendSettings.auth.registerEnabled !== false,
+);
+
+const privacyPolicyContent = computed(
+  () =>
+    publicFrontendSettings.auth.privacyPolicy ||
+    $t('authentication.privacyPolicyDefaultBody'),
+);
+
+const termsOfServiceContent = computed(
+  () =>
+    publicFrontendSettings.auth.termsOfService ||
+    $t('authentication.termsOfServiceDefaultBody'),
+);
+
+function redirectWhenDisabled() {
+  if (!registerEnabled.value) {
+    void router.replace('/auth/login');
+  }
+}
+
+function openPrivacyPolicy(event: Event) {
+  event.preventDefault();
+  event.stopPropagation();
+  privacyOpen.value = true;
+}
+
+function openTermsOfService(event: Event) {
+  event.preventDefault();
+  event.stopPropagation();
+  termsOpen.value = true;
+}
+
+onMounted(redirectWhenDisabled);
+watch(registerEnabled, redirectWhenDisabled);
 
 const formSchema = computed((): VbenFormSchema[] => {
   return [
@@ -20,7 +66,19 @@ const formSchema = computed((): VbenFormSchema[] => {
       },
       fieldName: 'username',
       label: $t('authentication.username'),
-      rules: z.string().min(1, { message: $t('authentication.usernameTip') }),
+      rules: z.string().min(2, { message: $t('authentication.usernameTip') }),
+    },
+    {
+      component: 'VbenInput',
+      componentProps: {
+        placeholder: 'example@example.com',
+      },
+      fieldName: 'email',
+      label: $t('authentication.email'),
+      rules: z
+        .string()
+        .min(1, { message: $t('authentication.emailTip') })
+        .email($t('authentication.emailValidErrorTip')),
     },
     {
       component: 'VbenInputPassword',
@@ -35,7 +93,7 @@ const formSchema = computed((): VbenFormSchema[] => {
           strengthText: () => $t('authentication.passwordStrength'),
         };
       },
-      rules: z.string().min(1, { message: $t('authentication.passwordTip') }),
+      rules: z.string().min(6, { message: $t('authentication.passwordTip') }),
     },
     {
       component: 'VbenInputPassword',
@@ -47,7 +105,7 @@ const formSchema = computed((): VbenFormSchema[] => {
           const { password } = values;
           return z
             .string({ required_error: $t('authentication.passwordTip') })
-            .min(1, { message: $t('authentication.passwordTip') })
+            .min(6, { message: $t('authentication.passwordTip') })
             .refine((value) => value === password, {
               message: $t('authentication.confirmPasswordTip'),
             });
@@ -62,15 +120,28 @@ const formSchema = computed((): VbenFormSchema[] => {
       fieldName: 'agreePolicy',
       renderComponentContent: () => ({
         default: () =>
-          h('span', [
+          h('span', { class: 'text-sm' }, [
             $t('authentication.agree'),
             h(
               'a',
               {
-                class: 'vben-link ml-1 ',
-                href: '',
+                class: 'vben-link ml-1',
+                href: 'javascript:void(0)',
+                'data-testid': 'register-privacy-link',
+                onClick: openPrivacyPolicy,
               },
-              `${$t('authentication.privacyPolicy')} & ${$t('authentication.terms')}`,
+              $t('authentication.privacyPolicy'),
+            ),
+            h('span', { class: 'mx-1' }, ' & '),
+            h(
+              'a',
+              {
+                class: 'vben-link',
+                href: 'javascript:void(0)',
+                'data-testid': 'register-terms-link',
+                onClick: openTermsOfService,
+              },
+              $t('authentication.terms'),
             ),
           ]),
       }),
@@ -81,16 +152,67 @@ const formSchema = computed((): VbenFormSchema[] => {
   ];
 });
 
-function handleSubmit(value: Recordable<any>) {
-  // eslint-disable-next-line no-console
-  console.log('register submit:', value);
+async function handleSubmit(value: Recordable<any>) {
+  loading.value = true;
+  try {
+    await registerApi({
+      email: String(value.email ?? ''),
+      password: String(value.password ?? ''),
+      username: String(value.username ?? ''),
+    });
+    notification.success({
+      description: $t('authentication.registerSuccessDesc'),
+      duration: 5,
+      message: $t('authentication.registerSuccessTitle'),
+    });
+    await router.push('/auth/login');
+  } catch {
+    // requestClient already surfaces the localized API error toast.
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 
 <template>
-  <AuthenticationRegister
-    :form-schema="formSchema"
-    :loading="loading"
-    @submit="handleSubmit"
-  />
+  <div>
+    <AuthenticationRegister
+      v-if="registerEnabled"
+      :form-schema="formSchema"
+      :loading="loading"
+      :sub-title="$t('authentication.signUpSubtitle')"
+      data-testid="register-page"
+      @submit="handleSubmit"
+    />
+
+    <Modal
+      v-model:open="privacyOpen"
+      :footer="null"
+      :title="$t('authentication.privacyPolicy')"
+      destroy-on-close
+      width="640px"
+    >
+      <div
+        class="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-foreground"
+        data-testid="register-privacy-modal-body"
+      >
+        {{ privacyPolicyContent }}
+      </div>
+    </Modal>
+
+    <Modal
+      v-model:open="termsOpen"
+      :footer="null"
+      :title="$t('authentication.terms')"
+      destroy-on-close
+      width="640px"
+    >
+      <div
+        class="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-foreground"
+        data-testid="register-terms-modal-body"
+      >
+        {{ termsOfServiceContent }}
+      </div>
+    </Modal>
+  </div>
 </template>

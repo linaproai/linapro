@@ -115,6 +115,8 @@ describe('public frontend runtime settings', () => {
     expect(publicFrontendSettings.cron.shell.enabled).toBe(true);
     expect(publicFrontendSettings.cron.timezone.current).toBe('UTC');
     expect(publicFrontendSettings.auth.panelLayout).toBe('panel-right');
+    expect(publicFrontendSettings.auth.forgetPasswordEnabled).toBe(true);
+    expect(publicFrontendSettings.auth.registerEnabled).toBe(true);
     expect(publicFrontendSettings.user.defaultAvatar).toBe('/avatar.webp');
     expect(publicFrontendSettings.ui.themeMode).toBe('dark');
     expect(publicFrontendSettings.workspace.basePath).toBe('/admin');

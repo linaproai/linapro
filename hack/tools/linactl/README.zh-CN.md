@@ -174,7 +174,8 @@ go run . dao dir=apps/lina-plugins/linapro-content-notice/backend
 2. 校验宿主与插件运行时语言包的 **locale key 对等**；
 3. 校验宿主与所有`plugin.yaml`中`i18n.enabled: true`的插件：**每个`bizerr.MustDefine`按约定派生的`messageKey`都必须存在于对应`manifest/i18n/<locale>/`资源中**；
 4. 校验所有`i18n.enabled: true`的插件：**每个运行时 locale 必须提供插件管理页展示键`plugin.<plugin-id>.name`与`plugin.<plugin-id>.description`**（宿主列表投影按该约定本地化，仅写顶层`name`/`description`不会生效）；
-5. 校验前端静态`$t(...)`引用覆盖。
+5. 校验参数设置展示元数据：**宿主`sys_config` seed / 受保护常量，以及`i18n.enabled: true`插件中声明的`SysConfigKey`常量，必须在对应运行时 locale 提供`config.<config_key>.name`与`config.<config_key>.remark`**（与参数设置列表投影约定一致；locale 对等不能替代该检查）；
+6. 校验前端静态`$t(...)`引用覆盖。
 
 ```bash
 make i18n.check

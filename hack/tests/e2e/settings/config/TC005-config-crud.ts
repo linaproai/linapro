@@ -135,4 +135,20 @@ test.describe('TC005 参数设置管理', () => {
     const response = await responsePromise;
     expect(response.status()).toBe(200);
   });
+
+  test('TC005j: 参数名称与参数键名列左对齐', async ({ adminPage }) => {
+    const configPage = new ConfigPage(adminPage);
+    await configPage.goto();
+
+    const rowCount = await configPage.getRowCount();
+    expect(rowCount).toBeGreaterThanOrEqual(1);
+
+    const nameAlign = await configPage.getColumnAlignment('参数名称');
+    expect(nameAlign.headerLeft).toBe(true);
+    expect(nameAlign.bodyLeft).toBe(true);
+
+    const keyAlign = await configPage.getColumnAlignment('参数键名');
+    expect(keyAlign.headerLeft).toBe(true);
+    expect(keyAlign.bodyLeft).toBe(true);
+  });
 });

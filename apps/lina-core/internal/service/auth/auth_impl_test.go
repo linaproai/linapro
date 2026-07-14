@@ -1136,11 +1136,15 @@ func (s *memoryPreTokenStore) Consume(_ context.Context, token string) (preToken
 
 // newTenantAuthTestService returns a service with in-memory session state.
 func newTenantAuthTestService() *serviceImpl {
+	kv := kvcache.New()
 	return &serviceImpl{
 		configSvc:    configTestService{},
 		roleSvc:      roleTestService{},
 		sessionStore: newMemorySessionStore(),
 		preTokens:    newMemoryPreTokenStore(),
+		resetTokens:  newKVPasswordResetStore(kv),
+		rateLimit:    newKVRateLimitStore(kv),
+		kvCache:      kv,
 		revoked:      newMemoryRevokeStore(),
 	}
 }
@@ -1174,6 +1178,21 @@ func (configTestService) GetSessionTimeout(context.Context) (time.Duration, erro
 // IsLoginIPBlacklisted reports no blacklist entries in auth unit tests.
 func (configTestService) IsLoginIPBlacklisted(context.Context, string) (bool, error) {
 	return false, nil
+}
+
+// GetPublicFrontend returns public frontend settings for unit tests. It prefers
+// the real config service so withRuntimeParamValue overrides are visible.
+func (configTestService) GetPublicFrontend(ctx context.Context) (*configsvc.PublicFrontendConfig, error) {
+	if cfg, err := configsvc.New().GetPublicFrontend(ctx); err == nil && cfg != nil {
+		return cfg, nil
+	}
+	return &configsvc.PublicFrontendConfig{
+		Auth: configsvc.PublicFrontendAuthConfig{
+			RegisterEnabled:       true,
+			ForgetPasswordEnabled: true,
+			PanelLayout:           configsvc.PublicFrontendAuthPanelLayoutRight,
+		},
+	}, nil
 }
 
 // roleTestService stubs the token access cache hooks used by auth.

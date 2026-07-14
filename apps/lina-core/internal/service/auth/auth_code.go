@@ -87,4 +87,67 @@ var (
 		"No local account is linked to this external identity",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeAuthRegisterDisabled reports that public self-registration is turned off.
+	// messageKey is derived as error.auth.register.disabled.
+	CodeAuthRegisterDisabled = bizerr.MustDefine(
+		"AUTH_REGISTER_DISABLED",
+		"Public registration is disabled",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeAuthForgetPasswordDisabled reports that password recovery is turned off.
+	// messageKey is derived as error.auth.forget.password.disabled.
+	CodeAuthForgetPasswordDisabled = bizerr.MustDefine(
+		"AUTH_FORGET_PASSWORD_DISABLED",
+		"Password recovery is disabled",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeAuthPasswordResetUnavailable reports that recovery cannot send email.
+	// messageKey is derived as error.auth.password.reset.unavailable.
+	CodeAuthPasswordResetUnavailable = bizerr.MustDefine(
+		"AUTH_PASSWORD_RESET_UNAVAILABLE",
+		"Password recovery is temporarily unavailable",
+		gcode.CodeOperationFailed,
+	)
+	// CodeAuthPasswordResetTokenInvalid reports an invalid or used reset token.
+	// messageKey is derived as error.auth.password.reset.token.invalid.
+	CodeAuthPasswordResetTokenInvalid = bizerr.MustDefine(
+		"AUTH_PASSWORD_RESET_TOKEN_INVALID",
+		"Password reset token is invalid or expired",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeAuthRegisterUsernameExists reports that the registration username is already used.
+	// messageKey is derived as error.auth.register.username.exists.
+	CodeAuthRegisterUsernameExists = bizerr.MustDefine(
+		"AUTH_REGISTER_USERNAME_EXISTS",
+		"Username already exists",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeAuthRegisterEmailExists reports that the registration email is already used.
+	// messageKey is derived as error.auth.register.email.exists.
+	CodeAuthRegisterEmailExists = bizerr.MustDefine(
+		"AUTH_REGISTER_EMAIL_EXISTS",
+		"Email is already registered",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeAuthRegisterRateLimited reports that registration is rate limited.
+	// messageKey is derived as error.auth.register.rate.limited.
+	CodeAuthRegisterRateLimited = bizerr.MustDefine(
+		"AUTH_REGISTER_RATE_LIMITED",
+		"Too many registration attempts, please try again later",
+		gcode.CodeOperationFailed,
+	)
+	// CodeAuthForgetPasswordRateLimited reports that recovery is rate limited.
+	// messageKey is derived as error.auth.forget.password.rate.limited.
+	CodeAuthForgetPasswordRateLimited = bizerr.MustDefine(
+		"AUTH_FORGET_PASSWORD_RATE_LIMITED",
+		"Too many password recovery attempts, please try again later",
+		gcode.CodeOperationFailed,
+	)
+	// CodeAuthDefaultRoleMissing reports that the built-in standard user role is missing.
+	// messageKey is derived as error.auth.default.role.missing.
+	CodeAuthDefaultRoleMissing = bizerr.MustDefine(
+		"AUTH_DEFAULT_ROLE_MISSING",
+		"Default user role is not available",
+		gcode.CodeInternalError,
+	)
 )

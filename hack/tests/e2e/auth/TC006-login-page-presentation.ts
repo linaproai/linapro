@@ -21,29 +21,36 @@ test.describe("TC-2 登录页展示收口与布局", () => {
     await api.dispose();
   });
 
-  test("TC-2a: 登录页隐藏未实现入口并回退未实现认证子路由", async ({
+  test("TC-2a: 登录页展示已交付入口并回退未交付认证子路由", async ({
     loginPage,
     page,
   }) => {
     await loginPage.goto();
 
-    await expect(loginPage.forgotPasswordEntry).toBeHidden();
-    await expect(loginPage.createAccountEntry).toBeHidden();
+    await expect(loginPage.forgotPasswordEntry).toBeVisible();
+    await expect(loginPage.createAccountEntry).toBeVisible();
     await expect(loginPage.mobileLoginButton).toBeHidden();
     await expect(loginPage.qrCodeLoginButton).toBeHidden();
     // 外部登录双区域：auth.login.after（协议全宽按钮）与 auth.login.social
     // （平台图标行）。无插件时各自整块隐藏。布局契约见 TC-2e / TC-2f。
 
-    for (const path of [
-      "/auth/code-login",
-      "/auth/qrcode-login",
-      "/auth/forget-password",
-      "/auth/register",
-    ]) {
+    for (const path of ["/auth/code-login", "/auth/qrcode-login"]) {
       await page.goto(path);
       await page.waitForURL(/\/auth\/login$/, { timeout: 10000 });
       await expect(loginPage.usernameInput).toBeVisible();
     }
+
+    await page.goto("/auth/forget-password");
+    await page.waitForURL(/\/auth\/forget-password$/, { timeout: 10000 });
+    await expect(loginPage.forgetPasswordSubmitButton).toBeVisible();
+    await expect(
+      page.getByText("发送重置链接", { exact: true }),
+    ).toBeVisible();
+
+    await page.goto("/auth/register");
+    await page.waitForURL(/\/auth\/register$/, { timeout: 10000 });
+    await expect(loginPage.registerSubmitButton).toBeVisible();
+    await expect(page.getByText("注册", { exact: true }).first()).toBeVisible();
   });
 
   test("TC-2b: 登录页默认使用居右登录框布局", async ({ loginPage }) => {

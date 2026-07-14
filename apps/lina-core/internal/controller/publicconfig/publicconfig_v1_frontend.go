@@ -26,10 +26,14 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 			LogoDark: cfg.App.LogoDark,
 		},
 		Auth: v1.FrontendAuthRes{
-			PageTitle:     c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPageTitle, "publicFrontend.auth.pageTitle", cfg.Auth.PageTitle),
-			PageDesc:      c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPageDesc, "publicFrontend.auth.pageDesc", cfg.Auth.PageDesc),
-			LoginSubtitle: c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthLoginSubtitle, "publicFrontend.auth.loginSubtitle", cfg.Auth.LoginSubtitle),
-			PanelLayout:   v1.PanelLayout(cfg.Auth.PanelLayout),
+			PageTitle:             c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPageTitle, "publicFrontend.auth.pageTitle", cfg.Auth.PageTitle),
+			PageDesc:              c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPageDesc, "publicFrontend.auth.pageDesc", cfg.Auth.PageDesc),
+			LoginSubtitle:         c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthLoginSubtitle, "publicFrontend.auth.loginSubtitle", cfg.Auth.LoginSubtitle),
+			PanelLayout:           v1.PanelLayout(cfg.Auth.PanelLayout),
+			ForgetPasswordEnabled: cfg.Auth.ForgetPasswordEnabled,
+			RegisterEnabled:       cfg.Auth.RegisterEnabled,
+			PrivacyPolicy:         c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPrivacyPolicy, "publicFrontend.auth.privacyPolicy", cfg.Auth.PrivacyPolicy),
+			TermsOfService:        c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthTermsOfService, "publicFrontend.auth.termsOfService", cfg.Auth.TermsOfService),
 		},
 		User: v1.FrontendUserRes{
 			DefaultAvatar: cfg.User.DefaultAvatar,

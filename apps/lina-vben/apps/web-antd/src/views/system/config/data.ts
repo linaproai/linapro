@@ -29,10 +29,14 @@ export const columns: VxeGridProps['columns'] = [
   {
     title: $t('pages.system.config.fields.name'),
     field: 'name',
+    // Long display names read more naturally left-aligned (global grid default is center).
+    align: 'left',
   },
   {
     title: $t('pages.system.config.fields.key'),
     field: 'key',
+    // Technical keys (e.g. sys.auth.pageTitle) are left-aligned for scanability.
+    align: 'left',
   },
   {
     title: $t('pages.system.config.fields.value'),

@@ -2,7 +2,13 @@
   "error": {
     "auth": {
       "password": {
-        "hashFailed": "密码加密失败"
+        "hashFailed": "密码加密失败",
+        "reset": {
+          "unavailable": "密码找回暂时不可用",
+          "token": {
+            "invalid": "密码重置链接无效或已过期"
+          }
+        }
       },
       "tenant": {
         "unavailable": "租户不可用"
@@ -47,6 +53,31 @@
           "not": {
             "provisioned": "当前外部身份未关联本地账号"
           }
+        }
+      },
+      "register": {
+        "disabled": "公开注册已关闭",
+        "username": {
+          "exists": "用户名已存在"
+        },
+        "email": {
+          "exists": "邮箱已被注册"
+        },
+        "rate": {
+          "limited": "注册尝试过于频繁，请稍后再试"
+        }
+      },
+      "forget": {
+        "password": {
+          "disabled": "密码找回已关闭",
+          "rate": {
+            "limited": "密码找回尝试过于频繁，请稍后再试"
+          }
+        }
+      },
+      "default": {
+        "role": {
+          "missing": "默认用户角色不可用"
         }
       }
     },

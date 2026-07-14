@@ -41,7 +41,7 @@ type pluginRuntimeFrontendBundlePrewarmer interface {
 // plugin data-plane routes with their respective middleware chains.
 func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRuntime) {
 	var (
-		authCtrl       = auth.NewV1(runtime.authSvc, runtime.bizCtxSvc)
+		authCtrl       = auth.NewV1(runtime.authSvc, runtime.bizCtxSvc, runtime.configSvc)
 		configCtrl     = configctrl.NewV1(runtime.sysConfigSvc)
 		dictCtrl       = dict.NewV1(runtime.dictSvc)
 		fileCtrl       = filectrl.NewV1(runtime.fileSvc)
@@ -67,6 +67,9 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			group,
 			authCtrl.Login,
 			authCtrl.Refresh,
+			authCtrl.Register,
+			authCtrl.ForgetPassword,
+			authCtrl.ResetPassword,
 			i18nCtrl,
 			pluginCtrl.DynamicList,
 			publicCfgCtrl,

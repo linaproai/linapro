@@ -18,6 +18,9 @@
           },
           "FrontendAuthRes": {
             "fields": {
+              "forgetPasswordEnabled": {
+                "dc": "登录页是否显示忘记密码入口：true=显示 false=隐藏"
+              },
               "loginSubtitle": {
                 "dc": "登录表单副标题文案"
               },
@@ -29,6 +32,15 @@
               },
               "panelLayout": {
                 "dc": "登录框布局：panel-left=居左 panel-center=居中 panel-right=居右"
+              },
+              "privacyPolicy": {
+                "dc": "注册页隐私政策弹窗正文"
+              },
+              "registerEnabled": {
+                "dc": "登录页是否显示创建账号入口：true=显示 false=隐藏"
+              },
+              "termsOfService": {
+                "dc": "注册页服务条款弹窗正文"
               }
             }
           },

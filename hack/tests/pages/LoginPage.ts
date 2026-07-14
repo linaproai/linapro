@@ -66,7 +66,71 @@ export class LoginPage {
   }
 
   get createAccountEntry() {
-    return this.page.getByText("创建账号", { exact: true }).first();
+    return this.page
+      .getByTestId("login-create-account-link")
+      .or(this.page.getByText("创建账号", { exact: true }).first());
+  }
+
+  get createAccountRegion() {
+    return this.page.getByTestId("login-create-account");
+  }
+
+  get socialAuthRegionOrDivider() {
+    return this.page.getByTestId("login-social-auth-region");
+  }
+
+  get forgetPasswordEmailInput() {
+    return this.page
+      .locator(
+        '#email, [name="email"], input[placeholder*="example@"], input[placeholder*="邮箱"], input[placeholder*="email"]',
+      )
+      .first();
+  }
+
+  get forgetPasswordSubmitButton() {
+    return this.page.locator('button[aria-label="submit"]');
+  }
+
+  get registerSubmitButton() {
+    return this.page.locator('button[aria-label="register"]');
+  }
+
+  get registerUsernameInput() {
+    return this.page
+      .locator(
+        '#username, [name="username"], input[placeholder*="用户名"], input[placeholder*="username"], input[placeholder*="account"]',
+      )
+      .first();
+  }
+
+  get registerPasswordInput() {
+    return this.page
+      .locator(
+        '#password, [name="password"], input[placeholder*="密码"], input[placeholder*="password"]',
+      )
+      .first();
+  }
+
+  get registerConfirmPasswordInput() {
+    return this.page
+      .locator(
+        '#confirmPassword, [name="confirmPassword"], input[placeholder*="确认密码"], input[placeholder*="Confirm"]',
+      )
+      .first();
+  }
+
+  get registerAgreeCheckbox() {
+    return this.page.locator('button[role="checkbox"], input[type="checkbox"]').first();
+  }
+
+  get goToLoginEntry() {
+    return this.page
+      .getByText(/去登录|Login instead/, { exact: true })
+      .first();
+  }
+
+  get backToLoginButton() {
+    return this.page.getByRole("button", { name: /返回|Back/i }).first();
   }
 
   get mobileLoginButton() {

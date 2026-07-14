@@ -58,6 +58,22 @@ func TestPublicFrontendSettingSpecDefaultsExposeUpdatedLoginCopy(t *testing.T) {
 	if avatarSpec.DefaultValue != "/avatar.webp" {
 		t.Fatalf("unexpected default avatar value: %q", avatarSpec.DefaultValue)
 	}
+
+	forgetSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthForgetPasswordEnabled)
+	if !ok {
+		t.Fatal("expected forget-password switch spec to be present")
+	}
+	if forgetSpec.DefaultValue != "true" {
+		t.Fatalf("unexpected forget-password switch default: %q", forgetSpec.DefaultValue)
+	}
+
+	registerSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthRegisterEnabled)
+	if !ok {
+		t.Fatal("expected register switch spec to be present")
+	}
+	if registerSpec.DefaultValue != "true" {
+		t.Fatalf("unexpected register switch default: %q", registerSpec.DefaultValue)
+	}
 }
 
 // TestIsManagedSysConfigKeyRecognizesRuntimeAndFrontendKeys verifies both
@@ -203,6 +219,8 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	)
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUserDefaultAvatar, "/avatar.webp")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthLoginPanelLayout, "panel-right")
+	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthForgetPasswordEnabled, "false")
+	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthRegisterEnabled, "false")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIThemeMode, "dark")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUILayout, "header-nav")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkEnabled, "true")
@@ -230,6 +248,12 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.Auth.PanelLayout != PublicFrontendAuthPanelLayoutRight {
 		t.Fatalf("expected auth panel layout override, got %q", cfg.Auth.PanelLayout)
+	}
+	if cfg.Auth.ForgetPasswordEnabled {
+		t.Fatal("expected forget-password switch override to false")
+	}
+	if cfg.Auth.RegisterEnabled {
+		t.Fatal("expected register switch override to false")
 	}
 	if cfg.UI.ThemeMode != "dark" {
 		t.Fatalf("expected dark theme mode, got %q", cfg.UI.ThemeMode)

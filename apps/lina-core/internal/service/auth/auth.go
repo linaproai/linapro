@@ -131,6 +131,17 @@ type Service interface {
 	// HashPassword hashes a plaintext password with bcrypt for user-account
 	// writes; it does not persist the result.
 	HashPassword(password string) (string, error)
+	// Register creates one public platform account when self-registration is
+	// enabled. It enforces username/email uniqueness, assigns the built-in
+	// standard user role, and does not issue a login session.
+	Register(ctx context.Context, in RegisterInput) (*RegisterOutput, error)
+	// RequestPasswordReset starts email password recovery when the feature is
+	// enabled and mail delivery is available. The response is always success
+	// shaped when the request is accepted so callers cannot enumerate accounts.
+	RequestPasswordReset(ctx context.Context, in PasswordResetRequestInput) error
+	// ConfirmPasswordReset consumes a one-time reset token and updates the
+	// account password. Existing online sessions for the user are removed.
+	ConfirmPasswordReset(ctx context.Context, in PasswordResetConfirmInput) error
 	// Logout revokes the supplied token ID, clears cached access context,
 	// removes the online-session row, and dispatches logout hooks using the
 	// current session client type. An empty tokenId only records hook state and
@@ -153,6 +164,9 @@ type serviceImpl struct {
 	tenantSvc    tenantspi.Service
 	sessionStore session.Store // Session store
 	preTokens    preTokenStore
+	resetTokens  passwordResetStore
+	rateLimit    rateLimitStore
+	kvCache      kvcache.Service
 	revoked      revokeStore
 	// identityProvider is the source-plugin external-identity provider bound
 	// after startup through BindExternalIdentityProvider. Nil keeps external
@@ -187,8 +201,37 @@ func New(
 		tenantSvc:    tenantSvc,
 		sessionStore: sessionStore,
 		preTokens:    newKVPreTokenStore(kvCacheSvc),
+		resetTokens:  newKVPasswordResetStore(kvCacheSvc),
+		rateLimit:    newKVRateLimitStore(kvCacheSvc),
+		kvCache:      kvCacheSvc,
 		revoked:      newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(kvCacheSvc)),
 	}
+}
+
+// RegisterInput defines input for public self-registration.
+type RegisterInput struct {
+	Username string // Unique login name
+	Password string // Plaintext password
+	Email    string // Recovery email
+	Nickname string // Optional display name
+}
+
+// RegisterOutput defines output for public self-registration.
+type RegisterOutput struct {
+	UserID int // Created platform user ID
+}
+
+// PasswordResetRequestInput defines input for requesting a password-reset email.
+type PasswordResetRequestInput struct {
+	Email           string // Account email
+	PublicOrigin    string // Browser origin used to build the reset link
+	WorkspaceBasePath string // Admin workspace base path (for example /admin)
+}
+
+// PasswordResetConfirmInput defines input for confirming a password reset.
+type PasswordResetConfirmInput struct {
+	Token    string // One-time reset token
+	Password string // New plaintext password
 }
 
 // Claims defines JWT token claims.

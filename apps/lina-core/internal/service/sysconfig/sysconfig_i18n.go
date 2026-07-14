@@ -17,6 +17,8 @@ var publicFrontendConfigValueMessageKeys = map[string]string{
 	hostconfig.PublicFrontendSettingKeyAuthPageTitle:      "publicFrontend.auth.pageTitle",
 	hostconfig.PublicFrontendSettingKeyAuthPageDesc:       "publicFrontend.auth.pageDesc",
 	hostconfig.PublicFrontendSettingKeyAuthLoginSubtitle:  "publicFrontend.auth.loginSubtitle",
+	hostconfig.PublicFrontendSettingKeyAuthPrivacyPolicy:  "publicFrontend.auth.privacyPolicy",
+	hostconfig.PublicFrontendSettingKeyAuthTermsOfService: "publicFrontend.auth.termsOfService",
 	hostconfig.PublicFrontendSettingKeyUIWatermarkContent: "publicFrontend.ui.watermarkContent",
 }
 

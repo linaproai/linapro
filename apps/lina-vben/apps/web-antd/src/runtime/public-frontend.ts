@@ -16,10 +16,14 @@ interface PublicFrontendAppSettings {
 }
 
 interface PublicFrontendAuthSettings {
+  forgetPasswordEnabled: boolean;
   loginSubtitle: string;
   panelLayout: AuthPageLayoutType;
   pageDesc: string;
   pageTitle: string;
+  privacyPolicy: string;
+  registerEnabled: boolean;
+  termsOfService: string;
 }
 
 interface PublicFrontendUserSettings {
@@ -84,10 +88,14 @@ const publicFrontendState = reactive<PublicFrontendSettings>({
     name: '',
   },
   auth: {
+    forgetPasswordEnabled: true,
     loginSubtitle: '',
     panelLayout: 'panel-right',
     pageDesc: '',
     pageTitle: '',
+    privacyPolicy: '',
+    registerEnabled: true,
+    termsOfService: '',
   },
   cron: {
     logRetention: {
@@ -290,10 +298,20 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
       name: normalizeString(app.name),
     },
     auth: {
+      forgetPasswordEnabled:
+        auth?.forgetPasswordEnabled === undefined
+          ? true
+          : normalizeBoolean(auth.forgetPasswordEnabled),
       loginSubtitle: normalizeString(auth.loginSubtitle),
       panelLayout: normalizeAuthPanelLayout(auth.panelLayout),
       pageDesc: normalizeString(auth.pageDesc),
       pageTitle: normalizeString(auth.pageTitle),
+      privacyPolicy: normalizeString(auth.privacyPolicy),
+      registerEnabled:
+        auth?.registerEnabled === undefined
+          ? true
+          : normalizeBoolean(auth.registerEnabled),
+      termsOfService: normalizeString(auth.termsOfService),
     },
     cron: {
       logRetention: normalizeCronLogRetentionSettings(logRetention),

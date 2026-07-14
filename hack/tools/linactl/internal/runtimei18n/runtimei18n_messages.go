@@ -20,8 +20,9 @@ const (
 
 // validateRuntimeI18NMessages validates all host and plugin runtime i18n scopes
 // (locale key parity), bizerr messageKey coverage for the host plus every
-// plugin with i18n.enabled=true, and plugin management display metadata keys
-// (plugin.<id>.name / plugin.<id>.description).
+// plugin with i18n.enabled=true, plugin management display metadata keys
+// (plugin.<id>.name / plugin.<id>.description), and config-management display
+// metadata keys (config.<sys_config.key>.name / .remark).
 func validateRuntimeI18NMessages(repoRoot string) ([]string, error) {
 	scopes, err := iterRuntimeI18NScopes(repoRoot)
 	if err != nil {
@@ -52,6 +53,15 @@ func validateRuntimeI18NMessages(repoRoot string) ([]string, error) {
 		return nil, metadataErr
 	}
 	errors = append(errors, metadataErrors...)
+
+	// Config management list projects name/remark via config.<key>.* keys derived
+	// from SQL seeds and SysConfigKey constants. Locale parity alone cannot catch
+	// a missing key that is absent from every locale.
+	configErrors, configErr := validateConfigDisplayMetadataKeys(repoRoot)
+	if configErr != nil {
+		return nil, configErr
+	}
+	errors = append(errors, configErrors...)
 	return errors, nil
 }
 

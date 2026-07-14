@@ -2,7 +2,13 @@
   "error": {
     "auth": {
       "password": {
-        "hashFailed": "Failed to hash password"
+        "hashFailed": "Failed to hash password",
+        "reset": {
+          "unavailable": "Password recovery is temporarily unavailable",
+          "token": {
+            "invalid": "Password reset token is invalid or expired"
+          }
+        }
       },
       "tenant": {
         "unavailable": "Tenant is not available"
@@ -47,6 +53,31 @@
           "not": {
             "provisioned": "No local account is linked to this external identity"
           }
+        }
+      },
+      "register": {
+        "disabled": "Public registration is disabled",
+        "username": {
+          "exists": "Username already exists"
+        },
+        "email": {
+          "exists": "Email is already registered"
+        },
+        "rate": {
+          "limited": "Too many registration attempts, please try again later"
+        }
+      },
+      "forget": {
+        "password": {
+          "disabled": "Password recovery is disabled",
+          "rate": {
+            "limited": "Too many password recovery attempts, please try again later"
+          }
+        }
+      },
+      "default": {
+        "role": {
+          "missing": "Default user role is not available"
         }
       }
     },

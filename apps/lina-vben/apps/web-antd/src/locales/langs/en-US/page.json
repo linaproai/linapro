@@ -5,6 +5,7 @@
     "codeLogin": "Code Login",
     "qrcodeLogin": "Qr Code Login",
     "forgetPassword": "Forget Password",
+    "resetPassword": "Reset Password",
     "profile": "Profile"
   },
   "dashboard": {

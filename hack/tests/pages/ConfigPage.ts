@@ -272,6 +272,53 @@ export class ConfigPage {
     return this.page.locator(".vxe-body--row").count();
   }
 
+  /**
+   * Resolve the header cell for a list column by localized title, then return
+   * whether the header and first body cell are left-aligned (vxe col--left).
+   */
+  async getColumnAlignment(headerLabel: string): Promise<{
+    headerLeft: boolean;
+    bodyLeft: boolean;
+  }> {
+    const headerCell = this.page
+      .locator(".vxe-header--column")
+      .filter({ hasText: this.localizedLabelPattern(headerLabel) })
+      .first();
+    await headerCell.waitFor({ state: "visible", timeout: 5000 });
+
+    const headerLeft = await headerCell
+      .evaluate((el) => el.classList.contains("col--left"))
+      .catch(() => false);
+
+    const colIdClass = await headerCell.evaluate((el) => {
+      const classes = Array.from(el.classList);
+      return (
+        classes.find((name) => /^col_[A-Za-z0-9]+$/.test(name)) ??
+        classes.find((name) => name.startsWith("col_") && !name.startsWith("col--")) ??
+        ""
+      );
+    });
+
+    if (!colIdClass) {
+      return { headerLeft, bodyLeft: false };
+    }
+
+    const bodyCell = this.page
+      .locator(`.vxe-body--row .vxe-body--column.${colIdClass}`)
+      .first();
+    const bodyVisible = await bodyCell
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
+    if (!bodyVisible) {
+      return { headerLeft, bodyLeft: false };
+    }
+
+    const bodyLeft = await bodyCell.evaluate((el) =>
+      el.classList.contains("col--left"),
+    );
+    return { headerLeft, bodyLeft };
+  }
+
   // ========== Search helpers ==========
 
   async fillSearchField(label: string, value: string) {

@@ -6,7 +6,9 @@
     "auth": {
       "loginSubtitle": "Enter your account credentials to start managing your projects",
       "pageDesc": "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
-      "pageTitle": "An AI-native full-stack framework engineered for sustainable delivery"
+      "pageTitle": "An AI-native full-stack framework engineered for sustainable delivery",
+      "privacyPolicy": "Privacy Policy\n\nThis service collects account information required for authentication and workspace access, including username and email. Data is used only to provide the host workspace and related security features. Contact your administrator for data retention and export requests.",
+      "termsOfService": "Terms of Service\n\nBy creating an account you agree to use this workspace in accordance with your organization's policies. Accounts may be suspended for abuse or security risk. The operator may update these terms; continued use after notice constitutes acceptance."
     },
     "ui": {
       "watermarkContent": "LinaPro"

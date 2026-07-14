@@ -9,17 +9,7 @@
       "value": "参数键值"
     },
     "cron": {
-      "log": {
-        "retention": {
-          "name": "定时任务-执行日志保留策略",
-          "remark": "控制定时任务执行日志默认保留策略，使用 JSON：{\"mode\":\"days|count|none\",\"value\":N}。"
-        }
-      },
       "shell": {
-        "enabled": {
-          "name": "定时任务-Shell 模式全局开关",
-          "remark": "控制 Shell 类型任务是否允许创建、修改、触发与终止，可选值：true、false。"
-        },
         "unsupportedReason": "当前平台不支持 Shell 模式"
       }
     },
@@ -53,6 +43,10 @@
         }
       },
       "auth": {
+        "forgetPasswordEnabled": {
+          "name": "登录展示-忘记密码入口",
+          "remark": "控制登录页是否显示忘记密码入口，可选值：true、false。关闭后访问忘记密码路由会回退到登录页。"
+        },
         "loginPanelLayout": {
           "name": "登录展示-登录框位置",
           "remark": "控制登录框默认布局，可选值：panel-left、panel-center、panel-right。"
@@ -68,16 +62,32 @@
         "pageTitle": {
           "name": "登录展示-页面标题",
           "remark": "控制登录页顶部主标题文案。"
+        },
+        "privacyPolicy": {
+          "name": "登录展示-隐私政策正文",
+          "remark": "控制注册页“隐私政策”弹窗正文，支持多行文本。"
+        },
+        "registerEnabled": {
+          "name": "登录展示-创建账号入口",
+          "remark": "控制登录页是否显示创建账号入口，可选值：true、false。关闭后访问注册路由会回退到登录页。"
+        },
+        "termsOfService": {
+          "name": "登录展示-服务条款正文",
+          "remark": "控制注册页“服务条款”弹窗正文，支持多行文本。"
         }
       },
       "cron": {
-        "logRetention": {
-          "name": "定时任务-日志保留策略",
-          "remark": "控制默认的定时任务日志清理策略，JSON 格式：{\"mode\":\"days|count|none\",\"value\":N}。"
+        "log": {
+          "retention": {
+            "name": "定时任务-执行日志保留策略",
+            "remark": "控制定时任务执行日志默认保留策略，使用 JSON：{\"mode\":\"days|count|none\",\"value\":N}。"
+          }
         },
-        "shellEnabled": {
-          "name": "定时任务-Shell 模式开关",
-          "remark": "控制是否允许创建、修改和执行 Shell 类型定时任务，可选值：true、false。"
+        "shell": {
+          "enabled": {
+            "name": "定时任务-Shell 模式全局开关",
+            "remark": "控制 Shell 类型任务是否允许创建、修改、触发与终止，可选值：true、false。"
+          }
         }
       },
       "jwt": {
