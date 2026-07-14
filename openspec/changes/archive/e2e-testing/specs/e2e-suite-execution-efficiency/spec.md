@@ -1,99 +1,163 @@
 ## Purpose
-定义 E2E 测试套件的执行效率、共享状态隔离、缓存重验证容忍度和前置条件治理要求。
+
+定义 E2E 测试套件的执行效率、共享状态隔离、缓存重验证容忍度、前置条件治理、CI 分片与安装加速要求。
+
 ## Requirements
-### Requirement:E2E 共享全局状态测试必须声明隔离类别
+
+### Requirement: E2E 共享全局状态测试必须声明隔离类别
+
 E2E 测试套件 SHALL 分类变更或依赖跨文件共享全局状态的测试。变更插件生命周期、运行时 i18n 包版本、公共前端配置、系统参数、字典、菜单或角色权限矩阵、共享数据库种子数据或文件系统支持的插件产物的文件，必须声明隔离类别，并必须路由到防止不安全并行重叠的执行边界。
 
-#### Scenario:插件生命周期测试分类为串行
+#### Scenario: 插件生命周期测试分类为串行
 - **当** 测试文件安装、启用、禁用、卸载、上传、同步或升级插件时
 - **则** E2E 执行清单必须将该文件分类为插件生命周期隔离类别
 - **且** 全回归运行器必须将该文件排除在并行池外
 
-#### Scenario:全局配置测试分类为串行
+#### Scenario: 全局配置测试分类为串行
 - **当** 测试文件变更系统参数、公共前端配置、字典、菜单权限、角色权限或其他共享治理数据时
 - **则** E2E 执行清单必须将该文件分类为匹配的共享状态类别
 - **且** 全回归运行器必须将该文件排除在并行池外，除非存在显式文档化的安全例外
 
-#### Scenario:验证器拒绝未分类的高风险测试
+#### Scenario: 验证器拒绝未分类的高风险测试
 - **当** E2E 验证器在未串行或未分类的测试文件中检测到高风险操作时
 - **则** 验证必须失败，并显示标识文件、检测到的风险类别和预期清单操作的消息
 
-### Requirement:E2E 缓存重验证测试必须容忍合法的全局版本刷新
+### Requirement: E2E 缓存重验证测试必须容忍合法的全局版本刷新
+
 E2E 测试套件 SHALL 通过验证协议语义而非假设全局资源版本在全回归运行期间保持不变来测试缓存和 ETag 行为。条件请求必须验证请求前提条件以及未修改响应或刷新资源响应的正确性。
 
-#### Scenario:条件请求命中未变更的资源版本
+#### Scenario: 条件请求命中未变更的资源版本
 - **当** 缓存测试发送带有仍匹配当前资源版本的 ETag 的条件请求时
 - **则** 测试必须接受 `304 Not Modified` 响应
 - **且** 必须验证返回的 ETag 匹配缓存的 ETag 且不需要响应体
 
-#### Scenario:条件请求观察到刷新的资源版本
+#### Scenario: 条件请求观察到刷新的资源版本
 - **当** 缓存测试发送带有因其他合法测试或生命周期操作刷新了资源版本而不再匹配的 ETag 的条件请求时
 - **则** 测试必须仅在响应包含与缓存 ETag 不同的新 ETag 时接受 `200 OK` 响应
 - **且** 必须验证刷新的响应体存在且有效
 
-#### Scenario:缓存测试仍验证条件请求行为
+#### Scenario: 缓存测试仍验证条件请求行为
 - **当** 缓存测试重新加载应使用持久缓存元数据的页面或资源时
 - **则** 测试必须验证请求携带了预期的条件头或等效缓存前提条件
 - **且** 不得仅因资源端点返回了成功响应体而通过
 
-### Requirement:E2E 前置条件必须由固件拥有且幂等
+### Requirement: E2E 前置条件必须由固件拥有且幂等
+
 E2E 测试套件 SHALL 通过可复用的固件或支持辅助器使插件状态、模拟数据、认证状态和共享文件系统前置条件显式化。测试文件必须可独立运行，不依赖其他测试文件创建插件行、安装源码插件、加载模拟 SQL、刷新前端插件投影或创建可复用认证状态。
 
-#### Scenario:测试依赖源码插件
+#### Scenario: 测试依赖源码插件
 - **当** 测试文件需要源码插件页面、API、菜单或模拟数据时
 - **则** 测试必须调用幂等同步、安装、启用和刷新插件投影的共享固件/辅助器
 - **且** 辅助器必须仅在插件提供匹配的模拟数据资源时加载插件模拟 SQL
 
-#### Scenario:测试依赖生成的用户或业务数据
+#### Scenario: 测试依赖生成的用户或业务数据
 - **当** 测试文件创建用户、部门、岗位、通知、文件、插件记录或导入/导出数据时
 - **则** 测试必须使用唯一名称或稳定测试前缀
 - **且** 必须在 `finally`、`afterEach` 或 `afterAll` 中清理自己的数据，不依赖跨文件清理
 
-#### Scenario:测试在本地化 UI 下读取业务状态
+#### Scenario: 测试在本地化 UI 下读取业务状态
 - **当** 测试需要在不同语言下比较业务计数、标识、权限或状态转换时
 - **则** 必须使用 ID、代码、权限键、标签键或数字计数器等稳定 API 字段进行业务断言
 - **且** 本地化 UI 文本必须作为展示行为单独断言
 
-### Requirement:E2E 全回归报告必须暴露串行和并行边界
+### Requirement: E2E 全回归报告必须暴露串行和并行边界
+
 E2E 全回归运行器 SHALL 报告足够信息使执行隔离可审计。报告必须显示哪些文件在并行池中运行、哪些文件在串行池中运行、以及哪些隔离类别导致文件被串行化。
 
-#### Scenario:全回归启动
+#### Scenario: 全回归启动
 - **当** 开发者或 CI 启动全回归入口点时
 - **则** 运行器必须打印或持久化并行文件数、串行文件数和配置的工作线程数摘要
 - **且** 必须包含串行集中表示的隔离类别
 
-#### Scenario:模块范围回归启动
+#### Scenario: 模块范围回归启动
 - **当** 开发者运行模块范围 E2E 命令时
 - **则** 运行器必须对解析的模块文件应用相同的串行与并行拆分
 - **且** 必须报告该模块范围内的任何串行化文件和类别
 
 ### Requirement: Plugin-full E2E 必须支持通用插件入口分片执行
-E2E CI workflow SHALL allow plugin-full browser regression to execute plugin management, plugin-owned tests, and plugin host seam tests as independent shards while preserving the same plugin-full startup semantics.
+
+E2E CI workflow SHALL allow plugin-full browser regression to execute plugin management, plugin-owned tests, and plugin host seam tests as independent shards while preserving the same plugin-full startup semantics. Plugin-owned shards SHALL be planned from discovered source-plugin test ownership with load-balanced packing, not only equal Playwright file-count sharding of the whole `plugins` tree.
 
 #### Scenario: Plugin-full 分片选择模块范围
-- **WHEN** workflow 启动 plugin-full E2E 分片
-- **THEN** 每个分片必须使用 plugin-full 服务启动命令
-- **AND** 源码插件自有测试分片必须使用 `plugins` 或 `plugin:<plugin-id>` 通用入口选择测试范围
-- **AND** 根目录分片只能选择宿主插件框架通用测试范围，不得选择依赖具体官方源码插件的根测试文件集合
-- **AND** 分片日志必须显示选择的 scope、并行文件数、串行文件数和串行隔离类别
+- **当** workflow 启动 plugin-full E2E 分片
+- **则** 每个分片必须使用 plugin-full 服务启动命令
+- **且** 源码插件自有测试分片必须通过 CI 分片规划选择一个或多个 `plugins/<plugin-id>` 通用入口集合
+- **且** 根目录分片只能选择宿主插件框架通用测试范围，不得选择依赖具体官方源码插件业务实现的根测试别名集合
+- **且** 分片日志必须显示选择的 scope/entries、并行文件数、串行文件数和串行隔离类别
 
 #### Scenario: Plugin-full 不维护官方插件业务别名 scope
-- **WHEN** 开发者需要运行源码插件自有 E2E
-- **THEN** runner 必须支持 `plugins` 运行全部源码插件自有用例
-- **AND** runner 必须支持 `plugin:<plugin-id>` 运行单个源码插件自有用例
-- **AND** E2E manifest 不应为官方插件业务模块维护长期别名 scope
+- **当** 开发者需要运行源码插件自有 E2E
+- **则** runner 必须支持 `plugins` 运行全部源码插件自有用例
+- **且** runner 必须支持 `plugin:<plugin-id>` 运行单个源码插件自有用例
+- **且** E2E manifest 不应为官方插件业务模块维护长期别名 scope
 
 #### Scenario: Plugin-full 分片失败阻止下游发布
-- **WHEN** 任一 plugin-full E2E 分片失败
-- **THEN** 完整验证套件必须失败
-- **AND** 依赖完整验证成功的镜像发布或后续 job 不得执行
+- **当** 任一 plugin-full E2E 分片失败
+- **则** 完整验证套件必须失败
+- **且** 依赖完整验证成功的镜像发布或后续 job 不得执行
 
 #### Scenario: Plugin-full 分片上传独立诊断证据
-- **WHEN** plugin-full E2E 分片完成或失败
-- **THEN** workflow 必须上传该分片的 Playwright report、test-results、后端日志和前端日志
-- **AND** artifact 名称必须包含调用方前缀和分片标识，避免覆盖其他分片证据
+- **当** plugin-full E2E 分片完成或失败
+- **则** workflow 必须上传该分片的 Playwright report、test-results、后端日志和前端日志
+- **且** artifact 名称必须包含调用方前缀和分片标识，避免覆盖其他分片证据
+
+#### Scenario: Plugin 分片按插件负载装箱
+- **当** 官方插件工作区就绪且 CI 规划 plugin-full 源码插件分片
+- **则** 规划器必须按每个源码插件的 TC 文件数（或显式 weightOverrides）装箱到目标分片数
+- **且** 所有源码插件 TC 必须恰好属于一个 plugin 分片
+- **且** 不得要求根目录硬编码官方插件业务模块别名
+
+### Requirement: Host-only E2E 必须按能力边界 CI 分片执行
+
+启用 host-only 浏览器 E2E 的完整验证 workflow SHALL 将宿主用例按 `execution-manifest` 中声明的 host CI 分片并行执行，而不是在单个 job 中串行跑完整 `pnpm test:host`。
+
+#### Scenario: Host-only 分片覆盖全部宿主 TC
+- **当** 验证器检查 host CI 分片声明
+- **则** 所有 host-only 可发现的宿主 TC 必须恰好属于一个 host 分片
+- **且** 分片之间不得重复包含同一 TC 文件
+
+#### Scenario: Host-only 分片独立启动服务
+- **当** workflow 运行某个 host CI 分片
+- **则** 该 job 必须使用 host-only 启动命令
+- **且** 必须通过 `ci-shard host <name>` 或等价入口仅执行该分片 entries
+- **且** 必须上传带分片名的独立 artifact
+
+#### Scenario: Host-only 分片保留 serial/parallel 治理
+- **当** 某个 host 分片启动
+- **则** runner 必须对该分片解析出的文件应用与全量相同的 serial/parallel 拆分
+- **且** 并行池使用配置的 parallel workers，串行池保持单 worker
+
+### Requirement: E2E CI 分片规划必须可本地复现并进入验证门禁
+
+E2E 套件 SHALL 提供可在本地执行的 CI 分片规划与发射工具，并将分片完备性检查纳入 `pnpm test:validate`（或等价治理入口）。
+
+#### Scenario: 本地发射 host/plugin matrix
+- **当** 开发者运行 emit-ci-shards 工具
+- **则** 输出必须包含每个分片的稳定 `name` 与可直接用于 CI 的 `command`
+- **且** host 与 plugin-full-extra 分片不依赖未声明的临时 YAML 列表作为唯一来源
+
+#### Scenario: 分片配置错误被验证器拒绝
+- **当** host 分片漏覆盖、重复覆盖、引用空 entries 或非法 name
+- **则** 验证必须失败并指出具体分片与文件
+- **当** 插件工作区就绪且 plugin 装箱结果未覆盖全部源码插件 TC
+- **则** 验证必须失败
+
+### Requirement: 完整 E2E 默认并行池 worker 与安装缓存
+
+启用完整浏览器 E2E 的 Nightly（及同类完整验证调用方）SHALL 使用不低于 2 的 E2E 并行池 worker 默认值，并在 E2E job 中缓存 Go modules 与 Playwright 浏览器安装产物。
+
+#### Scenario: Nightly 使用提升后的 parallel workers
+- **当** Nightly verification suite 运行 E2E
+- **则** 传递给 E2E runner 的 parallel workers 默认值必须 ≥ 2
+- **且** serial 池仍以单 worker 执行
+
+#### Scenario: E2E job 复用工具链缓存
+- **当** E2E job 安装 Go 依赖与 Playwright Chromium
+- **则** workflow 必须启用 Go module cache
+- **且** 必须缓存 Playwright 浏览器目录以降低重复安装成本
 
 ### Requirement: E2E 认证页面 fixture 必须支持跳过默认 dashboard 导航
+
 E2E 测试套件 SHALL provide an authenticated page fixture that creates a browser page with admin storage state without automatically navigating to the default dashboard.
 
 #### Scenario: 测试直接进入目标业务路由
@@ -108,6 +172,7 @@ E2E 测试套件 SHALL provide an authenticated page fixture that creates a brow
 - **AND** 不得要求一次性迁移所有现有 E2E 用例
 
 ### Requirement: 普通插件功能 E2E 必须复用幂等插件 baseline
+
 E2E 测试套件 SHALL provide reusable plugin baseline setup for ordinary plugin-owned page tests so they do not repeatedly synchronize, install, enable, seed, and refresh plugin projection in every test case.
 
 #### Scenario: 插件功能测试声明所需插件集合
@@ -121,6 +186,7 @@ E2E 测试套件 SHALL provide reusable plugin baseline setup for ordinary plugi
 - **AND** 普通插件 baseline 不得在这些测试中隐式改变被测插件状态
 
 ### Requirement: E2E 优化必须保留可量化耗时验收
+
 E2E runtime optimization SHALL preserve per-test timing evidence and compare before/after wall clock for host-only and plugin-full validation.
 
 #### Scenario: 优化后保留测试耗时记录
@@ -134,6 +200,7 @@ E2E runtime optimization SHALL preserve per-test timing evidence and compare bef
 - **AND** 若未达到目标耗时，必须说明剩余瓶颈和后续优化范围
 
 ### Requirement: Host-only 单模块 E2E 必须排除插件环境用例
+
 E2E runner SHALL provide a host-only module entrypoint for running a selected host scope without requiring the official plugin workspace.
 
 #### Scenario: 未初始化官方插件工作区时运行宿主模块
@@ -146,6 +213,7 @@ E2E runner SHALL provide a host-only module entrypoint for running a selected ho
 - **THEN** runner 必须失败并说明该 scope 不能在 host-only module 模式运行
 
 ### Requirement: CI 数据库健康检查必须使用显式 PostgreSQL 用户和数据库
+
 Browser E2E CI SHALL configure PostgreSQL service health checks with explicit user and database parameters instead of relying on the runner OS user.
 
 #### Scenario: PostgreSQL 健康检查不使用 runner 用户

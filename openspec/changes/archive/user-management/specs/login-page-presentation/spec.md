@@ -1,41 +1,52 @@
-## ADDED Requirements
+# login-page-presentation Specification
 
-### Requirement: Only the username/password login entry is exposed in the current stage
+## Purpose
 
-The system MUST expose only the username/password login capability in the current stage and MUST NOT continue to show or preserve unfinished authentication entry points as formal public capabilities.
+定义标准登录页公开入口展示、已交付账号辅助子流程可达性、登录面板布局与描述文案配置。
 
-#### Scenario: The standard login page shows only the username/password form
-- **WHEN** an unauthenticated user visits `/auth/login`
-- **THEN** the page shows username, password, remember-me, and login controls
-- **AND** the page does not show forgot password, registration, mobile login, QR-code login, or third-party login entry points
+## Requirements
 
-#### Scenario: Users visit unfinished authentication sub-routes
-- **WHEN** a user visits `/auth/code-login`, `/auth/qrcode-login`, `/auth/forget-password`, or `/auth/register`
-- **THEN** the system redirects back to the standard login page at `/auth/login`
-- **AND** the page still exposes only the username/password login capability
+### Requirement: 标准登录页暴露用户名密码与已交付账号辅助入口
 
-### Requirement: The login panel defaults to the right-aligned layout and supports position configuration
+系统 SHALL 将用户名/密码登录作为默认公开登录能力，并允许在系统开关开启时展示已交付的忘记密码与创建账号入口。手机号登录、扫码登录不得作为正式公开能力展示。
 
-The system MUST render the login panel in the right-aligned layout by default and MUST allow the host public-frontend config to switch it to the left, center, or right layout.
+#### Scenario: 标准登录页显示用户名密码与账号辅助入口
+- **当** 未认证用户访问 `/auth/login` 且忘记密码、创建账号开关均开启时
+- **则** 页面显示用户名、密码、记住我和登录控件
+- **且** 页面显示忘记密码入口与创建账号入口
+- **且** 页面不显示手机号登录或扫码登录入口
 
-#### Scenario: The login panel defaults to the right side when no override exists
-- **WHEN** a browser loads the login page and the host does not provide a login-panel position override
-- **THEN** the login page uses the `panel-right` layout
-- **AND** the login panel is shown on the right side of the main page area
+#### Scenario: 用户访问未交付的认证子路由
+- **当** 用户访问 `/auth/code-login` 或 `/auth/qrcode-login` 时
+- **则** 系统重定向回标准登录页 `/auth/login`
+- **且** 页面仍不显示手机号登录或扫码登录入口
 
-#### Scenario: Host config overrides the login-panel position
-- **WHEN** the host public-frontend config returns `auth.panelLayout` as `panel-left`, `panel-center`, or `panel-right`
-- **THEN** the login page renders the corresponding layout mode
-- **AND** the layout switcher in the login-page toolbar still allows switching among all three layout options
+#### Scenario: 用户访问已交付的账号辅助子路由
+- **当** 忘记密码与创建账号开关开启且用户访问 `/auth/forget-password` 或 `/auth/register` 时
+- **则** 系统渲染对应认证子页，而不是重定向到 `/auth/login`
 
-### Requirement: The default login-page description supports host configuration
+### Requirement: 登录面板默认右侧布局并支持位置配置
 
-The system MUST display the default login-page description when the host does not provide an override, and MUST display the configured value when the host public-frontend config provides one.
+系统 SHALL 默认以右侧布局渲染登录面板，并允许宿主公共前端配置在左、中、右布局间切换。
 
-#### Scenario: The default description is shown when no override exists
-- **WHEN** a browser loads the login page and the host does not provide an `auth.pageDesc` override
-- **THEN** the login page shows the description `Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model`
+#### Scenario: 无覆盖时默认右侧布局
+- **当** 浏览器加载登录页且宿主未提供登录面板位置覆盖时
+- **则** 登录页使用 `panel-right` 布局
+- **且** 登录面板显示在主内容区右侧
 
-#### Scenario: Host config overrides the login-page description
-- **WHEN** the host public-frontend config returns a non-empty `auth.pageDesc`
-- **THEN** the login page shows the returned description
+#### Scenario: 宿主配置覆盖登录面板位置
+- **当** 宿主公共前端配置返回 `auth.panelLayout` 为 `panel-left`、`panel-center` 或 `panel-right` 时
+- **则** 登录页按对应模式渲染
+- **且** 登录页工具栏布局切换器仍可在三种布局间切换
+
+### Requirement: 默认登录页描述支持宿主配置
+
+系统 SHALL 在宿主未提供覆盖时展示默认登录页描述，并在公共前端配置提供覆盖值时展示配置内容。
+
+#### Scenario: 无覆盖时展示默认描述
+- **当** 浏览器加载登录页且宿主未提供 `auth.pageDesc` 覆盖时
+- **则** 登录页展示描述 `Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model`
+
+#### Scenario: 宿主配置覆盖登录页描述
+- **当** 宿主公共前端配置返回非空 `auth.pageDesc` 时
+- **则** 登录页展示返回的描述

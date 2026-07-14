@@ -20,7 +20,7 @@
 
 ### Requirement:内置系统参数名称和默认文案必须以英文本地化
 
-配置管理页面 SHALL 按当前语言本地化内置系统参数名称、描述和默认显示值，使英文环境不显示默认中文系统文案。
+配置管理页面 SHALL 按当前语言本地化内置系统参数名称、描述和默认显示值，使英文环境不显示默认中文系统文案。投影键 MUST 使用 `config.<config_key>.name` 与 `config.<config_key>.remark`，其中 `<config_key>` 为 `sys_config.key` 原值。
 
 #### Scenario:登录和 IP 黑名单参数显示英文元数据
 - **当** 管理员以 `en-US` 打开系统配置时
@@ -34,8 +34,8 @@
 
 #### Scenario:配置本地化资源保持完整
 - **当** 内置配置翻译键被添加或更改时
-- **则** `zh-CN`、`en-US` 和 `zh-TW` 运行时资源保持匹配的键覆盖
-- **且** 缺失翻译检查不报告新缺失的内置配置键
+- **则** 宿主全部运行时 locale 的 `config.<config_key>.name` 与 `config.<config_key>.remark` 保持覆盖
+- **且** `make i18n.check` 对缺失的内置配置展示键报告失败
 
 ### Requirement:内置系统参数必须可编辑但不可删除
 
@@ -231,4 +231,125 @@
 - **WHEN** 宿主读取非 root 配置键时无法确认`sys_config`快照 freshness
 - **THEN** 系统返回可见错误
 - **AND** 不继续回退到静态配置或系统默认值来掩盖运行时配置一致性故障
+
+### Requirement:内置系统参数更新不得写回本地化名称与描述
+
+系统 SHALL 在更新内置（`isBuiltin` 或受管系统键）配置记录时忽略请求中的 `name` 与 `remark`，仅允许在既有规则下更新可编辑字段（至少包含 `value`）。非内置自定义参数仍可更新 `name` 与 `remark`。
+
+#### Scenario:内置参数保存不污染 name/remark
+- **当** 调用方以 `en-US` 获取内置参数详情并将投影后的英文 `name`/`remark` 连同新 `value` 提交更新
+- **则** 系统更新 `value`
+- **且** 库内 `name` 与 `remark` 仍为更新前的存储原文
+- **且** 后续中文环境下列表/详情仍可从 i18n 或库内 fallback 得到正确展示
+
+#### Scenario:自定义参数仍可修改名称与备注
+- **当** 管理员更新非内置参数的 `name` 或 `remark`
+- **则** 系统按请求写入对应字段
+
+### Requirement: 参数管理 API 必须暴露 valueType 与 options
+
+参数设置的列表、详情、按键查询、创建与更新契约 SHALL 包含 `valueType` 与 `options` 字段。创建与更新请求可提交上述字段；响应 MUST 返回持久化后的有效值。`options` 在 JSON 中为对象数组；空选项以空数组表示。
+
+#### Scenario: 创建带类型的参数
+
+- **WHEN** 管理员调用创建接口提交 `name`、`key`、`value`、`valueType=select` 与非空 `options`
+- **THEN** 系统创建成功
+- **AND** 详情响应包含相同的 `valueType` 与 `options`
+
+#### Scenario: 列表项携带类型元数据
+
+- **WHEN** 管理员查询参数列表
+- **THEN** 每条 `ConfigItem` 包含 `valueType`
+- **AND** 对枚举类型包含可用于编辑的 `options`
+
+### Requirement: 配置导入导出必须包含类型与选项列
+
+配置 Excel 导出、导入与导入模板 SHALL 在既有列基础上包含 `valueType` 与 `options` 列，列头通过 `config.field.valueType` 与 `config.field.options` 翻译键按当前语言解析。导入时缺失 `valueType` 视为 `text`；`options` 单元格存 JSON 文本。
+
+#### Scenario: 导出包含类型列
+
+- **WHEN** 管理员导出参数设置
+- **THEN** Excel 包含本地化的 valueType 与 options 列头
+- **AND** 行数据写出对应字段
+
+#### Scenario: 导入非法 options JSON 行失败
+
+- **WHEN** 管理员导入一行 `valueType=select` 且 options 单元格不是合法 JSON 数组
+- **THEN** 该行计入失败列表并给出可理解原因
+- **AND** 其他合法行仍可成功导入
+
+### Requirement: 内置参数种子必须携带类型与选项元数据
+
+宿主初始化 SQL SHALL 为已有内置运行时与公共前端参数写入匹配语义的 `value_type` 与（如需要）`options`，使管理面开箱按正确组件编辑。至少覆盖：
+
+- 布尔开关类（如忘记密码入口、注册入口、水印开关）→ `boolean`
+- 布局/主题等有限枚举 → `select` 或 `radio`，并给出完整 options
+- 上传上限、日志保留天数等 → `number`
+- 隐私政策/服务条款等长文 → `textarea` 或 `richtext`
+- 其余短文案/路径/duration → `text` 或 `textarea`
+
+#### Scenario: 登录框位置参数为下拉类型
+
+- **WHEN** 管理员完成宿主数据库初始化后打开参数设置并编辑 `sys.auth.loginPanelLayout`
+- **THEN** 该参数 `valueType` 为 `select`（或 `radio`）
+- **AND** options 包含 `panel-left`、`panel-center`、`panel-right`
+- **AND** 编辑界面以下拉或单选方式选择，而非自由文本猜测
+
+#### Scenario: 忘记密码入口参数为布尔类型
+
+- **WHEN** 管理员编辑 `sys.auth.forgetPasswordEnabled`
+- **THEN** 该参数 `valueType` 为 `boolean`
+- **AND** 编辑界面提供开关或二值选择组件
+
+### Requirement: 系统参数管理面仅展示可系统维护的配置
+
+系统 SHALL 为每条 `sys_config` 记录持久化 `system_manageable` 字段（`SMALLINT`，`1` 表示允许在系统参数设置管理面维护，`0` 表示不允许）。系统参数管理面的 List 与 Export MUST 仅返回 `system_manageable = 1` 的可见行。运行时配置读取 MUST 不受该字段影响。
+
+#### Scenario: 列表不返回插件闭环配置
+
+- **WHEN** 管理员打开系统参数设置列表
+- **AND** 存在 `system_manageable = 0` 的行
+- **THEN** 列表不包含这些行
+
+### Requirement: 系统参数管理面不得变更不可系统维护的配置
+
+对 `system_manageable = 0` 的行，管理面 Get/Update/Delete/Import 覆盖 MUST 拒绝或视为不存在。管理面 Create MUST 写入 `system_manageable = 1`。
+
+#### Scenario: 管理面更新被拒绝
+
+- **WHEN** 调用方对 `system_manageable = 0` 的配置请求管理面更新
+- **THEN** 系统返回错误且 value 不变
+
+### Requirement: 插件 SetValue 支持显式 SystemManageable
+
+插件经 `HostConfig.SysConfig().SetValue(ctx, key, value, options)` 或 `BatchSetValue(ctx, items, options)` 写入时，`options` 可为 nil 或 `*SetSysConfigValueOptions`。当 `options` 为 nil 或 `options.SystemManageable` 为 nil 且首次插入时 MUST 写 `0`；更新时 MUST 保持原标记；当 `SystemManageable` 非 nil 时 MUST 写入对应标记。仅在插件入口维护的业务配置 MUST 传 `false`。
+
+#### Scenario: 插件闭环写入
+
+- **WHEN** 插件 `SetValue`/`BatchSetValue` 且 `options.SystemManageable = false` 或未指定（首次插入）
+- **THEN** 行的 `system_manageable = 0` 且不出现在系统参数列表
+
+#### Scenario: 插件显式进入系统参数页
+
+- **WHEN** 插件 `SetValue` 且 `options.SystemManageable = true`
+- **THEN** 行的 `system_manageable = 1`
+
+### Requirement: 插件批量设置必须单事务单 revision
+
+系统 SHALL 提供 `BatchSetValue`，在一次事务中写入全部 items，并在全部成功后仅推进一次 runtime-config revision。空 items MUST 成功且无副作用。多字段插件 settings 保存 MUST 使用 `BatchSetValue` 而非循环 `SetValue`。
+
+#### Scenario: 批量写入多键
+
+- **WHEN** 插件一次 `BatchSetValue` 写入多个 key
+- **THEN** 所有 key 在同一事务中落库
+- **AND** runtime-config revision 仅推进一次
+
+### Requirement:启用 i18n 的插件 sys_config 展示键必须可本地化
+
+对 `plugin.yaml` 中 `i18n.enabled: true` 且以 `SysConfigKey` 常量声明的插件配置键，系统 SHALL 在插件 `manifest/i18n/<locale>/` 中提供 `config.<config_key>.name` 与 `config.<config_key>.remark`，使参数设置页列表投影不为技术 key 裸展示。
+
+#### Scenario:插件 SysConfigKey 缺译被门禁阻断
+- **当** 启用 i18n 的插件新增 `hostconfigcap.SysConfigKey = "plugin.<id>...."` 常量且未补齐对应 `config.<key>.name/remark`
+- **则** `make i18n.check` 失败并指出缺失键与 locale
+- **且** 未启用 i18n 的插件不要求上述插件侧资源
 

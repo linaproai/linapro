@@ -108,9 +108,16 @@ source/dynamic 两套升级骨架分散在 `sourceupgrade`、`runtimeupgrade`、
 
 **关键设计**：
 - `sys_plugin`基线表结构使用`distribution varchar(32) not null default 'managed'`
-- 普通插件管理列表默认隐藏`builtin`插件，写操作由服务端 guard 统一拒绝
+- 普通插件管理列表默认展示`builtin`与`managed`；列表/详情投影继续暴露`distribution`；`includeBuiltin`保留为兼容查询字段（忽略或始终视为包含），不再用于隐藏 builtin
+- 写操作（安装、启用/禁用、卸载、手动升级、租户供应策略变更）由服务端 guard 统一拒绝，拒绝语义不因列表可见而放宽
 - 启动期独立执行`BootstrapBuiltinPlugins(ctx)`，在插件路由、cron、前端包预热前自动安装、启用和安全升级 builtin 源码插件
 - 生命周期变化继续复用现有依赖解析、SQL 迁移、资源同步、缓存失效、enabled snapshot 和集群主节点边界
+
+**管理 UI 只读治理**：
+- `distribution === 'builtin'` 时展示「内置插件」badge（中/英 i18n）；若同时命中宿主`plugin.autoEnable`，继续展示既有「自动启用」类标识，二者可并存
+- 安装/启停/升级/租户策略入口对 builtin 行继续隐藏；具备卸载权限时仍展示「卸载」按钮，但置为`disabled`并附 tooltip 说明不可卸载，以与可卸载行保持操作列按钮数量与列宽一致
+- 详情入口始终可用；「管理」仍按「已安装 + 存在管理页」判定，不因 distribution 禁用
+- 前端隐藏或置灰不得作为安全边界；绕过 UI 调用写 API 时服务端仍按升级治理规范拒绝
 
 ## 10.1 插件管理列表「管理」入口
 

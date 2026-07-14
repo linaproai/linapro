@@ -59,11 +59,11 @@
 
 ### Requirement:宿主稳定目录必须作为真实治理记录存在
 
-系统 SHALL 将默认后台的九个一级目录作为宿主拥有的稳定菜单记录维护，而非仅在前端投影层临时组装。
+系统 SHALL 将默认后台的一级稳定目录作为宿主拥有的稳定菜单记录维护，而非仅在前端投影层临时组装。稳定父级 `menu_key` MUST 至少包含：`dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`extension`、`developer`。系统 MUST NOT 将 `storage` 作为一级宿主稳定目录。
 
 #### Scenario:初始化宿主稳定目录
 - **当** 宿主初始化默认后台菜单骨架时
-- **则** 宿主创建并维护 `dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`extension`、`developer` 9 个稳定父级 `menu_key`
+- **则** 宿主创建并维护上述稳定父级 `menu_key`（不含 `storage`）
 - **且** 这些目录记录可被插件 `parent_key` 稳定解析
 
 #### Scenario:某目录下无可见子菜单
@@ -237,4 +237,30 @@
 - **AND** 消费方通过注入的`tenantcap.Service`或`pluginservice.Services.Tenant()`获取租户能力实例
 - **AND** 旧`pkg/tenantcap`不得作为新代码入口
 - **AND** provider 实现由插件通过`tenantcap.Provide(...)`声明并由`pkg/pluginservice/internal/capabilityregistry`中的生命周期治理激活
+
+### Requirement:云对象存储实现由插件扩展且配置挂载到系统设置
+
+系统 SHALL 将对象存储领域契约与内置 local provider 保留在宿主，将具体云厂商对象存储后端实现交付为官方源码插件。云存储配置菜单 MUST 挂载到宿主已有 `setting`（系统设置）稳定目录；MUST NOT 要求单独的 `storage` 一级目录或 `linapro-storage-core` 类壳插件。
+
+#### Scenario:规划云存储插件边界
+- **当** 团队规划 `linapro-storage-cos`、`linapro-storage-oss`、`linapro-storage-obs`、`linapro-storage-qiniu`、`linapro-storage-aws`、`linapro-storage-azure` 或 `linapro-storage-s3` 的能力边界时
+- **则** 插件仅承载对应云厂商 `storagecap.Provider`、配置 settings 与连通性探测
+- **且** `storagecap.Service`、插件/租户 key 作用域与 local provider 仍保留在宿主
+- **且** 配置入口挂载在宿主「系统设置」目录下
+
+### Requirement: 邮件协议与连接配置不得进入宿主核心契约
+
+系统 SHALL 将邮件协议实现、Connection/Account 权威存储与邮件管理面保留在 `linapro-mail-core` 及其协议插件中。`apps/lina-core/pkg/plugin` MUST NOT 新增邮件协议 SPI 实现包或邮件 Connection 领域表访问作为长期公共契约。宿主 notify 可依赖邮件 owner 能力完成 email 通道投递，但 MUST NOT 将 SMTP/IMAP/POP3 细节嵌入宿主通用模块。
+
+#### Scenario: 邮件公开契约位于 owner 插件
+
+- **WHEN** 源码插件需要类型化邮件发送或接收能力
+- **THEN** 公开契约 MUST 来自 `linapro-mail-core` 的 `backend/cap` 路径
+- **AND** MUST NOT 要求从 `lina-core/pkg/plugin/capability` 导入邮件协议实现
+
+#### Scenario: 宿主保持通用边界
+
+- **WHEN** 审查本变更相关代码归属
+- **THEN** 邮件 Connection 表与协议客户端 MUST 不落在 `lina-core` 宿主业务表与核心 service 中作为权威实现
+- **AND** 宿主插件生命周期仅提供通用全局 Hook 机制，MUST NOT 硬编码邮件 kind 冲突规则
 

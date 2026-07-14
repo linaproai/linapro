@@ -8,6 +8,14 @@
 
 菜单治理后来引入稳定`menu_key`作为生命周期锚点。宿主和插件都以`menu_key`维护菜单归属、父子关系、授权恢复和本地化标题，不依赖备注字段或硬编码整数 ID。默认后台一级目录固定为工作台、权限管理、组织管理、系统设置、内容管理、系统监控、任务调度、扩展中心和开发中心；插件菜单应按语义挂载到这些宿主目录下，空父目录在当前用户无可见子菜单时自动隐藏。
 
+## 菜单状态/显隐双向级联与列表开关
+
+菜单更新写入`status`或`visible`时，将该字段目标值在同一事务内同步到全部后代（含启用/显示与停用/隐藏）。仅写入其中一个字段时不得改写另一个字段。级联复用既有`Update`路径与`getDescendantIds`，采用一次收集后代 ID + 单次`WhereIn`批量更新，避免按节点 N+1 写入。不新增专用状态/显隐 REST 资源。
+
+启用/显示同样级联，避免“父开子关”导致导航与权限语义分裂；历史脏数据不自动回填，管理员再次切换父级即可收敛。菜单删除级联语义保持不变。
+
+菜单列表「状态」「是否显示」列使用 Switch 行内切换，交互对齐插件管理/角色管理。`UpdateReq`放宽`name`/`type`必填约束，开关只提交目标`status`或`visible`，避免把列表中的本地化展示标题回写为治理数据。开关成功后刷新列表树与`refreshAccessibleState`，使左侧导航与动态路由即时收敛；失败回滚本地开关值并提示错误。
+
 ## 角色授权和用户关联
 
 角色管理提供分页查询、详情、创建、更新、删除、状态切换、角色选项、已授权用户列表、批量授权和撤销授权。角色菜单更新采用替换式写入，父子菜单勾选语义由授权树和前端组件共同保证。角色删除、角色批量删除、用户角色授权和撤销均必须保持事务原子性，关联清理失败时不得只记录 warning 后继续提交主记录变更。
@@ -20,7 +28,17 @@
 
 登录后的用户信息投影包含用户基础资料、角色 key 列表、可访问菜单树、权限标识和默认首页。前端使用菜单树生成动态路由，并用权限标识控制按钮级访问。普通用户只获得启用角色关联的启用菜单，按钮节点不进入导航菜单树但进入权限标识集合；无角色或角色全禁用时返回空菜单、空角色和空权限。
 
-登录页展示治理的目标是让公开入口与已实现能力一致。标准登录页只暴露用户名密码登录；找回密码、注册、短信、二维码和第三方登录入口不作为当前公开能力展示，直接访问未完成认证子路由时重定向到`/auth/login`。登录面板默认使用`panel-right`布局，并可通过公共前端参数`sys.auth.loginPanelLayout`在左、中、右之间切换；登录页描述由`sys.auth.pageDesc`提供默认值和宿主配置覆盖。
+登录页展示以已交付能力为准。标准登录页暴露用户名密码登录，并按系统参数展示忘记密码与创建账号入口；手机号登录、扫码登录入口保持隐藏，对应`/auth/code-login`、`/auth/qrcode-login`继续回退`/auth/login`。创建账号入口固定编排在「其他登录方式」区域之后，对齐 Vben 登录页结构。登录面板默认使用`panel-right`布局，并可通过公共前端参数`sys.auth.loginPanelLayout`在左、中、右之间切换；登录页描述由`sys.auth.pageDesc`提供默认值和宿主配置覆盖。
+
+## 公开注册与邮件密码重置
+
+公开自助能力由宿主 Auth API 完整交付，不依赖管理员侧用户管理接口：
+
+- `POST /auth/register`：注册开关开启时创建平台账号，校验唯一用户名与邮箱、密码 6–32，状态启用，分配内置`user`角色，不自动登录。
+- `POST /auth/forget-password`：忘记密码开关开启且邮件通道可用时受理重置请求；匹配账号则通过`notifycap.EmailDeliveryOrNil()`发送含一次性令牌的链接；邮件未配置时返回“暂时不可用”。
+- `POST /auth/reset-password`：消费未过期未使用令牌并更新密码，旧密码失效。
+
+入口与子路由由`sys.auth.forgetPasswordEnabled`、`sys.auth.registerEnabled`控制，默认`true`，纳入公开前端配置白名单；关闭后隐藏对应入口并重定向对应子路由到登录页。注册页隐私政策与服务条款可弹窗阅读，正文由`sys.auth.privacyPolicy`、`sys.auth.termsOfService`配置并经公开前端配置下发。前端复用 Vben 认证组件（`AuthenticationLogin`/`AuthenticationForgetPassword`/`AuthenticationRegister`），提交反馈使用`authentication.*`语言包与 notification。不启用短信/图形验证码，依赖限流约束滥用面。管理员侧重置密码契约保持不变。
 
 ## 菜单、插件和本地化治理
 
@@ -58,14 +76,17 @@
 
 租户权限边界反馈覆盖平台 admin 菜单可见性、租户文件上传归属、mock 租户菜单授权、API 枚举 DTO、租户登录过渡态和 API 枚举文件组织。根因分别包括租户上下文污染共享插件启用快照、写路径漏写`tenant_id`、mock 授权过宽、有限枚举使用裸`string`、选择租户后过早清空 pre-token 状态以及临时 enum 文件过多。修复均通过对应 Go 测试、前端 typecheck、E2E、i18n 检查、OpenSpec 校验和`lina-review`闭环。
 
+登录页账号辅助能力反馈要求：创建账号入口位于「其他登录方式」下方；忘记密码/创建账号提供系统参数开关且默认开启；公开注册与邮件重置完整交付；注册协议可弹窗阅读且正文可配置。菜单列表开关反馈要求启用/显示父级时子级同步恢复，形成双向级联。
+
 ## Cross-Domain Impacts
 
-- `user-auth`承载登录、会话、认证和用户信息投影当前契约；本分组只保留菜单树、角色和权限标识对用户权限模型的影响摘要，历史 owner 为`archive/user-auth`。
-- `config-management`承载登录页公共前端参数、配置 fallback 元数据和运行时配置缓存当前契约；本分组只保留登录页配置和租户权限修复的交叉影响，历史 owner 为`archive/system-config`。
+- `user-auth`承载登录、会话、认证和用户信息投影当前契约；本分组只保留菜单树、角色和权限标识对用户权限模型的影响摘要，以及公开注册/密码重置对认证入口的交叉影响，历史 owner 为`archive/user-auth`。
+- `config-management`承载登录页公共前端参数、注册协议正文、`sys.auth.*`开关、配置 fallback 元数据和运行时配置缓存当前契约；本分组只保留登录页配置和租户权限修复的交叉影响，历史 owner 为`archive/system-config`。
 - `dict-management`承载字典类型/数据和 fallback 动作元数据当前契约；本分组只保留角色/菜单页面字典使用和租户权限修复影响，历史 owner 为`archive/org-structure`。
 - `cron-job-management`承载任务分组租户隔离、调度任务和日志当前契约；本分组只保留租户权限边界修复要求任务分组按租户过滤的影响，历史 owner 为`archive/scheduled-jobs`。
 - `plugin-manifest-lifecycle`和`plugin-permission-governance`承载插件生命周期、菜单权限同步和平台插件治理当前契约；本分组只保留角色授权可分配集合与插件 platform-only 权限的交叉影响，历史 owner 为`archive/plugin-framework`。
 - `server-monitor`承载服务监控数据采集、单节点记录和 stale cleanup 当前契约；本分组只保留历史上服务监控菜单与权限可见性的反馈影响，历史 owner 为`archive/system-governance`。
+- 邮件投递通过`notifycap.EmailDeliveryOrNil()`接入，通道未注册时密码找回失败关闭；邮件插件与通知能力的完整契约不由本分组承载。
 
 ## 前端租户候选权限门禁
 
