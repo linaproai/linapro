@@ -21,34 +21,36 @@ type SysConfigDao struct {
 
 // SysConfigColumns defines and stores column names for the table sys_config.
 type SysConfigColumns struct {
-	Id        string // Config parameter ID
-	TenantId  string // Owning tenant ID, 0 means PLATFORM default
-	Name      string // Config parameter name
-	Key       string // Config parameter key
-	Value     string // Config parameter value
-	IsBuiltin string // Built-in record flag: 1=yes, 0=no
-	Remark    string // Remark
-	CreatedAt string // Creation time
-	UpdatedAt string // Modification time
-	DeletedAt string // Deletion time
-	ValueType string // Parameter value input type: text, textarea, number, boolean, select, radio, multi_select, richtext
-	Options   string // JSON array of {label,value} options for select/radio/multi_select; empty for other types
+	Id               string // Config parameter ID
+	TenantId         string // Owning tenant ID, 0 means PLATFORM default
+	Name             string // Config parameter name
+	Key              string // Config parameter key
+	Value            string // Config parameter value
+	IsBuiltin        string // Built-in record flag: 1=yes, 0=no
+	Remark           string // Remark
+	CreatedAt        string // Creation time
+	UpdatedAt        string // Modification time
+	DeletedAt        string // Deletion time
+	ValueType        string // Parameter value input type: text, textarea, number, boolean, select, radio, multi_select, richtext
+	Options          string // JSON array of {label,value} options for select/radio/multi_select; empty for other types
+	SystemManageable string // Whether the parameter may be governed on the system parameter admin surface: 1=yes, 0=no
 }
 
 // sysConfigColumns holds the columns for the table sys_config.
 var sysConfigColumns = SysConfigColumns{
-	Id:        "id",
-	TenantId:  "tenant_id",
-	Name:      "name",
-	Key:       "key",
-	Value:     "value",
-	IsBuiltin: "is_builtin",
-	Remark:    "remark",
-	CreatedAt: "created_at",
-	UpdatedAt: "updated_at",
-	DeletedAt: "deleted_at",
-	ValueType: "value_type",
-	Options:   "options",
+	Id:               "id",
+	TenantId:         "tenant_id",
+	Name:             "name",
+	Key:              "key",
+	Value:            "value",
+	IsBuiltin:        "is_builtin",
+	Remark:           "remark",
+	CreatedAt:        "created_at",
+	UpdatedAt:        "updated_at",
+	DeletedAt:        "deleted_at",
+	ValueType:        "value_type",
+	Options:          "options",
+	SystemManageable: "system_manageable",
 }
 
 // NewSysConfigDao creates and returns a new DAO object for table data access.

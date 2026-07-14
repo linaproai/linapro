@@ -112,4 +112,11 @@ var (
 		"Built-in system parameter type and options cannot be modified",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeSysConfigSystemManageDenied reports that a config row is not system-manageable
+	// and must be maintained through its owning plugin entry point instead.
+	CodeSysConfigSystemManageDenied = bizerr.MustDefine(
+		"SYSCONFIG_SYSTEM_MANAGE_DENIED",
+		"This system configuration cannot be maintained on the system settings page",
+		gcode.CodeNotAuthorized,
+	)
 )

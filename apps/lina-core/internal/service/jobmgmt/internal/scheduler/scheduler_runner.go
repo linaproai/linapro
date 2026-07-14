@@ -108,13 +108,15 @@ func (s *serviceImpl) prepareCronQuota(
 		return nil, removed, err
 	}
 
-	cols := dao.SysJob.Columns()
-	data := do.SysJob{
-		ExecutedCount: gdb.Raw(cols.ExecutedCount + " + 1"),
-		StopReason:    "",
-	}
-	nextCount := currentCount + 1
-	shouldRemove := false
+	var (
+		cols = dao.SysJob.Columns()
+		data = do.SysJob{
+			ExecutedCount: gdb.Raw(cols.ExecutedCount + " + 1"),
+			StopReason:    "",
+		}
+		nextCount    = currentCount + 1
+		shouldRemove = false
+	)
 	if job.MaxExecutions > 0 && nextCount >= int64(job.MaxExecutions) {
 		data.Status = string(jobv1.StatusDisabled)
 		data.StopReason = string(jobmeta.StopReasonMaxExecutionsReached)

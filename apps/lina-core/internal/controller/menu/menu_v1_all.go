@@ -162,28 +162,30 @@ func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 			continue
 		}
 
-		routeName := generateRouteName(item)
-		routePath := generateRoutePath(item)
-		route := &v1.MenuRouteItem{
-			Id:       item.Id,
-			ParentId: item.ParentId,
-			Name:     routeName,
-			Path:     routePath,
-			Meta: &v1.MenuRouteMeta{
-				Title:            item.Name,
-				Icon:             item.Icon,
-				I18nKey:          buildRouteTitleI18nKey(item.MenuKey, item.Name),
-				HideInMenu:       item.Visible == 0,
-				KeepAlive:        item.IsCache == 1,
-				Order:            item.Sort,
-				Authority:        item.Perms,
-				IgnoreAccess:     false,
-				HideInBreadcrumb: false,
-				HideInTab:        false,
-				ActiveIcon:       "",
-			},
-		}
-		menuQuery := parseMenuQueryParams(item.QueryParam)
+		var (
+			routeName = generateRouteName(item)
+			routePath = generateRoutePath(item)
+			route     = &v1.MenuRouteItem{
+				Id:       item.Id,
+				ParentId: item.ParentId,
+				Name:     routeName,
+				Path:     routePath,
+				Meta: &v1.MenuRouteMeta{
+					Title:            item.Name,
+					Icon:             item.Icon,
+					I18nKey:          buildRouteTitleI18nKey(item.MenuKey, item.Name),
+					HideInMenu:       item.Visible == 0,
+					KeepAlive:        item.IsCache == 1,
+					Order:            item.Sort,
+					Authority:        item.Perms,
+					IgnoreAccess:     false,
+					HideInBreadcrumb: false,
+					HideInTab:        false,
+					ActiveIcon:       "",
+				},
+			}
+			menuQuery = parseMenuQueryParams(item.QueryParam)
+		)
 		if len(menuQuery) > 0 {
 			route.Meta.Query = menuQuery
 		}

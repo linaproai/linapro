@@ -141,6 +141,9 @@ func TestFileSuffixesReqDeclaresPermission(t *testing.T) {
 // intentionally exempt from request-level permission metadata.
 var staticPermissionExemptionAllowlist = map[string]string{
 	"POST /auth/login":                       "public login entrypoint",
+	"POST /auth/register":                    "public self-registration entrypoint; gated by system configuration",
+	"POST /auth/forget-password":             "public password-recovery request; gated by system configuration and mail availability",
+	"POST /auth/reset-password":              "public password-reset confirmation via one-time recovery token",
 	"POST /auth/refresh":                     "public refresh-token endpoint; authenticates via refresh JWT in the request body",
 	"GET /i18n/runtime/locales":              "public runtime i18n locale bootstrap",
 	"GET /i18n/runtime/messages":             "public runtime i18n message bootstrap",

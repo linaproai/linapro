@@ -8,6 +8,8 @@ import (
 
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 type configHostCallRecord struct {
@@ -154,7 +156,9 @@ func TestHostConfigSysConfigUsesKeyResourceRef(t *testing.T) {
 		t.Fatalf("unexpected sys_config get record: %#v", recorder.record)
 	}
 
-	if err = service.SetValue(t.Context(), "custom.feature.limit", "128"); err != nil {
+	if err = service.SetValue(t.Context(), "custom.feature.limit", "128", &hostconfigcap.SetSysConfigValueOptions{
+		SystemManageable: gconv.PtrBool(false),
+	}); err != nil {
 		t.Fatalf("set sys_config value: %v", err)
 	}
 	if recorder.record.method != protocol.HostServiceMethodHostConfigSysConfigSetValue ||

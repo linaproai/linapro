@@ -272,9 +272,11 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 		if item == nil {
 			return nil, gerror.New("host service authorization item cannot be nil")
 		}
-		owner := strings.TrimSpace(strings.ToLower(item.Owner))
-		service := strings.TrimSpace(strings.ToLower(item.Service))
-		version := strings.TrimSpace(strings.ToLower(item.Version))
+		var (
+			owner   = strings.TrimSpace(strings.ToLower(item.Owner))
+			service = strings.TrimSpace(strings.ToLower(item.Service))
+			version = strings.TrimSpace(strings.ToLower(item.Version))
+		)
 		if owner == "" && version != "" {
 			return nil, gerror.Newf("host service authorization %s version requires owner", service)
 		}

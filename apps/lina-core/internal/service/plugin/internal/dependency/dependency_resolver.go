@@ -13,12 +13,14 @@ import (
 // CheckInstall evaluates whether target can be installed with all declared
 // plugin dependencies already installed and version-compatible.
 func (r *Resolver) CheckInstall(input InstallCheckInput) *InstallCheckResult {
-	targetID := strings.TrimSpace(input.TargetID)
-	result := &InstallCheckResult{
-		TargetID: targetID,
-	}
-	plugins := buildPluginMap(input.Plugins)
-	target := plugins[targetID]
+	var (
+		targetID = strings.TrimSpace(input.TargetID)
+		result   = &InstallCheckResult{
+			TargetID: targetID,
+		}
+		plugins = buildPluginMap(input.Plugins)
+		target  = plugins[targetID]
+	)
 	if target == nil {
 		result.Blockers = append(result.Blockers, &Blocker{
 			Code:     pluginv1.BlockerCodeDependencyMissing,
@@ -57,12 +59,14 @@ func (r *Resolver) CheckInstall(input InstallCheckInput) *InstallCheckResult {
 // CheckReverse evaluates whether uninstalling or upgrading target would break
 // installed downstream hard dependencies.
 func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
-	targetID := strings.TrimSpace(input.TargetID)
-	result := &ReverseCheckResult{
-		TargetID:         targetID,
-		CandidateVersion: strings.TrimSpace(input.CandidateVersion),
-	}
-	index := input.ReverseIndex
+	var (
+		targetID = strings.TrimSpace(input.TargetID)
+		result   = &ReverseCheckResult{
+			TargetID:         targetID,
+			CandidateVersion: strings.TrimSpace(input.CandidateVersion),
+		}
+		index = input.ReverseIndex
+	)
 	if index == nil {
 		index = NewReverseDependencyIndex(input.Plugins)
 	}
@@ -320,14 +324,16 @@ func (r *Resolver) evaluateDependency(
 	plugins map[string]*PluginSnapshot,
 	chain []string,
 ) *PluginDependencyCheck {
-	dependencyID := strings.TrimSpace(declaredDependency.ID)
-	dependency := plugins[dependencyID]
-	check := &PluginDependencyCheck{
-		OwnerID:         strings.TrimSpace(owner.ID),
-		DependencyID:    dependencyID,
-		RequiredVersion: strings.TrimSpace(declaredDependency.Version),
-		Chain:           append(append([]string(nil), chain...), dependencyID),
-	}
+	var (
+		dependencyID = strings.TrimSpace(declaredDependency.ID)
+		dependency   = plugins[dependencyID]
+		check        = &PluginDependencyCheck{
+			OwnerID:         strings.TrimSpace(owner.ID),
+			DependencyID:    dependencyID,
+			RequiredVersion: strings.TrimSpace(declaredDependency.Version),
+			Chain:           append(append([]string(nil), chain...), dependencyID),
+		}
+	)
 	if dependency == nil {
 		check.Status = pluginv1.DependencyStatusMissing
 		return check

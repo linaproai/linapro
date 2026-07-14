@@ -131,12 +131,17 @@ func applyImportedConfigUpdate(
 	fields importConfigRowFields,
 	finalValue *string,
 ) error {
-	finalType := entityValueType(existing.ValueType)
-	finalOptions := existing.Options
-	data := do.SysConfig{
-		Name:   fields.name,
-		Remark: fields.remark,
+	if !isSystemManageableRecord(existing) {
+		return bizerr.NewCode(CodeSysConfigSystemManageDenied)
 	}
+	var (
+		finalType    = entityValueType(existing.ValueType)
+		finalOptions = existing.Options
+		data         = do.SysConfig{
+			Name:   fields.name,
+			Remark: fields.remark,
+		}
+	)
 	if isBuiltInConfigRecord(existing) {
 		// Built-in type/options stay locked.
 		*finalValue = normalizePersistedValue(finalType, fields.value)
@@ -214,6 +219,7 @@ func applyImportedConfigCreate(
 	data.ValueType = createType.String()
 	data.Options = createOptions
 	data.IsBuiltin = builtInConfigFlag(fields.key)
+	data.SystemManageable = 1
 	data.Remark = fields.remark
 	_, insertErr := dao.SysConfig.Ctx(ctx).Data(data).Insert()
 	if insertErr != nil {

@@ -57,8 +57,15 @@ type SysConfigService interface {
 	List(ctx context.Context, input ListSysConfigInput) (*capmodel.PageResult[*SysConfigInfo], error)
 	// SetValue writes one governed sys_config value after key authorization,
 	// tenant fallback, audit, transaction, and sys_config cache revision
-	// checks.
-	SetValue(ctx context.Context, key SysConfigKey, value string) error
+	// checks. The optional options argument controls write metadata such as
+	// SystemManageable; nil options keep host defaults (plugin closed-loop on
+	// first insert). Prefer BatchSetValue when writing multiple keys so one
+	// transaction and one runtime-config revision cover the whole batch.
+	SetValue(ctx context.Context, key SysConfigKey, value string, options *SetSysConfigValueOptions) error
+	// BatchSetValue writes multiple governed sys_config values in one
+	// transaction and one runtime-config revision bump. Shared options apply
+	// to every item. An empty items slice is a successful no-op.
+	BatchSetValue(ctx context.Context, items []SetSysConfigValueItem, options *SetSysConfigValueOptions) error
 	// Reset resets one governed sys_config value to its owner default after key
 	// authorization and transaction-after cache revision.
 	Reset(ctx context.Context, key SysConfigKey) error
@@ -77,6 +84,29 @@ type ListSysConfigInput struct {
 	Page capmodel.PageRequest
 }
 
+// SetSysConfigValueOptions controls optional SetValue / BatchSetValue write
+// metadata shared by every written key.
+type SetSysConfigValueOptions struct {
+	// SystemManageable controls whether the row may be listed and mutated on
+	// the system config management page.
+	//
+	//   - nil on first insert: defaults to false (plugin closed-loop)
+	//   - nil on update: leaves the existing flag unchanged
+	//   - non-nil: writes the flag on both insert and update
+	//
+	// Plugin settings that are maintained only at the plugin entry point MUST
+	// pass false (use gconv.PtrBool(false)).
+	SystemManageable *bool
+}
+
+// SetSysConfigValueItem is one key/value pair for BatchSetValue.
+type SetSysConfigValueItem struct {
+	// Key is the sys_config key to write.
+	Key SysConfigKey
+	// Value is the raw sys_config.value string.
+	Value string
+}
+
 // SysConfigInfo describes one sys_config value visible to a plugin
 // management caller.
 type SysConfigInfo struct {
@@ -84,6 +114,9 @@ type SysConfigInfo struct {
 	Key SysConfigKey
 	// Value is the raw sys_config.value string.
 	Value string
+	// SystemManageable reports whether the row may be governed on the system
+	// config management page.
+	SystemManageable bool
 	// LabelKey is the optional i18n label key.
 	LabelKey string
 	// Label is the optional locale-resolved label.

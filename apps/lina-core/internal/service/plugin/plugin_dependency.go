@@ -65,17 +65,19 @@ func (s *serviceImpl) CheckPluginDependencies(ctx context.Context, pluginID stri
 	if reverseIndex == nil {
 		reverseIndex = plugindep.NewReverseDependencyIndex(snapshots)
 	}
-	installResult := resolver.CheckInstall(plugindep.InstallCheckInput{
-		TargetID:         normalizedPluginID,
-		FrameworkVersion: s.frameworkVersion(ctx),
-		Plugins:          snapshots,
-	})
-	reverseResult := resolver.CheckReverse(plugindep.ReverseCheckInput{
-		TargetID:     normalizedPluginID,
-		Plugins:      snapshots,
-		ReverseIndex: reverseIndex,
-	})
-	result := plugindep.ToCheckProjection(installResult)
+	var (
+		installResult = resolver.CheckInstall(plugindep.InstallCheckInput{
+			TargetID:         normalizedPluginID,
+			FrameworkVersion: s.frameworkVersion(ctx),
+			Plugins:          snapshots,
+		})
+		reverseResult = resolver.CheckReverse(plugindep.ReverseCheckInput{
+			TargetID:     normalizedPluginID,
+			Plugins:      snapshots,
+			ReverseIndex: reverseIndex,
+		})
+		result = plugindep.ToCheckProjection(installResult)
+	)
 	result.ReverseDependents = plugindep.ToReverseDependentProjections(reverseResult.Dependents)
 	result.ReverseBlockers = plugindep.ToBlockerProjections(reverseResult.Blockers)
 	return result, nil

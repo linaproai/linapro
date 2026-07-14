@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/gogf/gf/v2/util/gconv"
+
 	v1 "lina-core/api/user/v1"
 	"lina-core/internal/service/menu"
 	"lina-core/pkg/apitime"
@@ -48,7 +50,7 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 	if isSuperAdmin {
 		// Super admin gets all enabled menus
 		allMenus, err := c.menuSvc.List(ctx, menu.ListInput{
-			Status:    intPtr(1),
+			Status:    gconv.PtrInt(1),
 			Localized: true,
 		})
 		if err != nil {
@@ -62,7 +64,7 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 		menuIds := accessContext.MenuIds
 		if len(menuIds) > 0 {
 			allMenus, err := c.menuSvc.List(ctx, menu.ListInput{
-				Status:    intPtr(1),
+				Status:    gconv.PtrInt(1),
 				Localized: true,
 			})
 			if err != nil {
@@ -113,11 +115,6 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 		Menus:       convertToMenuTree(menuTree),
 		Permissions: permissions,
 	}, nil
-}
-
-// intPtr returns one query-friendly int pointer.
-func intPtr(i int) *int {
-	return &i
 }
 
 // buildFilteredTree builds a tree from filtered menu items

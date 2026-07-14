@@ -1,8 +1,8 @@
 -- 005: Config Management
 -- 005：参数设置管理
--- Includes config parameter table (with value_type/options metadata), login-status
--- dictionary, and file-scene dictionary.
--- 包含：参数设置表（含 value_type/options 元数据）、登录状态字典与文件场景字典
+-- Includes config parameter table (value_type/options, system_manageable),
+-- login-status dictionary, and file-scene dictionary.
+-- 包含：参数设置表（value_type/options、system_manageable）、登录状态字典与文件场景字典
 
 -- ----------------------------
 -- Purpose: Stores host and tenant runtime configuration parameters with platform defaults and tenant override support.
@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS sys_config (
     "value_type" VARCHAR(32) NOT NULL DEFAULT 'text',
     "options"    TEXT NOT NULL DEFAULT '',
     "is_builtin" SMALLINT NOT NULL DEFAULT 0,
+    "system_manageable" SMALLINT NOT NULL DEFAULT 1,
     "remark"     VARCHAR(500) NOT NULL DEFAULT '',
     "created_at" TIMESTAMPTZ DEFAULT NULL,
     "updated_at" TIMESTAMPTZ DEFAULT NULL,
@@ -32,6 +33,7 @@ COMMENT ON COLUMN sys_config."value" IS 'Config parameter value';
 COMMENT ON COLUMN sys_config."value_type" IS 'Parameter value input type: text, textarea, number, boolean, select, radio, multi_select, richtext';
 COMMENT ON COLUMN sys_config."options" IS 'JSON array of {label,value} options for select/radio/multi_select; empty for other types';
 COMMENT ON COLUMN sys_config."is_builtin" IS 'Built-in record flag: 1=yes, 0=no';
+COMMENT ON COLUMN sys_config."system_manageable" IS 'Whether the parameter may be listed and mutated on the system config management page: 1=yes, 0=no (plugin closed-loop settings)';
 COMMENT ON COLUMN sys_config."remark" IS 'Remark';
 COMMENT ON COLUMN sys_config."created_at" IS 'Creation time';
 COMMENT ON COLUMN sys_config."updated_at" IS 'Modification time';

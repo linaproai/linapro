@@ -154,6 +154,11 @@
           }
         }
       },
+      "system": {
+        "manage": {
+          "denied": "This system configuration cannot be maintained on the system settings page"
+        }
+      },
       "import": {
         "excel": {
           "parse": {

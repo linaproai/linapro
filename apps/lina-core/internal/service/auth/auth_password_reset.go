@@ -74,12 +74,14 @@ func (s *serviceImpl) RequestPasswordReset(ctx context.Context, in PasswordReset
 		return bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
 	}
 
-	resetURL := buildPasswordResetURL(in.PublicOrigin, in.WorkspaceBasePath, token)
-	subject := "Reset your LinaPro password"
-	content := fmt.Sprintf(
-		"You requested a password reset for account %s.\n\nOpen this link within 30 minutes to set a new password:\n%s\n\nIf you did not request this, you can ignore this email.",
-		user.Username,
-		resetURL,
+	var (
+		resetURL = buildPasswordResetURL(in.PublicOrigin, in.WorkspaceBasePath, token)
+		subject  = "Reset your LinaPro password"
+		content  = fmt.Sprintf(
+			"You requested a password reset for account %s.\n\nOpen this link within 30 minutes to set a new password:\n%s\n\nIf you did not request this, you can ignore this email.",
+			user.Username,
+			resetURL,
+		)
 	)
 	if _, err = delivery.Deliver(ctx, notifycap.EmailDeliveryInput{
 		AccountID: 0,

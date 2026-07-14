@@ -477,9 +477,11 @@ func CatalogFromDescriptors(descriptors []capregistry.Descriptor) ([]ServiceDesc
 }
 
 func projectOwnerDescriptor(descriptor capregistry.Descriptor) (ServiceDescriptor, error) {
-	owner := strings.TrimSpace(descriptor.OwnerPluginID)
-	service := strings.TrimSpace(descriptor.Service)
-	version := strings.TrimSpace(descriptor.Version)
+	var (
+		owner   = strings.TrimSpace(descriptor.OwnerPluginID)
+		service = strings.TrimSpace(descriptor.Service)
+		version = strings.TrimSpace(descriptor.Version)
+	)
 	if owner == "" {
 		return ServiceDescriptor{}, gerror.New("capability descriptor owner plugin id is required")
 	}

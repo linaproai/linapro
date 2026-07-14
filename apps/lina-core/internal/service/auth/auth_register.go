@@ -28,10 +28,12 @@ func (s *serviceImpl) Register(ctx context.Context, in RegisterInput) (*Register
 		return nil, bizerr.NewCode(CodeAuthRegisterDisabled)
 	}
 
-	username := strings.TrimSpace(in.Username)
-	password := strings.TrimSpace(in.Password)
-	email := strings.ToLower(strings.TrimSpace(in.Email))
-	nickname := strings.TrimSpace(in.Nickname)
+	var (
+		username = strings.TrimSpace(in.Username)
+		password = strings.TrimSpace(in.Password)
+		email    = strings.ToLower(strings.TrimSpace(in.Email))
+		nickname = strings.TrimSpace(in.Nickname)
+	)
 	if username == "" || password == "" || email == "" {
 		return nil, bizerr.NewCode(CodeAuthClientTypeInvalid)
 	}

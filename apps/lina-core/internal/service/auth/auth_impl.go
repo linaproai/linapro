@@ -615,23 +615,25 @@ func (s *serviceImpl) signToken(
 	if err != nil {
 		return "", err
 	}
-	jwtSecret := s.configSvc.GetJwtSecret(ctx)
-	claims := Claims{
-		TokenId:         tokenID,
-		TokenType:       kind,
-		ClientType:      clientType,
-		UserId:          user.Id,
-		Username:        user.Username,
-		Status:          user.Status,
-		TenantId:        tenantID,
-		IsImpersonation: isImpersonation,
-		ActingUserId:    actingUserID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtTTL)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	var (
+		jwtSecret = s.configSvc.GetJwtSecret(ctx)
+		claims    = Claims{
+			TokenId:         tokenID,
+			TokenType:       kind,
+			ClientType:      clientType,
+			UserId:          user.Id,
+			Username:        user.Username,
+			Status:          user.Status,
+			TenantId:        tenantID,
+			IsImpersonation: isImpersonation,
+			ActingUserId:    actingUserID,
+			RegisteredClaims: jwt.RegisteredClaims{
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtTTL)),
+				IssuedAt:  jwt.NewNumericDate(time.Now()),
+			},
+		}
+		token = jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	)
 	signed, err := token.SignedString([]byte(jwtSecret))
 	if err != nil {
 		return "", err

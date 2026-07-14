@@ -64,7 +64,13 @@ func dispatchHostConfigService(
 		if response := validateHostConfigRequestKey(resourceRef, key); response != nil {
 			return response
 		}
-		err := service.SetValue(ctx, hostconfigcap.SysConfigKey(key), request.Value)
+		var options *hostconfigcap.SetSysConfigValueOptions
+		if request.SystemManageable != nil {
+			options = &hostconfigcap.SetSysConfigValueOptions{
+				SystemManageable: request.SystemManageable,
+			}
+		}
+		err := service.SetValue(ctx, hostconfigcap.SysConfigKey(key), request.Value, options)
 		return domainCapabilityResult(true, err)
 	case bridgehostservice.HostServiceMethodHostConfigSysConfigReset:
 		service := sysConfigServiceForHostCall(hcc)
@@ -138,6 +144,7 @@ type hostConfigSysConfigKeyRequest struct {
 
 // hostConfigSysConfigSetValueRequest carries one sys_config value mutation.
 type hostConfigSysConfigSetValueRequest struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key              string `json:"key"`
+	Value            string `json:"value"`
+	SystemManageable *bool  `json:"systemManageable,omitempty"`
 }

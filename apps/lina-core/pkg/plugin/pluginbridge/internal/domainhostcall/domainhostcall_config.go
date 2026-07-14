@@ -249,16 +249,44 @@ func (hostConfigSysConfigService) List(_ context.Context, _ hostconfigcap.ListSy
 	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.list")
 }
 
-// SetValue writes one governed sys_config value.
-func (s hostConfigSysConfigService) SetValue(_ context.Context, key hostconfigcap.SysConfigKey, value string) error {
+// SetValue writes one governed sys_config value with optional management flag.
+func (s hostConfigSysConfigService) SetValue(
+	_ context.Context,
+	key hostconfigcap.SysConfigKey,
+	value string,
+	options *hostconfigcap.SetSysConfigValueOptions,
+) error {
+	req := hostConfigSysConfigSetValueRequest{
+		Key:   string(key),
+		Value: value,
+	}
+	if options != nil {
+		req.SystemManageable = options.SystemManageable
+	}
 	return s.client.callHostServiceJSONRequest(
 		protocol.HostServiceHostConfig,
 		protocol.HostServiceMethodHostConfigSysConfigSetValue,
 		string(key),
 		"",
-		hostConfigSysConfigSetValueRequest{Key: string(key), Value: value},
+		req,
 		nil,
 	)
+}
+
+// BatchSetValue writes multiple governed sys_config values. Dynamic host
+// services authorize one key per call, so the guest adapter fans out to
+// SetValue while preserving item order and shared options.
+func (s hostConfigSysConfigService) BatchSetValue(
+	ctx context.Context,
+	items []hostconfigcap.SetSysConfigValueItem,
+	options *hostconfigcap.SetSysConfigValueOptions,
+) error {
+	for _, item := range items {
+		if err := s.SetValue(ctx, item.Key, item.Value, options); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Reset resets one governed sys_config value.
@@ -288,8 +316,9 @@ type hostConfigSysConfigKeyRequest struct {
 }
 
 type hostConfigSysConfigSetValueRequest struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key              string `json:"key"`
+	Value            string `json:"value"`
+	SystemManageable *bool  `json:"systemManageable,omitempty"`
 }
 
 // Get returns the raw plugin configuration value for the given key.

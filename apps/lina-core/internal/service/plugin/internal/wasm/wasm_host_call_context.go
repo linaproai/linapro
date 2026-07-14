@@ -239,10 +239,12 @@ func (hcc *hostCallContext) ownerHostServiceResource(
 		return nil
 	}
 
-	normalizedOwner := strings.ToLower(strings.TrimSpace(owner))
-	normalizedService := strings.ToLower(strings.TrimSpace(service))
-	normalizedVersion := strings.ToLower(strings.TrimSpace(version))
-	normalizedResourceRef := strings.TrimSpace(resourceRef)
+	var (
+		normalizedOwner       = strings.ToLower(strings.TrimSpace(owner))
+		normalizedService     = strings.ToLower(strings.TrimSpace(service))
+		normalizedVersion     = strings.ToLower(strings.TrimSpace(version))
+		normalizedResourceRef = strings.TrimSpace(resourceRef)
+	)
 	if normalizedService == "" || normalizedResourceRef == "" {
 		return nil
 	}

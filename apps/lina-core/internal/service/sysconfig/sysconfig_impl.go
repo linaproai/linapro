@@ -28,6 +28,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		m    = dao.SysConfig.Ctx(ctx)
 	)
 	m = applySysconfigFallbackScope(ctx, m)
+	// Management surface only lists system-manageable rows; plugin closed-loop
+	// settings (system_manageable=0) stay out of this page.
+	m = m.Where(cols.SystemManageable, 1)
 
 	// Apply filters
 	if in.Name != "" {
@@ -93,8 +96,9 @@ func (s *serviceImpl) refreshRuntimeParamSnapshotIfNeeded(
 
 // GetById retrieves config by ID for edit/detail display. Name and remark are
 // localized for the request language; value stays as the stored raw text.
+// Non system-manageable rows are not found on the management surface.
 func (s *serviceImpl) GetById(ctx context.Context, id int64) (*entity.SysConfig, error) {
-	cfg, err := s.getByIdRaw(ctx, id)
+	cfg, err := s.getByIdRawForManagement(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +121,26 @@ func (s *serviceImpl) getByIdRaw(ctx context.Context, id int64) (*entity.SysConf
 		return nil, bizerr.NewCode(CodeSysConfigNotFound)
 	}
 	return cfg, nil
+}
+
+// getByIdRawForManagement loads one management-surface config row. Non
+// system-manageable rows are treated as not found so plugin closed-loop
+// settings cannot be inspected or mutated through system settings APIs.
+func (s *serviceImpl) getByIdRawForManagement(ctx context.Context, id int64) (*entity.SysConfig, error) {
+	cfg, err := s.getByIdRaw(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !isSystemManageableRecord(cfg) {
+		return nil, bizerr.NewCode(CodeSysConfigNotFound)
+	}
+	return cfg, nil
+}
+
+// isSystemManageableRecord reports whether a sys_config row may appear and be
+// mutated on the system config management page (system_manageable = 1).
+func isSystemManageableRecord(record *entity.SysConfig) bool {
+	return record != nil && record.SystemManageable == 1
 }
 
 // Create creates a new config record.
@@ -146,7 +170,8 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int64, error)
 			return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", in.Key))
 		}
 
-		// Insert config (GoFrame auto-fills created_at and updated_at)
+		// Insert config (GoFrame auto-fills created_at and updated_at).
+		// Management-surface creates are always system-manageable.
 		data := currentTenantConfigDO(ctx)
 		data.Name = in.Name
 		data.Key = in.Key
@@ -154,6 +179,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int64, error)
 		data.ValueType = valueType.String()
 		data.Options = optionsRaw
 		data.IsBuiltin = builtInConfigFlag(in.Key)
+		data.SystemManageable = 1
 		data.Remark = in.Remark
 
 		insertedID, insertErr := dao.SysConfig.Ctx(ctx).Data(data).InsertAndGetId()
@@ -184,7 +210,8 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	)
 	if err := s.withConfigMutation(ctx, func(ctx context.Context) error {
 		// Check config exists using raw storage values (not display projections).
-		existing, err := s.getByIdRaw(ctx, in.Id)
+		// Non system-manageable rows are outside the management surface.
+		existing, err := s.getByIdRawForManagement(ctx, in.Id)
 		if err != nil {
 			return err
 		}
@@ -298,8 +325,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 // Delete soft-deletes a config record using GoFrame's auto soft-delete feature.
 func (s *serviceImpl) Delete(ctx context.Context, id int64) error {
-	// Check config exists using raw storage values.
-	existing, err := s.getByIdRaw(ctx, id)
+	// Check config exists using raw storage values; non system-manageable rows
+	// are outside the management surface.
+	existing, err := s.getByIdRawForManagement(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -344,10 +372,11 @@ func builtInConfigFlag(key string) int {
 	return 0
 }
 
-// GetByKey retrieves config by key name.
+// GetByKey retrieves config by key name for the management surface.
+// Non system-manageable rows are reported as key-not-found.
 func (s *serviceImpl) GetByKey(ctx context.Context, key string) (*ConfigProjection, error) {
 	var cfg *entity.SysConfig
-	model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Key: key})
+	model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Key: key, SystemManageable: 1})
 	model = applySysconfigFallbackScope(ctx, model).
 		OrderDesc(datascope.TenantColumn)
 	err := model.Scan(&cfg)
@@ -366,6 +395,8 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	cols := dao.SysConfig.Columns()
 	m := dao.SysConfig.Ctx(ctx)
 	m = applySysconfigFallbackScope(ctx, m)
+	// Keep export aligned with the management list: only system-manageable rows.
+	m = m.Where(cols.SystemManageable, 1)
 
 	if len(in.Ids) > 0 {
 		m = m.WhereIn(cols.Id, in.Ids)

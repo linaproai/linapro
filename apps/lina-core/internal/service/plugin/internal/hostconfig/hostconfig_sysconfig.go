@@ -43,12 +43,14 @@ func (a *sysConfigCapabilityAdapter) Get(ctx context.Context, key capabilityhost
 
 // BatchGet returns visible sys_config projections.
 func (a *sysConfigCapabilityAdapter) BatchGet(ctx context.Context, keys []capabilityhostconfigcap.SysConfigKey) (*capmodel.BatchResult[*capabilityhostconfigcap.SysConfigInfo, capabilityhostconfigcap.SysConfigKey], error) {
-	result := &capmodel.BatchResult[*capabilityhostconfigcap.SysConfigInfo, capabilityhostconfigcap.SysConfigKey]{
-		Items:      make(map[capabilityhostconfigcap.SysConfigKey]*capabilityhostconfigcap.SysConfigInfo, len(keys)),
-		MissingIDs: []capabilityhostconfigcap.SysConfigKey{},
-	}
-	requestedKeys := make([]string, 0, len(keys))
-	requested := make(map[string]capabilityhostconfigcap.SysConfigKey, len(keys))
+	var (
+		result = &capmodel.BatchResult[*capabilityhostconfigcap.SysConfigInfo, capabilityhostconfigcap.SysConfigKey]{
+			Items:      make(map[capabilityhostconfigcap.SysConfigKey]*capabilityhostconfigcap.SysConfigInfo, len(keys)),
+			MissingIDs: []capabilityhostconfigcap.SysConfigKey{},
+		}
+		requestedKeys = make([]string, 0, len(keys))
+		requested     = make(map[string]capabilityhostconfigcap.SysConfigKey, len(keys))
+	)
 	for _, key := range keys {
 		normalizedKey := strings.TrimSpace(string(key))
 		if normalizedKey == "" {
@@ -69,7 +71,7 @@ func (a *sysConfigCapabilityAdapter) BatchGet(ctx context.Context, keys []capabi
 		rows  = make([]*entity.SysConfig, 0, len(requestedKeys))
 		cols  = dao.SysConfig.Columns()
 		model = dao.SysConfig.Ctx(ctx).
-			Fields(cols.TenantId, cols.Key, cols.Value, cols.Name).
+			Fields(cols.TenantId, cols.Key, cols.Value, cols.Name, cols.SystemManageable).
 			WhereIn(cols.Key, requestedKeys)
 	)
 	if a != nil && a.tenantFilter != nil {
@@ -89,10 +91,11 @@ func (a *sysConfigCapabilityAdapter) BatchGet(ctx context.Context, keys []capabi
 			continue
 		}
 		result.Items[requestKey] = &capabilityhostconfigcap.SysConfigInfo{
-			Key:      requestKey,
-			Value:    row.Value,
-			LabelKey: "config." + key + ".label",
-			Label:    row.Name,
+			Key:              requestKey,
+			Value:            row.Value,
+			SystemManageable: row.SystemManageable == 1,
+			LabelKey:         "config." + key + ".label",
+			Label:            row.Name,
 		}
 	}
 	for _, key := range keys {
@@ -146,7 +149,7 @@ func (a *sysConfigCapabilityAdapter) List(ctx context.Context, input capabilityh
 	}
 	rows := make([]*entity.SysConfig, 0, len(pageKeys)*2)
 	rowModel := dao.SysConfig.Ctx(ctx).
-		Fields(cols.TenantId, cols.Key, cols.Value, cols.Name).
+		Fields(cols.TenantId, cols.Key, cols.Value, cols.Name, cols.SystemManageable).
 		WhereIn(cols.Key, pageKeys)
 	if tenantID > datascope.PlatformTenantID {
 		rowModel = rowModel.WhereIn(cols.TenantId, []int{datascope.PlatformTenantID, tenantID})
@@ -165,24 +168,46 @@ func (a *sysConfigCapabilityAdapter) List(ctx context.Context, input capabilityh
 		}
 		requestKey := capabilityhostconfigcap.SysConfigKey(key)
 		items = append(items, &capabilityhostconfigcap.SysConfigInfo{
-			Key:      requestKey,
-			Value:    row.Value,
-			LabelKey: "config." + key + ".label",
-			Label:    row.Name,
+			Key:              requestKey,
+			Value:            row.Value,
+			SystemManageable: row.SystemManageable == 1,
+			LabelKey:         "config." + key + ".label",
+			Label:            row.Name,
 		})
 	}
 	return &capmodel.PageResult[*capabilityhostconfigcap.SysConfigInfo]{Items: items, Total: total}, nil
 }
 
-// SetValue upserts one visible sys_config value and advances the sys_config
-// shared revision after the write succeeds. A missing row is created at the
-// platform tenant scope so plugins can persist their namespaced settings
-// (`plugin.<plugin-id>.*`) on first save without seeding rows through
-// install-time SQL that would touch host-owned sys_* data.
-func (a *sysConfigCapabilityAdapter) SetValue(ctx context.Context, key capabilityhostconfigcap.SysConfigKey, value string) error {
-	normalizedKey := strings.TrimSpace(string(key))
-	if normalizedKey == "" {
-		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
+// SetValue upserts one visible sys_config value. It delegates to BatchSetValue
+// so single-key and multi-key writes share transaction and revision semantics.
+func (a *sysConfigCapabilityAdapter) SetValue(
+	ctx context.Context,
+	key capabilityhostconfigcap.SysConfigKey,
+	value string,
+	options *capabilityhostconfigcap.SetSysConfigValueOptions,
+) error {
+	return a.BatchSetValue(ctx, []capabilityhostconfigcap.SetSysConfigValueItem{{
+		Key:   key,
+		Value: value,
+	}}, options)
+}
+
+// BatchSetValue upserts multiple visible sys_config values in one transaction
+// and advances the runtime-config revision once after all writes succeed.
+// A missing row is created at the platform tenant scope so plugins can persist
+// namespaced settings without install-time host SQL.
+//
+// options.SystemManageable semantics (shared by every item):
+//   - nil options / nil flag on first insert → 0 (plugin closed-loop default)
+//   - nil options / nil flag on update → leave existing flag unchanged
+//   - non-nil flag → write the flag on insert and update
+func (a *sysConfigCapabilityAdapter) BatchSetValue(
+	ctx context.Context,
+	items []capabilityhostconfigcap.SetSysConfigValueItem,
+	options *capabilityhostconfigcap.SetSysConfigValueOptions,
+) error {
+	if len(items) == 0 {
+		return nil
 	}
 	tenantID := a.currentTenantID(ctx)
 	if tenantID < datascope.PlatformTenantID {
@@ -191,39 +216,83 @@ func (a *sysConfigCapabilityAdapter) SetValue(ctx context.Context, key capabilit
 	if a == nil || a.cacheCoord == nil {
 		return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "cachecoord"))
 	}
+	normalized := make([]capabilityhostconfigcap.SetSysConfigValueItem, 0, len(items))
+	for _, item := range items {
+		key := strings.TrimSpace(string(item.Key))
+		if key == "" {
+			return bizerr.NewCode(capmodel.CodeCapabilityDenied)
+		}
+		normalized = append(normalized, capabilityhostconfigcap.SetSysConfigValueItem{
+			Key:   capabilityhostconfigcap.SysConfigKey(key),
+			Value: item.Value,
+		})
+	}
+	systemManageable := (*bool)(nil)
+	if options != nil {
+		systemManageable = options.SystemManageable
+	}
 	if err := dao.SysConfig.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
-		row, err := a.lockVisibleRow(ctx, normalizedKey, tenantID)
-		if err != nil {
-			return err
-		}
-		if row == nil {
-			// First write for this key: create the platform-scope row. The
-			// name mirrors the key so admin listings stay identifiable; the
-			// row is plugin-owned data, never a built-in host default.
-			_, err = dao.SysConfig.Ctx(ctx).
-				Data(do.SysConfig{
-					TenantId:  datascope.PlatformTenantID,
-					Name:      normalizedKey,
-					Key:       normalizedKey,
-					Value:     value,
-					ValueType: configvaluetype.Text.String(),
-					Options:   "",
-					IsBuiltin: 0,
-				}).
-				Insert()
-			return err
-		}
-		if _, err = dao.SysConfig.Ctx(ctx).
-			Where(do.SysConfig{Id: row.Id}).
-			Data(do.SysConfig{Value: value}).
-			Update(); err != nil {
-			return err
+		for _, item := range normalized {
+			if err := a.upsertSysConfigValue(ctx, string(item.Key), item.Value, tenantID, systemManageable); err != nil {
+				return err
+			}
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
 	return a.markRuntimeConfigChanged(ctx)
+}
+
+// upsertSysConfigValue inserts or updates one sys_config row inside an open
+// transaction. The name on first insert mirrors the key for admin identity.
+func (a *sysConfigCapabilityAdapter) upsertSysConfigValue(
+	ctx context.Context,
+	key string,
+	value string,
+	tenantID int,
+	systemManageable *bool,
+) error {
+	row, err := a.lockVisibleRow(ctx, key, tenantID)
+	if err != nil {
+		return err
+	}
+	if row == nil {
+		_, err = dao.SysConfig.Ctx(ctx).
+			Data(do.SysConfig{
+				TenantId:         datascope.PlatformTenantID,
+				Name:             key,
+				Key:              key,
+				Value:            value,
+				ValueType:        configvaluetype.Text.String(),
+				Options:          "",
+				IsBuiltin:        0,
+				SystemManageable: resolveSystemManageableFlag(systemManageable, 0),
+			}).
+			Insert()
+		return err
+	}
+	data := do.SysConfig{Value: value}
+	if systemManageable != nil {
+		data.SystemManageable = resolveSystemManageableFlag(systemManageable, row.SystemManageable)
+	}
+	_, err = dao.SysConfig.Ctx(ctx).
+		Where(do.SysConfig{Id: row.Id}).
+		Data(data).
+		Update()
+	return err
+}
+
+// resolveSystemManageableFlag maps an optional bool to the SMALLINT storage
+// flag. When the pointer is nil, defaultFlag is returned (insert defaults to 0).
+func resolveSystemManageableFlag(value *bool, defaultFlag int) int {
+	if value == nil {
+		return defaultFlag
+	}
+	if *value {
+		return 1
+	}
+	return 0
 }
 
 // Reset clears one visible sys_config value and advances the shared revision.
@@ -339,7 +408,12 @@ func (sysConfigUnavailableService) List(context.Context, capabilityhostconfigcap
 }
 
 // SetValue reports that no sys_config backend was injected.
-func (sysConfigUnavailableService) SetValue(context.Context, capabilityhostconfigcap.SysConfigKey, string) error {
+func (sysConfigUnavailableService) SetValue(context.Context, capabilityhostconfigcap.SysConfigKey, string, *capabilityhostconfigcap.SetSysConfigValueOptions) error {
+	return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "sys_config"))
+}
+
+// BatchSetValue reports that no sys_config backend was injected.
+func (sysConfigUnavailableService) BatchSetValue(context.Context, []capabilityhostconfigcap.SetSysConfigValueItem, *capabilityhostconfigcap.SetSysConfigValueOptions) error {
 	return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "sys_config"))
 }
 

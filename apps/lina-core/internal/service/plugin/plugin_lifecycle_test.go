@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
+	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
@@ -1022,7 +1023,7 @@ func TestSourceLifecycleBeforeInstallReceivesStartupAutoEnableFlag(t *testing.T)
 		t,
 		pluginID,
 		&operations,
-		sourceLifecycleCallbackOptions{expectBeforeInstallStartupAutoEnable: boolPtr(true)},
+		sourceLifecycleCallbackOptions{expectBeforeInstallStartupAutoEnable: gconv.PtrBool(true)},
 	)
 
 	if err := service.BootstrapAutoEnable(ctx); err != nil {
@@ -1411,11 +1412,6 @@ func registerSourceLifecycleCallbacksForTest(
 		t.Fatalf("failed to replace source plugin fixture %s: %v", pluginID, err)
 	}
 	t.Cleanup(cleanup)
-}
-
-// boolPtr returns a pointer to value for concise lifecycle test expectations.
-func boolPtr(value bool) *bool {
-	return &value
 }
 
 // sourceLifecycleTestStringSlicesEqual reports whether two ordered string slices are equal.

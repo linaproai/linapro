@@ -71,9 +71,11 @@ func parseOptionsSimple(raw string) ([]Option, error) {
 // splitSimpleOptionLine splits "label=value" / "label|value" / bare value.
 // The first '=' or '|' is the separator; remaining text belongs to value.
 func splitSimpleOptionLine(line string) (label string, value string) {
-	eq := strings.IndexByte(line, '=')
-	pipe := strings.IndexByte(line, '|')
-	sep := -1
+	var (
+		eq   = strings.IndexByte(line, '=')
+		pipe = strings.IndexByte(line, '|')
+		sep  = -1
+	)
 	switch {
 	case eq >= 0 && pipe >= 0:
 		if eq < pipe {
@@ -224,9 +226,11 @@ func optionValueAllowed(options []Option, value string) bool {
 
 // NormalizeMultiSelectValue trims parts and re-joins with the multi-select separator.
 func NormalizeMultiSelectValue(value string) string {
-	parts := strings.Split(value, MultiSelectSeparator)
-	normalized := make([]string, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
+	var (
+		parts      = strings.Split(value, MultiSelectSeparator)
+		normalized = make([]string, 0, len(parts))
+		seen       = make(map[string]struct{}, len(parts))
+	)
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {

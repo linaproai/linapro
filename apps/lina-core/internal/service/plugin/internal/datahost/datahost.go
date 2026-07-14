@@ -241,11 +241,13 @@ func ExecuteBatchGet(
 		return nil, err
 	}
 
-	keyField := findResourceField(resource, resource.KeyField)
-	foundKeys := make(map[string]struct{}, len(records))
-	response := &protocol.HostServiceDataBatchGetResponse{
-		Records: make([][]byte, 0, len(records)),
-	}
+	var (
+		keyField  = findResourceField(resource, resource.KeyField)
+		foundKeys = make(map[string]struct{}, len(records))
+		response  = &protocol.HostServiceDataBatchGetResponse{
+			Records: make([][]byte, 0, len(records)),
+		}
+	)
 	for _, record := range records {
 		if record == nil {
 			continue

@@ -290,9 +290,11 @@ func HostServiceSpecIdentity(spec *HostServiceSpec) string {
 // HostServiceIdentityLabel formats one owner/service/version identity for
 // diagnostics.
 func HostServiceIdentityLabel(owner string, service string, version string) string {
-	normalizedOwner := normalizeHostServiceOwner(owner)
-	normalizedService := normalizeHostServiceName(service)
-	normalizedVersion := normalizeHostServiceVersion(version)
+	var (
+		normalizedOwner   = normalizeHostServiceOwner(owner)
+		normalizedService = normalizeHostServiceName(service)
+		normalizedVersion = normalizeHostServiceVersion(version)
+	)
 	if normalizedOwner == "" {
 		return normalizedService
 	}

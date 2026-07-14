@@ -362,7 +362,11 @@ func (scopedCapabilitySysConfig) List(context.Context, hostconfigcap.ListSysConf
 }
 
 // SetValue accepts sys_config writes without mutating state.
-func (scopedCapabilitySysConfig) SetValue(context.Context, hostconfigcap.SysConfigKey, string) error {
+func (scopedCapabilitySysConfig) SetValue(context.Context, hostconfigcap.SysConfigKey, string, *hostconfigcap.SetSysConfigValueOptions) error {
+	return nil
+}
+
+func (scopedCapabilitySysConfig) BatchSetValue(context.Context, []hostconfigcap.SetSysConfigValueItem, *hostconfigcap.SetSysConfigValueOptions) error {
 	return nil
 }
 

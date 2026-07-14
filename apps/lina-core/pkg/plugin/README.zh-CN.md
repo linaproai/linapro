@@ -33,7 +33,7 @@ plugin-owned 非核心能力不归属`capability.Services`。owner 插件在`app
 | `BizCtx` | 投影当前业务请求上下文。 | 作为只读运行期上下文桥接当前用户、租户、语言和请求元数据。 |
 | `Dict` | 解析字典值标签、列出有界字典候选，并校验类型化值可见性。 | 宿主校验保持在可见字典类型和值范围内。 |
 | `Files` | 提供宿主文件中心投影、有界搜索、可见性确认、内容读取、受治理上传，以及从插件存储创建`sys_file`记录。 | 宿主校验避免插件探测或使用可见边界之外的文件 ID。上传会创建宿主文件中心元数据，插件私有对象仍由`Storage()`持有。 |
-| `HostConfig` | 按宿主优先级链读取宿主配置值，并通过`SysConfig()`提供受治理的`sys_config`投影和写入方法。 | 动态`get`和单 key `sys_config`方法声明必须列出`resources.keys`。该能力独立于插件作用域业务配置。 |
+| `HostConfig` | 按宿主优先级链读取宿主配置值，并通过`SysConfig()`提供受治理的`sys_config`投影和写入。`SetValue(ctx, key, value, options)`写单键；`BatchSetValue(ctx, items, options)`在一次事务与一次 runtime-config revision 中写多键（多字段 settings 保存应优先批量）。`options.SystemManageable` 首次插入且为 nil 时默认 false/插件闭环。 | 动态`get`和单 key `sys_config`方法声明必须列出`resources.keys`。该能力独立于插件作用域业务配置。仅在插件入口维护的业务配置 MUST 传`options.SystemManageable: gconv.PtrBool(false)`。 |
 | `I18n` | 为源码插件读取`locale`并翻译消息。 | 源码插件通过`pluginhost`输入中的`capability.Services`接收该能力；动态插件不接收`i18n`host service，因为其 i18n 资源由宿主管理。 |
 | `Jobs` | 读取定时任务元数据、搜索有界任务候选、校验任务可见性，并执行受治理的运行期任务动作。 | 声明期任务契约通过`pluginbridge.Declarations.Jobs().Register(...)`提交；运行期服务不暴露`Register`。 |
 | `Notifications` | 列表和读取类型化通知消息投影、按业务来源批量读取消息、校验可见性、删除消息、更新已读状态并发送受治理通知。 | actor 作用域的读取、删除和已读状态调用不需要资源声明；`messages.send`需要`resources[].ref`边界。 |

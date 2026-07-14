@@ -464,7 +464,11 @@ func (noopTestSysConfigService) List(context.Context, hostconfigcap.ListSysConfi
 	return &capmodel.PageResult[*hostconfigcap.SysConfigInfo]{Items: []*hostconfigcap.SysConfigInfo{}}, nil
 }
 
-func (noopTestSysConfigService) SetValue(context.Context, hostconfigcap.SysConfigKey, string) error {
+func (noopTestSysConfigService) SetValue(context.Context, hostconfigcap.SysConfigKey, string, *hostconfigcap.SetSysConfigValueOptions) error {
+	return nil
+}
+
+func (noopTestSysConfigService) BatchSetValue(context.Context, []hostconfigcap.SetSysConfigValueItem, *hostconfigcap.SetSysConfigValueOptions) error {
 	return nil
 }
 
