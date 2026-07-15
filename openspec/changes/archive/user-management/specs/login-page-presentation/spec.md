@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义标准登录页公开入口展示、已交付账号辅助子流程可达性、登录面板布局与描述文案配置。
+定义标准登录页公开入口展示、已交付账号辅助子流程可达性、登录面板默认居中布局、slogan 插画参数与描述文案配置。
 
 ## Requirements
 
@@ -25,14 +25,14 @@
 - **当** 忘记密码与创建账号开关开启且用户访问 `/auth/forget-password` 或 `/auth/register` 时
 - **则** 系统渲染对应认证子页，而不是重定向到 `/auth/login`
 
-### Requirement: 登录面板默认右侧布局并支持位置配置
+### Requirement: 登录面板默认居中布局并支持位置配置
 
-系统 SHALL 默认以右侧布局渲染登录面板，并允许宿主公共前端配置在左、中、右布局间切换。
+系统 SHALL 默认以居中布局渲染登录面板，并允许宿主公共前端配置在左、中、右布局间切换。默认值由 `sys.auth.loginPanelLayout` / `auth.panelLayout` 统一承载，宿主种子、后端公共前端回退与前端 preferences 非法值回退均对齐为 `panel-center`。
 
-#### Scenario: 无覆盖时默认右侧布局
+#### Scenario: 无覆盖时默认居中布局
 - **当** 浏览器加载登录页且宿主未提供登录面板位置覆盖时
-- **则** 登录页使用 `panel-right` 布局
-- **且** 登录面板显示在主内容区右侧
+- **则** 登录页使用 `panel-center` 布局
+- **且** 登录面板显示在主内容区中间
 
 #### Scenario: 宿主配置覆盖登录面板位置
 - **当** 宿主公共前端配置返回 `auth.panelLayout` 为 `panel-left`、`panel-center` 或 `panel-right` 时
@@ -50,3 +50,29 @@
 #### Scenario: 宿主配置覆盖登录页描述
 - **当** 宿主公共前端配置返回非空 `auth.pageDesc` 时
 - **则** 登录页展示返回的描述
+
+### Requirement: 登录页 Slogan 插画支持系统参数配置
+
+系统 SHALL 通过内置公共前端参数 `sys.auth.sloganImage` 配置登录页侧栏 slogan 插画地址，并在公共前端配置中暴露为 `auth.sloganImage`。默认值为 Vben 内置插画静态地址 `/slogan.svg`；参数为空字符串时不展示侧栏插画；参数为非空图片地址时渲染该图片。居中布局不展示侧栏 slogan 区域（无论参数是否配置）。
+
+#### Scenario: 默认参数展示内置 slogan 插画
+- **当** `sys.auth.loginPanelLayout` 为 `panel-left` 或 `panel-right`
+- **且** `sys.auth.sloganImage` 保持默认 `/slogan.svg` 时
+- **则** 公共前端配置 `auth.sloganImage` 为 `/slogan.svg`
+- **且** 登录页侧栏以图片方式展示该内置插画
+
+#### Scenario: 空参数时不展示 slogan 插画
+- **当** 管理员将 `sys.auth.sloganImage` 保存为空字符串
+- **且** 登录面板布局为 `panel-left` 或 `panel-right` 时
+- **则** 公共前端配置 `auth.sloganImage` 为空字符串
+- **且** 登录页侧栏不渲染 slogan 插画
+
+#### Scenario: 配置自定义 slogan 图片地址
+- **当** 管理员将 `sys.auth.sloganImage` 更新为有效图片地址
+- **且** 登录面板布局为 `panel-left` 或 `panel-right` 时
+- **则** 公共前端配置返回该地址
+- **且** 登录页侧栏以图片方式展示该 slogan
+
+#### Scenario: 居中布局不展示侧栏 slogan
+- **当** 登录面板布局为 `panel-center` 时
+- **则** 登录页不展示侧栏 slogan 区域（无论 slogan 参数是否配置）

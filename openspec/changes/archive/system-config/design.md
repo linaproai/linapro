@@ -94,6 +94,12 @@ BatchSetValue(ctx, items []SetSysConfigValueItem, options *SetSysConfigValueOpti
 
 不按 `plugin.*` 命名空间硬过滤，也不在本能力中引入参数 category 分组。运行时读路径不受 `system_manageable` 影响。
 
+**演进说明**：曾短暂要求系统参数管理面隐藏/锁定 `plugin.*` 并附加密钥投影掩码与 isBuiltin 强制投影；确认该需求有误后已完整撤销 List/Export 过滤、写拒绝、错误码与相关 i18n。最终边界以 `system_manageable` 分流为准：插件键在 `system_manageable=1` 时仍可出现在系统参数页，在 `=0` 时仅经插件设置页与 `SetValue` 维护。
+
+## 登录 slogan 插画参数
+
+`sys.auth.sloganImage` 为受保护公共前端参数：`value_type=text`，默认 `/slogan.svg`，允许空串；非空最长 500 字符。读取路径必须保留库内空值，不得因空串回退默认。公开投影字段 `auth.sloganImage` 按 URL/路径原样下发，不做文案类 i18n 投影。种子写入 `005-config-management.sql`，静态资源导出为宿主 `public/slogan.svg`。登录页消费语义见登录展示 owner 规范。
+
 ## Login Home SQL Efficiency
 
 DB-only 在线会话校验改为读取一条 `sys_online_session` 记录后完成租户、超时和活跃时间判断。会话不存在、租户不匹配或已超时时拒绝请求；过期记录仍被清理；只有超过写入节流窗口才更新 `last_active_time`。这保留强制下线、JWT revoke、租户隔离和会话超时语义，同时减少每个有效鉴权请求的数据库往返。

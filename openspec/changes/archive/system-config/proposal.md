@@ -14,14 +14,14 @@
 
 - 注册受保护宿主运行时参数和公共前端配置元数据，覆盖默认值、格式说明、校验规则、导入/更新/删除保护与运行时读取入口。
 - 将 `sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize`、`sys.login.blackIPList` 接入认证、在线会话、上传校验和登录安全路径。
-- 将登录页品牌、工作台主题等公共前端设置通过白名单接口暴露，避免匿名读取任意 `sys_config` 键。
+- 将登录页品牌、工作台主题、登录 slogan 插画（`sys.auth.sloganImage`，默认 `/slogan.svg`，空值隐藏）等公共前端设置通过白名单接口暴露，避免匿名读取任意 `sys_config` 键。
 - 将 `sys.upload.maxSize` 的数据库种子值、配置模板默认值和后端静态兜底值统一为 20 MB。
 - 使用本地不可变快照加共享修订号降低受保护配置热路径读取成本；单机仅本地失效，集群通过共享修订号最终收敛。
 - 将 `sys_config` 读取升级为数据驱动的有效配置快照；`HostConfig.GetRaw` 统一为 `sys_config` 有效快照 → `config.yaml` → 系统默认值 → `nil`。
 - 插件作用域配置优先读取主框架 `plugin.<plugin-id>` 静态段；源码插件与动态插件复用同一配置工厂。
 - 编辑详情对 `name`/`remark` 按请求语言投影，`value` 始终返回库内原文；内置参数更新忽略 `name`/`remark` 写回；前端内置元数据只读。
 - 为 `sys_config` 增加封闭集合 `value_type` 与 JSON `options`；CRUD/导入导出暴露类型元数据；管理面按类型渲染；写路径按类型校验；运行时仍只依赖字符串 `value`。
-- 为 `sys_config` 增加 `system_manageable`；系统参数管理面仅面向标记为 1 的行；`SetValue`/`BatchSetValue` 通过 options 控制标记；插件闭环默认 0，宿主 seed 与管理面创建默认 1。
+- 为 `sys_config` 增加 `system_manageable`；系统参数管理面仅面向标记为 1 的行；`SetValue`/`BatchSetValue` 通过 options 控制标记；插件闭环默认 0，宿主 seed 与管理面创建默认 1。不按 `plugin.*` 命名空间硬过滤管理面行集（曾评估并撤销“隐藏/锁定 plugin.*”方案）。
 - 优化登录后首页的在线会话校验与插件 release 读取复用，减少重复 SQL。
 - 为配置管理、运行时快照、类型校验、管理面分流与会话/release 复用补齐自动化测试与覆盖率门禁。
 

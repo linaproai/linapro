@@ -53,3 +53,6 @@
 
 - [x] 发布动态外部登录与从外部建号 host service（`external_login.login_by_verified_identity`、`users.create_from_external`），对齐安装授权后源码/动态同权同信；更新 README/规则与 fail-closed 单测为未授权拒绝/授权成功。
 - [x] 验证：相关 go test、OpenSpec strict；治理：i18n 文档表述同步，无新增用户可见运行时文案要求；数据权限与 ownership 校验保持 fail-closed。
+- [x] 依赖两轴：`PluginSnapshot.Enabled`、`RequireEnabled`/`OnlyEnabledDependents`、启用正向与禁用反向矩阵、错误码/文案分流；resolver + lifecycle 单测/集成测通过。
+- [x] 静默路由刷新：access-refresh 在 generateAccess 后按可访问性判定是否 force 导航；宿主静态页启停不 remount；单测锁定静默/fallback/replacement 决策。
+- [x] 验证：相关 Go 测试包、前端 access-refresh 单测、`openspec validate --strict`、lina-review；治理：禁用反向新增 i18n 错误文案；无 DB schema；静默刷新无后端/权限契约变更。

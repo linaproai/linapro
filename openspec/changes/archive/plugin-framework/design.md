@@ -20,6 +20,22 @@ LinaPro 插件平台经过多轮演进，从初始的清单契约和生命周期
 
 **关键实现**：`plugin.RuntimeDelegate` 作为组合根专用窄代理打破启动环；middleware 删除未使用的完整 `pluginsvc.Service` 字段。
 
+## 3.0 依赖生命周期两轴模型
+
+插件硬依赖曾用统一 `dependency.Resolver`：安装/启用共用 `CheckInstall`（只认 Installed），卸载/禁用共用 `CheckReverse`（只认已安装下游），导致「下游已全部禁用仍不能禁用 core」等反直觉行为。
+
+**最终模型**：
+
+| 操作 | 正向 | 反向 |
+|------|------|------|
+| 安装 | 依赖 installed + version | — |
+| 卸载 | — | 下游 installed |
+| 启用 | 依赖 installed + enabled + version | — |
+| 禁用 | — | 下游 enabled |
+| 升级 | 同安装轴候选版本 | 下游 installed 版本契约 |
+
+实现要点：`PluginSnapshot.Enabled` 从 registry 全局 `Status == enabled` 写入；`InstallCheckInput.RequireEnabled` / `ReverseCheckInput.OnlyEnabledDependents` 区分轴；新增 `not_enabled` / `dependency_not_enabled`；卸载反向保留 `PLUGIN_REVERSE_DEPENDENCY_BLOCKED`，禁用反向使用 `PLUGIN_REVERSE_ENABLED_DEPENDENCY_BLOCKED`；任何轴只阻断不级联。租户粒度与现网 `UpdateStatus` 对齐，只认全局 registry 启用态。行为 BREAKING：下游仅禁用后允许禁用依赖插件；卸载语义不变。
+
 ## 3. 生命周期编排下沉
 
 `plugin_lifecycle.go`、`plugin_lifecycle_source.go` 和 `plugin_auto_enable.go` 仍在根门面承载长状态机。
@@ -118,6 +134,12 @@ source/dynamic 两套升级骨架分散在 `sourceupgrade`、`runtimeupgrade`、
 - 安装/启停/升级/租户策略入口对 builtin 行继续隐藏；具备卸载权限时仍展示「卸载」按钮，但置为`disabled`并附 tooltip 说明不可卸载，以与可卸载行保持操作列按钮数量与列宽一致
 - 详情入口始终可用；「管理」仍按「已安装 + 存在管理页」判定，不因 distribution 禁用
 - 前端隐藏或置灰不得作为安全边界；绕过 UI 调用写 API 时服务端仍按升级治理规范拒绝
+
+## 10.0 插件注册表变更后的静默路由刷新
+
+插件启停后宿主会重建菜单与动态路由；早期在当前路由仍可访问时默认 `router.replace({ force: true })`，导致插件管理页等宿主静态页 remount、筛选/滚动丢失。
+
+**决策**：在 `access-refresh` 决策层、于 `generateAccess` 之后按当次结果判定——当前路由仍可访问且无需路径纠正、无强制默认路由、无当前页 pending plugin generation remount 时静默跳过 force 导航；不可访问则 fallback；存在 `replacementPath` 则纠正导航。不按插件管理页白名单特例。禁用/卸载的 Tab 清理仍在业务动作处执行。自动静默不得在入队时把 `skipRouteNavigation` 无脑 OR 进队列以免吞掉必要导航。
 
 ## 10.1 插件管理列表「管理」入口
 

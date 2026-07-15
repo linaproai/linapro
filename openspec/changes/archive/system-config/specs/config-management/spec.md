@@ -243,3 +243,17 @@ The system SHALL add automated unit tests for critical helper logic inside the c
 - **WHEN** 插件一次 `BatchSetValue` 写入多个 key
 - **THEN** 所有 key 在同一事务中落库
 - **AND** runtime-config revision 仅推进一次
+
+### Requirement: 内置参数 sys.auth.sloganImage
+
+系统 SHALL 提供内置参数 `sys.auth.sloganImage`，用于配置登录页 slogan 插画图片地址。默认值为 `/slogan.svg`（Vben 内置插画）。空值表示不使用插画。该键使用允许空串的读取路径：库内已存在的空值不得回退到默认值，以支持“清空=隐藏插画”。参数纳入公共前端白名单并投影为 `auth.sloganImage`。
+
+#### Scenario: 参数设置页可见 slogan 参数
+- **当** 管理员打开参数设置并搜索 `sys.auth.sloganImage` 时
+- **则** 列表显示该内置参数
+- **且** 参数名称标识为登录展示相关的 slogan 插画配置
+
+#### Scenario: 允许清空 slogan 地址以隐藏插画
+- **当** 管理员将 `sys.auth.sloganImage` 保存为空值时
+- **则** 系统接受该值
+- **且** 公共前端配置返回空串而非默认 `/slogan.svg`
