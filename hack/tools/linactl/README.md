@@ -314,11 +314,13 @@ make version to=v0.2.0
 
 ## Framework Upgrade
 
-`upgrade` always fetches from the official LinaPro repository `https://github.com/linaproai/linapro.git` (managed remote name `linapro`) and merges into the **current local branch**. Local `origin` / fork remotes are not used. Then:
+`upgrade` always resolves the target against the official LinaPro repository `https://github.com/linaproai/linapro.git` (managed remote name `linapro`) and merges into the **current local branch**. Local `origin` / fork remotes are not used.
 
-- with no `v` parameter: merges the latest stable release tag (`vMAJOR.MINOR.PATCH`, pre-release tags such as `-rc` are ignored);
-- with `v=v0.5.0` or `v=0.5.0`: merges that stable tag;
-- with `v=main` (or another branch name): merges `linapro/<branch>`.
+Object download is **selective** (not a full `git fetch --tags`):
+
+- with no `v` parameter: lists remote tags via `ls-remote` (names only), picks the latest stable release tag (`vMAJOR.MINOR.PATCH`, pre-release tags such as `-rc` are ignored), then fetches **only that tag**;
+- with `v=v0.5.0` or `v=0.5.0`: fetches **only that tag**;
+- with `v=main` (or another branch name): fetches **only that branch** into `linapro/<branch>`.
 
 `apps/lina-plugins` is **never auto-updated**. The pre-upgrade plugin workspace (submodule pointer or local tree) is preserved after the merge. Update plugins only when you intend to, via `make plugins.update` / `linactl plugins.update`.
 

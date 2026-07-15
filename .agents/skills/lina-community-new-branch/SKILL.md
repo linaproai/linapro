@@ -17,7 +17,7 @@ description: >-
 3. 子模块路径固定 `apps/lina-plugins`，远端从 `.gitmodules` / `git -C apps/lina-plugins remote -v` 读取，通常 `linaproai/official-plugins`。
 4. 两侧目标基线均为各自 `origin/main`；创建分支前必须 `fetch` 且快进对齐 `main`。
 5. 主仓库与子模块**各自**创建同名任务分支（除非用户明确要求不同名）。
-6. **禁止**丢弃未提交变更、`--force`、`reset --hard`、`clean -fd`；脏工作区先报告并停止，除非用户明确授权处理方式。
+6. **禁止**丢弃未提交变更、`--force`、`reset --hard`、`clean -fd`。**脏工作区允许继续建分支**：未提交改动随分支切换一并携带；前置检查中须报告脏状态，但不得仅因脏工作区阻断。若 `git switch` / `merge` 因本地改动冲突而失败，则停止并交用户处理，仍不得丢弃改动。
 7. **禁止**在本技能的“建分支阶段”内 `commit` / `push` / 创建 PR。后续请求若本身需要提交/PR，应改走对应技能（如 `lina-community-commit-push-and-pr`），而非在本技能建分支步骤中执行。
 8. 分支名从用户提示推导；用户已给合法分支名则直接用。命名：小写、`/` 分层、数字字母与连字符；推荐 `feature/<slug>`、`fix/<slug>`、`chore/<slug>`。
 9. 分支已存在：本地有则切过去并尝试包含最新 `origin/main`（优先 ff-only merge）；远端有本地无则 `switch --track`；冲突或分叉则停止交用户。
@@ -65,12 +65,23 @@ git -C apps/lina-plugins branch --show-current
 git -C apps/lina-plugins remote -v
 ```
 
+### 脏工作区策略
+
+主仓库或子模块存在未提交改动时：
+
+1. **允许继续**：不得因“工作区不干净”单独阻断阶段 A。
+2. **必须报告**：在前置检查结果中列出脏文件摘要（`git status --short`），并在最终输出中注明“未提交改动已随分支携带”。
+3. **禁止清理**：不得 `stash`（除非用户明确要求）、`reset --hard`、`clean -fd` 或覆盖用户本地改动。
+4. **冲突时停止**：若后续 `git switch` / `git merge --ff-only` 因本地改动与目标树冲突而失败，报告冲突文件与命令输出，停止阶段 A，交用户处理；**不得**强行丢弃或覆盖。
+
 阻断条件（任一成立则停止并报告；**不得进入阶段 B**）：
 
-- 主仓库或子模块工作区不干净（有未提交改动）
 - 主仓库或子模块处于 rebase/merge/cherry-pick 进行中
 - 无法解析子模块路径或远端
 - 无法从提示得到合法分支名
+- 对齐或切换分支因本地改动冲突、非快进或其他不安全状态失败
+
+> 注意：脏工作区**不是**阻断条件。
 
 ## 分支名
 
@@ -94,7 +105,7 @@ git switch main
 git merge --ff-only origin/main
 ```
 
-`--ff-only` 失败则停止。
+`--ff-only` 失败或 `switch` 因本地改动冲突失败则停止。
 
 ### 3. 子模块对齐 main
 
@@ -103,7 +114,7 @@ git -C apps/lina-plugins switch main
 git -C apps/lina-plugins merge --ff-only origin/main
 ```
 
-`--ff-only` 失败则停止。此时主仓库可能显示子模块指针变化，**不要**为此提交。
+`--ff-only` 失败或 `switch` 因本地改动冲突失败则停止。此时主仓库可能显示子模块指针变化，**不要**为此提交。
 
 ### 4. 创建任务分支
 
@@ -134,6 +145,8 @@ else
   git -C apps/lina-plugins switch -c "$branch_name"
 fi
 ```
+
+脏工作区下：上述 `switch` / `switch -c` 会尽量携带未提交改动；若 Git 拒绝切换，按「脏工作区策略」停止并报告。
 
 ### 5. 校验
 
@@ -168,6 +181,7 @@ git -C apps/lina-plugins merge-base --is-ancestor origin/main HEAD && echo "sub:
 4. **工作区边界**：阶段 B 可以正常改代码与写文档；阶段 A 的“不 commit / 不 push / 不开 PR”约束仍适用于“仅为建分支而做的动作”。若后续请求明确要求提交或开 PR，再调用 `lina-community-commit-push-and-pr` 等专门技能，且仍须用户按该技能的手动触发规则授权。
 5. **范围克制**：只做提示词后续请求所覆盖的工作；不要借机扩大范围或顺手重构无关模块。
 6. **阶段 B 失败**：报告已完成的分支状态 + 后续请求失败点；分支保留，不回滚、不 fortce 清理。
+7. **与预存脏改动共存**：阶段 B 只改后续请求相关文件；不得误改、还原或提交与本次后续请求无关的预存脏文件（除非用户明确要求一并处理）。
 
 ### 无后续请求时
 
@@ -181,9 +195,9 @@ git -C apps/lina-plugins merge-base --is-ancestor origin/main HEAD && echo "sub:
 ## 新分支结果
 
 - 分支名：`<branch_name>`
-- 主仓库：当前分支 / HEAD / 是否含 `origin/main` / 工作区
-- 子模块：当前分支 / HEAD / 是否含 `origin/main` / 工作区
-- 动作摘要：对齐 main / 新建或切换
+- 主仓库：当前分支 / HEAD / 是否含 `origin/main` / 工作区（含是否脏、脏文件摘要）
+- 子模块：当前分支 / HEAD / 是否含 `origin/main` / 工作区（含是否脏、脏文件摘要）
+- 动作摘要：对齐 main / 新建或切换；脏工作区是否已携带
 - 未执行：commit、push、PR
 - 后续请求：无（本次仅建分支）
 ```
@@ -196,7 +210,7 @@ git -C apps/lina-plugins merge-base --is-ancestor origin/main HEAD && echo "sub:
 ## 新分支结果
 
 - 分支名：`<branch_name>`
-- 主仓库 / 子模块：…（同上，可从简）
+- 主仓库 / 子模块：…（同上，可从简；若有预存脏改动须注明已携带）
 - 后续请求：已继续处理 → `<一句话概括后续请求>`
 
 ## 后续请求进展
@@ -207,7 +221,7 @@ git -C apps/lina-plugins merge-base --is-ancestor origin/main HEAD && echo "sub:
 ## 护栏
 
 - 只手动触发
-- 脏工作区先停
+- **脏工作区允许建分支**；报告并携带未提交改动，冲突时停止，禁止丢弃
 - 只快进对齐 `main`
 - 两侧独立同名分支
 - 建分支阶段不提交、不推送、不开 PR

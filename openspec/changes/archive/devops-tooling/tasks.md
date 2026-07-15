@@ -3,7 +3,7 @@
 ## Summary
 
 - [x] 交付跨平台`linactl`主入口、工具整合、代码生成`dir=`、插件`hack/config.yaml`/`build.commands`、Agent 桥接、月度 OpenSpec、release/nightly、安装脚本、`lina-perf-audit`、`Go`静态检查与`lint dir=`、公开参数收敛。
-- [x] 交付`linactl upgrade` / `make upgrade`：官方`linapro` remote、默认最新稳定 tag、`v=`版本/分支、合并不更新`apps/lina-plugins`；脏工作区交互确认（`y`继续 / 拒绝或空 stdin 退出）与`force`跳过确认；单测覆盖拒绝/`n`/`y`/`force`与临时仓库路径；README 双语说明同步。
+- [x] 交付`linactl upgrade` / `make upgrade`：官方`linapro` remote、默认最新稳定 tag、`v=`版本/分支、合并不更新`apps/lina-plugins`；脏工作区交互确认（`y`继续 / 拒绝或空 stdin 退出）与`force`跳过确认；对象下载收敛为所选目标 ref（ls-remote 发现 + 按 tag/分支选择性 fetch，禁止默认全量`--tags`）；单测覆盖拒绝/`n`/`y`/`force`、默认最新/指定版本/指定分支且不依赖全量 tags fetch、临时仓库路径；README 双语 fetch 范围说明同步。
 - [x] 扩展`i18n.check`校验宿主 seed/常量与`i18n.enabled`插件`SysConfigKey`的`config.<key>.name/remark`；补齐宿主/插件缺译；同步 i18n 规则与 linactl 文档。
 - [x] 反馈：代码生成目标与插件 Makefile、smoke 旧`init`、lint/wasip1/builder 配置、兼容面删除、升级源固定官方且保留本地插件、config 展示键缺译。
 - [x] 验证：`go test ./hack/tools/linactl/...`、`make i18n.check`/`plugins.check`、lint 定向/全量 smoke、OpenSpec 校验；跨平台入口为 Go/`linactl`。
