@@ -175,4 +175,59 @@ function resolveAccessibleRouteRefreshTarget(
   return { accessible: false };
 }
 
-export { resolveAccessibleRouteRefreshTarget };
+/**
+ * Decides whether an access refresh should navigate after menus/routes are rebuilt.
+ *
+ * Silent mode keeps the current page component mounted when the route remains
+ * reachable. Force rematch is reserved for path corrections and explicit
+ * default-route resets; pending plugin page refreshes keep their own remount path.
+ */
+type AccessRefreshNavigationDecision =
+  | { kind: 'fallback' }
+  | { kind: 'force-default' }
+  | { kind: 'replace-path'; path: string }
+  | { kind: 'silent' };
+
+function resolveAccessRefreshNavigation(options: {
+  accessibleMatch: AccessibleRouteRefreshTarget;
+  currentPath: string;
+  forceDefaultRoute?: boolean;
+  hasPendingPluginPageRefresh?: boolean;
+  skipRouteNavigation?: boolean;
+}): AccessRefreshNavigationDecision {
+  const {
+    accessibleMatch,
+    currentPath,
+    forceDefaultRoute = false,
+    hasPendingPluginPageRefresh = false,
+    skipRouteNavigation = false,
+  } = options;
+
+  if (forceDefaultRoute) {
+    return { kind: 'force-default' };
+  }
+  if (skipRouteNavigation || hasPendingPluginPageRefresh) {
+    return { kind: 'silent' };
+  }
+  if (!accessibleMatch.accessible) {
+    return { kind: 'fallback' };
+  }
+
+  const replacementPath = accessibleMatch.replacementPath;
+  if (
+    replacementPath &&
+    normalizeRoutePath(replacementPath) !== normalizeRoutePath(currentPath)
+  ) {
+    return { kind: 'replace-path', path: replacementPath };
+  }
+
+  // Current route is still reachable. Rebuild menus/routes silently so host
+  // static pages (e.g. plugin management) are not remounted by force rematch.
+  return { kind: 'silent' };
+}
+
+export {
+  resolveAccessRefreshNavigation,
+  resolveAccessibleRouteRefreshTarget,
+};
+export type { AccessRefreshNavigationDecision };

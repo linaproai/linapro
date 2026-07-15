@@ -10,7 +10,10 @@ import { getPluginStateMap } from '#/plugins/slot-registry';
 import { useTenantStore } from '#/store/tenant';
 
 import { generateAccess } from './access';
-import { resolveAccessibleRouteRefreshTarget } from './access-refresh-route-match';
+import {
+  resolveAccessRefreshNavigation,
+  resolveAccessibleRouteRefreshTarget,
+} from './access-refresh-route-match';
 import { routes } from './routes';
 import { accessRoutes } from './routes';
 
@@ -84,18 +87,9 @@ async function performAccessibleStateRefresh(
   accessStore.setAccessRoutes(accessibleRoutes);
   accessStore.setIsAccessChecked(true);
 
-  if (skipRouteNavigation) {
-    return;
-  }
-
   const fallbackPath = tenantStore.resolveFallbackPath(
     userInfo?.homePath || preferences.app.defaultHomePath || '/',
   );
-
-  if (forceDefaultRoute) {
-    await forceReplacePath(router, fallbackPath);
-    return;
-  }
 
   const resolved = router.resolve(currentFullPath);
   const accessibleMatch = resolveAccessibleRouteRefreshTarget(
@@ -104,36 +98,40 @@ async function performAccessibleStateRefresh(
     currentRoute,
     pluginStateMap,
   );
-  const pendingPluginPageRefresh = getPendingPluginPageRefresh(
-    router.currentRoute.value,
-  );
+  const navigation = resolveAccessRefreshNavigation({
+    accessibleMatch,
+    currentPath: currentRoute.path,
+    forceDefaultRoute,
+    hasPendingPluginPageRefresh: !!getPendingPluginPageRefresh(
+      router.currentRoute.value,
+    ),
+    skipRouteNavigation,
+  });
 
-  if (pendingPluginPageRefresh) {
-    return;
-  }
-
-  if (accessibleMatch.accessible) {
-    const refreshTarget = accessibleMatch.replacementPath
-      ? {
-          hash: currentRoute.hash,
-          path: accessibleMatch.replacementPath,
-          query: currentRoute.query,
-        }
-      : currentFullPath;
-    const refreshedLocation = router.resolve(refreshTarget);
-    // Force a rematch even when the URL is unchanged so regenerated route meta
-    // (for example refreshed iframe asset URLs) becomes visible immediately.
-    await router.replace({
-      force: true,
-      hash: refreshedLocation.hash,
-      path: refreshedLocation.path,
-      query: refreshedLocation.query,
-    });
-    return;
-  }
-
-  if (router.currentRoute.value.fullPath !== fallbackPath) {
-    await router.replace(fallbackPath);
+  switch (navigation.kind) {
+    case 'force-default': {
+      await forceReplacePath(router, fallbackPath);
+      return;
+    }
+    case 'fallback': {
+      if (router.currentRoute.value.fullPath !== fallbackPath) {
+        await router.replace(fallbackPath);
+      }
+      return;
+    }
+    case 'replace-path': {
+      await router.replace({
+        force: true,
+        hash: currentRoute.hash,
+        path: navigation.path,
+        query: currentRoute.query,
+      });
+      return;
+    }
+    case 'silent': {
+      // Menus and dynamic routes are already rebuilt; keep the current page mounted.
+      return;
+    }
   }
 }
 
