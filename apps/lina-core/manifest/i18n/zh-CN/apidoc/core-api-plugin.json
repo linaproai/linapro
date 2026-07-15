@@ -1120,6 +1120,9 @@
               "discovered": {
                 "dc": "依赖插件是否已在当前插件目录或动态产物目录中发现"
               },
+              "enabled": {
+                "dc": "依赖插件当前是否已启用"
+              },
               "installed": {
                 "dc": "依赖插件是否已经安装"
               },
@@ -1130,7 +1133,7 @@
                 "dc": "声明的依赖插件语义化版本范围"
               },
               "status": {
-                "dc": "服务端依赖解析状态：satisfied=满足、missing=缺失、version_unsatisfied=版本不满足"
+                "dc": "服务端依赖解析状态：satisfied=满足、missing=缺失、version_unsatisfied=版本不满足、not_enabled=未启用"
               }
             }
           },
@@ -1161,6 +1164,9 @@
           },
           "PluginDependencyReverseDependent": {
             "fields": {
+              "enabled": {
+                "dc": "下游插件当前是否已启用"
+              },
               "name": {
                 "dc": "下游插件显示名称"
               },
