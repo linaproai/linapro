@@ -91,6 +91,7 @@ const { hasAccessByCodes } = useAccess();
 const accessStore = useAccessStore();
 const router = useRouter();
 const statusChangingPluginIds = ref<Record<string, boolean>>({});
+const tenantProvisioningChangingPluginIds = ref<Record<string, boolean>>({});
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -540,6 +541,20 @@ function setPluginStatusChanging(pluginId: string, changing: boolean) {
   statusChangingPluginIds.value = next;
 }
 
+function isTenantProvisioningChanging(row: PluginListItem) {
+  return tenantProvisioningChangingPluginIds.value[row.id] === true;
+}
+
+function setTenantProvisioningChanging(pluginId: string, changing: boolean) {
+  const next = { ...tenantProvisioningChangingPluginIds.value };
+  if (changing) {
+    next[pluginId] = true;
+  } else {
+    delete next[pluginId];
+  }
+  tenantProvisioningChangingPluginIds.value = next;
+}
+
 async function loadPluginDetail(row: PluginListItem): Promise<SystemPlugin> {
   return await pluginDetail(row.id);
 }
@@ -615,13 +630,17 @@ async function handleStatusChange(row: PluginListItem, checked: boolean) {
       return;
     }
   }
-  const previousEnabled = row.enabled;
   const nextEnabled = checked ? 1 : 0;
+  if (row.enabled === nextEnabled) {
+    return;
+  }
 
+  // Keep the controlled Switch on the current value while the request is in
+  // flight; only commit the target state after the API succeeds.
   setPluginStatusChanging(row.id, true);
-  row.enabled = nextEnabled;
   try {
     await (checked ? pluginEnable : pluginDisable)(row.id);
+    row.enabled = nextEnabled;
     if (!checked) {
       await closePluginTabs(row.id);
     }
@@ -632,7 +651,6 @@ async function handleStatusChange(row: PluginListItem, checked: boolean) {
         : $t('pages.system.plugin.messages.disabled'),
     );
   } catch {
-    row.enabled = previousEnabled;
     await gridApi.query();
   } finally {
     setPluginStatusChanging(row.id, false);
@@ -646,6 +664,9 @@ async function handleTenantProvisioningPolicyChange(
   if (isBuiltinPlugin(row)) {
     return;
   }
+  if (isTenantProvisioningChanging(row)) {
+    return;
+  }
   if (!canEditPluginPolicy()) {
     message.warning($t('pages.system.plugin.messages.noPolicyPermission'));
     return;
@@ -656,9 +677,23 @@ async function handleTenantProvisioningPolicyChange(
     );
     return;
   }
-  await pluginUpdateTenantProvisioningPolicy(row.id, checked);
-  row.autoEnableForNewTenants = checked;
-  message.success($t('pages.system.plugin.messages.tenantProvisioningUpdated'));
+  if (row.autoEnableForNewTenants === checked) {
+    return;
+  }
+  // Keep the controlled Switch on the current value while the request is in
+  // flight; only commit the target state after the API succeeds.
+  setTenantProvisioningChanging(row.id, true);
+  try {
+    await pluginUpdateTenantProvisioningPolicy(row.id, checked);
+    row.autoEnableForNewTenants = checked;
+    message.success(
+      $t('pages.system.plugin.messages.tenantProvisioningUpdated'),
+    );
+  } catch {
+    await gridApi.query();
+  } finally {
+    setTenantProvisioningChanging(row.id, false);
+  }
 }
 
 async function handleInstall(row: PluginListItem) {
@@ -1055,8 +1090,11 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
           <Switch
             :checked="row.autoEnableForNewTenants === true"
             :disabled="
-              !isTenantProvisioningPolicySupported(row) || !canEditPluginPolicy()
+              !isTenantProvisioningPolicySupported(row) ||
+              !canEditPluginPolicy() ||
+              isTenantProvisioningChanging(row)
             "
+            :loading="isTenantProvisioningChanging(row)"
             size="small"
             :data-testid="`plugin-tenant-provisioning-${row.id}`"
             @change="

@@ -26,7 +26,8 @@ function pluginRow(input: { enabled: 0 | 1; id: string; name: string }) {
     authorizedHostServices: [],
     declaredRoutes: [],
     dependencyCheck: null,
-    description: 'Used by E2E to verify immediate status switch feedback.',
+    description:
+      'Used by E2E to verify loading-then-commit status switch feedback.',
     discoveredVersion: 'v0.1.0',
     effectiveVersion: 'v0.1.0',
     enabled: input.enabled,
@@ -150,8 +151,8 @@ async function mockPluginStatusApis(page: Page) {
   };
 }
 
-test.describe('TC-12 插件状态开关即时反馈', () => {
-  test('TC-12a: 启用接口较慢时状态开关立即切到目标状态并显示加载态', async ({
+test.describe('TC-12 插件状态开关加载后提交', () => {
+  test('TC-12a: 启用接口较慢时状态开关保持当前状态并显示加载态，成功后才切换', async ({
     adminPage,
   }) => {
     const mock = await mockPluginStatusApis(adminPage);
@@ -165,16 +166,19 @@ test.describe('TC-12 插件状态开关即时反馈', () => {
     await switcher.click();
     await mock.waitForEnableSuccessRequest();
 
-    await expect(switcher).toHaveAttribute('aria-checked', 'true');
+    // Request in flight: stay on the current value, show loading only.
+    await expect(switcher).toHaveAttribute('aria-checked', 'false');
     await expect(switcher).toHaveClass(/ant-switch-loading/);
     await expect(switcher).toHaveClass(/ant-switch-disabled/);
     await expect(pluginPage.messageNotices('插件已启用')).toHaveCount(0);
 
+    // Commit target state only after the API succeeds.
+    await expect(switcher).toHaveAttribute('aria-checked', 'true');
     await expect(switcher).not.toHaveClass(/ant-switch-loading/);
     await expect(pluginPage.messageNotice('插件已启用')).toBeVisible();
   });
 
-  test('TC-12b: 启用失败时状态开关回滚到原状态', async ({
+  test('TC-12b: 启用失败时状态开关始终保持原状态', async ({
     adminPage,
   }) => {
     await mockPluginStatusApis(adminPage);

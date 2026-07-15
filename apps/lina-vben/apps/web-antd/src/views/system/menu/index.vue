@@ -225,19 +225,18 @@ async function handleStatusChange(row: Menu, checked: boolean) {
   if (isStatusChanging(row)) {
     return;
   }
-  const previous = row.status;
   const next = checked ? 1 : 0;
-  if (previous === next) {
+  if (row.status === next) {
     return;
   }
+  // Keep the controlled Switch on the current value while the request is in
+  // flight; reload commits cascade results after the API succeeds.
   setStatusChanging(row.id, true);
-  row.status = next;
   try {
     await menuUpdate(row.id, { status: next });
     await reloadMenuSurfaces();
     message.success($t('pages.common.updateSuccess'));
   } catch {
-    row.status = previous;
     await tableApi.query();
   } finally {
     setStatusChanging(row.id, false);
@@ -252,19 +251,18 @@ async function handleVisibleChange(row: Menu, checked: boolean) {
   if (isVisibleChanging(row)) {
     return;
   }
-  const previous = row.visible;
   const next = checked ? 1 : 0;
-  if (previous === next) {
+  if (row.visible === next) {
     return;
   }
+  // Keep the controlled Switch on the current value while the request is in
+  // flight; reload commits cascade results after the API succeeds.
   setVisibleChanging(row.id, true);
-  row.visible = next;
   try {
     await menuUpdate(row.id, { visible: next });
     await reloadMenuSurfaces();
     message.success($t('pages.common.updateSuccess'));
   } catch {
-    row.visible = previous;
     await tableApi.query();
   } finally {
     setVisibleChanging(row.id, false);

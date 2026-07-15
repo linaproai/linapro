@@ -180,18 +180,18 @@ async function handleStatusChange(row: Role, checked: boolean) {
   if (row.id === 1 || isStatusChanging(row)) {
     return;
   }
-  const previous = row.status;
   const next = checked ? 1 : 0;
-  if (previous === next) {
+  if (row.status === next) {
     return;
   }
+  // Keep the controlled Switch on the current value while the request is in
+  // flight; only commit the target state after the API succeeds.
   setStatusChanging(row.id, true);
-  row.status = next;
   try {
     await roleStatusChange(row.id, next);
+    row.status = next;
     message.success($t('pages.system.role.messages.statusUpdated'));
   } catch {
-    row.status = previous;
     await tableApi.query();
   } finally {
     setStatusChanging(row.id, false);

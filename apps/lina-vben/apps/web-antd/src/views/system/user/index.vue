@@ -399,17 +399,17 @@ async function handleStatusChange(row: any, checked: boolean) {
   if (isSelf(row) || isStatusChanging(row)) {
     return;
   }
-  const previous = row.status;
   const next = checked ? 1 : 0;
-  if (previous === next) {
+  if (row.status === next) {
     return;
   }
+  // Keep the controlled Switch on the current value while the request is in
+  // flight; only commit the target state after the API succeeds.
   setStatusChanging(row.id, true);
-  row.status = next;
   try {
     await userStatusChange(row.id, next);
+    row.status = next;
   } catch {
-    row.status = previous;
     await gridApi.query();
   } finally {
     setStatusChanging(row.id, false);
