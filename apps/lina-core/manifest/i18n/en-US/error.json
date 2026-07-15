@@ -1065,6 +1065,11 @@
       "reverse": {
         "dependency": {
           "blocked": "Plugin {pluginId} cannot be changed because installed plugins depend on it: {dependents}"
+        },
+        "enabled": {
+          "dependency": {
+            "blocked": "Plugin {pluginId} cannot be disabled because enabled plugins depend on it: {dependents}"
+          }
         }
       },
       "lock": {

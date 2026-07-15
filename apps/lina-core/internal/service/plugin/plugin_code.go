@@ -138,6 +138,9 @@ var (
 	CodePluginDependencyBlocked = lifecycle.CodePluginDependencyBlocked
 	// CodePluginReverseDependencyBlocked reports that installed downstream plugins depend on the target plugin.
 	CodePluginReverseDependencyBlocked = lifecycle.CodePluginReverseDependencyBlocked
+	// CodePluginReverseEnabledDependencyBlocked reports that enabled downstream
+	// plugins still depend on the target plugin during a disable request.
+	CodePluginReverseEnabledDependencyBlocked = lifecycle.CodePluginReverseEnabledDependencyBlocked
 	// CodePluginForceUninstallDisabled reports that force uninstall is not enabled in host configuration.
 	CodePluginForceUninstallDisabled = lifecycle.CodePluginForceUninstallDisabled
 	// CodePluginDynamicArtifactMissingForUninstall reports that a dynamic

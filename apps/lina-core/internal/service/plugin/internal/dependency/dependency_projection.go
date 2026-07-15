@@ -29,6 +29,8 @@ type PluginProjection struct {
 	CurrentVersion string
 	// Installed reports whether the dependency is already installed.
 	Installed bool
+	// Enabled reports whether the dependency is currently enabled.
+	Enabled bool
 	// Discovered reports whether the dependency is discoverable.
 	Discovered bool
 	// Status is the dependency state returned by the resolver.
@@ -65,6 +67,8 @@ type ReverseDependentProjection struct {
 	Version string
 	// RequiredVersion is the target version range declared by the downstream plugin.
 	RequiredVersion string
+	// Enabled reports whether the downstream plugin is currently enabled.
+	Enabled bool
 	// OwnerHostServices summarizes owner-aware host service declarations for the target owner.
 	OwnerHostServices []*OwnerHostServiceProjection
 }
@@ -131,6 +135,7 @@ func ToPluginProjections(items []*PluginDependencyCheck) []*PluginProjection {
 			RequiredVersion: item.RequiredVersion,
 			CurrentVersion:  item.CurrentVersion,
 			Installed:       item.Installed,
+			Enabled:         item.Enabled,
 			Discovered:      item.Discovered,
 			Status:          string(item.Status),
 			Chain:           cloneStringSlice(item.Chain),
@@ -171,6 +176,7 @@ func ToReverseDependentProjections(items []*ReverseDependent) []*ReverseDependen
 			Name:              item.Name,
 			Version:           item.Version,
 			RequiredVersion:   item.RequiredVersion,
+			Enabled:           item.Enabled,
 			OwnerHostServices: toOwnerHostServiceProjections(item.OwnerHostServices),
 		})
 	}

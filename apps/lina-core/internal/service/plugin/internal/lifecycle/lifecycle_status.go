@@ -64,7 +64,7 @@ func (s *serviceImpl) UpdateStatus(
 		}
 	}
 	if status == statusflag.Disabled.Int() {
-		if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
+		if err = s.ensureNoEnabledReverseDependencies(ctx, pluginID); err != nil {
 			return err
 		}
 	}
@@ -94,9 +94,10 @@ func (s *serviceImpl) syncDiscoveredManifestsForStatus(ctx context.Context) erro
 	return s.integrationSvc.RefreshEnabledSnapshot(syncCtx)
 }
 
-// ensureEnableDependencies blocks enable when hard plugin dependencies are not satisfied.
+// ensureEnableDependencies blocks enable when hard plugin dependencies are not
+// installed, not enabled, or version-unsatisfied on the runtime enable axis.
 func (s *serviceImpl) ensureEnableDependencies(ctx context.Context, pluginID string, frameworkVersion string) error {
-	check, err := s.resolveInstallDependencies(ctx, pluginID, frameworkVersion)
+	check, err := s.resolveEnableDependencies(ctx, pluginID, frameworkVersion)
 	if err != nil {
 		return err
 	}
@@ -104,6 +105,20 @@ func (s *serviceImpl) ensureEnableDependencies(ctx context.Context, pluginID str
 		return nil
 	}
 	return buildDependencyBlockedError(pluginID, check.Blockers)
+}
+
+// ensureNoEnabledReverseDependencies blocks disable when enabled downstream
+// plugins still hard-depend on the target. Installed-but-disabled dependents
+// do not block disable; uninstall continues to protect them separately.
+func (s *serviceImpl) ensureNoEnabledReverseDependencies(ctx context.Context, pluginID string) error {
+	result, err := s.resolveReverseDependencies(ctx, pluginID, "", true)
+	if err != nil {
+		return err
+	}
+	if !plugindep.HasBlockers(result.Blockers) {
+		return nil
+	}
+	return buildReverseEnabledDependencyBlockedError(pluginID, result)
 }
 
 // updateDynamicStatus dispatches dynamic enable or disable into named branches.

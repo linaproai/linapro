@@ -178,6 +178,13 @@ var (
 		"Plugin {pluginId} cannot be changed because installed plugins depend on it: {dependents}",
 		gcode.CodeInvalidOperation,
 	)
+	// CodePluginReverseEnabledDependencyBlocked reports that enabled downstream
+	// plugins still depend on the target plugin during a disable request.
+	CodePluginReverseEnabledDependencyBlocked = bizerr.MustDefine(
+		"PLUGIN_REVERSE_ENABLED_DEPENDENCY_BLOCKED",
+		"Plugin {pluginId} cannot be disabled because enabled plugins depend on it: {dependents}",
+		gcode.CodeInvalidOperation,
+	)
 	// CodePluginForceUninstallDisabled reports that force uninstall is not enabled in host configuration.
 	CodePluginForceUninstallDisabled = bizerr.MustDefine(
 		"PLUGIN_FORCE_UNINSTALL_DISABLED",

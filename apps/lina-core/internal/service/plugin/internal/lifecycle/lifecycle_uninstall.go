@@ -302,7 +302,7 @@ func (s *serviceImpl) loadActiveDynamicLifecycleManifestBestEffort(ctx context.C
 
 // ensureNoReverseDependencies blocks uninstall when installed downstream plugins depend on target.
 func (s *serviceImpl) ensureNoReverseDependencies(ctx context.Context, pluginID string) error {
-	result, err := s.resolveReverseDependencies(ctx, pluginID, "")
+	result, err := s.resolveReverseDependencies(ctx, pluginID, "", false)
 	if err != nil {
 		return err
 	}
@@ -312,11 +312,13 @@ func (s *serviceImpl) ensureNoReverseDependencies(ctx context.Context, pluginID 
 	return buildReverseDependencyBlockedError(pluginID, result)
 }
 
-// resolveReverseDependencies evaluates installed downstream dependencies for one target.
+// resolveReverseDependencies evaluates downstream dependencies for one target.
+// onlyEnabledDependents selects the disable axis; false keeps the install axis.
 func (s *serviceImpl) resolveReverseDependencies(
 	ctx context.Context,
 	pluginID string,
 	candidateVersion string,
+	onlyEnabledDependents bool,
 ) (*plugindep.ReverseCheckResult, error) {
 	snapshots, err := s.buildDependencySnapshots(ctx, nil)
 	if err != nil {
@@ -327,13 +329,15 @@ func (s *serviceImpl) resolveReverseDependencies(
 		resolver = plugindep.New()
 	}
 	return resolver.CheckReverse(plugindep.ReverseCheckInput{
-		TargetID:         strings.TrimSpace(pluginID),
-		CandidateVersion: strings.TrimSpace(candidateVersion),
-		Plugins:          snapshots,
+		TargetID:              strings.TrimSpace(pluginID),
+		CandidateVersion:      strings.TrimSpace(candidateVersion),
+		Plugins:               snapshots,
+		OnlyEnabledDependents: onlyEnabledDependents,
 	}), nil
 }
 
-// buildReverseDependencyBlockedError converts reverse dependency blockers into one structured error.
+// buildReverseDependencyBlockedError converts install-axis reverse dependency
+// blockers into one structured error for uninstall protection.
 func buildReverseDependencyBlockedError(
 	pluginID string,
 	result *plugindep.ReverseCheckResult,
@@ -342,6 +346,26 @@ func buildReverseDependencyBlockedError(
 	dependencyID, requiredVersion, currentVersion := plugindep.FirstBlockerFields(result.Blockers)
 	return bizerr.NewCode(
 		CodePluginReverseDependencyBlocked,
+		bizerr.P("pluginId", strings.TrimSpace(pluginID)),
+		bizerr.P("dependencyId", dependencyID),
+		bizerr.P("requiredVersion", requiredVersion),
+		bizerr.P("currentVersion", currentVersion),
+		bizerr.P("dependents", strings.Join(plugindep.ReverseDependentIDs(dependents), ",")),
+		bizerr.P("ownerHostServices", plugindep.FormatReverseDependentOwnerHostServices(dependents)),
+		bizerr.P("blockers", plugindep.FormatBlockers(result.Blockers)),
+	)
+}
+
+// buildReverseEnabledDependencyBlockedError converts disable-axis reverse
+// dependency blockers into one structured error.
+func buildReverseEnabledDependencyBlockedError(
+	pluginID string,
+	result *plugindep.ReverseCheckResult,
+) error {
+	dependents := plugindep.ToReverseDependentProjections(result.Dependents)
+	dependencyID, requiredVersion, currentVersion := plugindep.FirstBlockerFields(result.Blockers)
+	return bizerr.NewCode(
+		CodePluginReverseEnabledDependencyBlocked,
 		bizerr.P("pluginId", strings.TrimSpace(pluginID)),
 		bizerr.P("dependencyId", dependencyID),
 		bizerr.P("requiredVersion", requiredVersion),

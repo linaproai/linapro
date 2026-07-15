@@ -44,6 +44,7 @@ func buildPluginDependencyItems(items []*pluginsvc.DependencyPluginCheck) []*v1.
 			RequiredVersion: item.RequiredVersion,
 			CurrentVersion:  item.CurrentVersion,
 			Installed:       item.Installed,
+			Enabled:         item.Enabled,
 			Discovered:      item.Discovered,
 			Status:          v1.DependencyStatus(item.Status),
 			Chain:           cloneAPIStringSlice(item.Chain),
@@ -84,6 +85,7 @@ func buildPluginDependencyReverseDependents(items []*pluginsvc.DependencyReverse
 			Name:              item.Name,
 			Version:           item.Version,
 			RequiredVersion:   item.RequiredVersion,
+			Enabled:           item.Enabled,
 			OwnerHostServices: buildPluginDependencyOwnerHostServices(item.OwnerHostServices),
 		})
 	}

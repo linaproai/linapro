@@ -126,8 +126,9 @@ type PluginDependencyItem struct {
 	RequiredVersion string           `json:"requiredVersion" dc:"Declared dependency version range" eg:">=0.1.0"`
 	CurrentVersion  string           `json:"currentVersion" dc:"Discovered or installed dependency version" eg:"v0.1.0"`
 	Installed       bool             `json:"installed" dc:"Whether the dependency plugin is installed" eg:"false"`
+	Enabled         bool             `json:"enabled" dc:"Whether the dependency plugin is currently enabled" eg:"false"`
 	Discovered      bool             `json:"discovered" dc:"Whether the dependency plugin was found in the catalog" eg:"true"`
-	Status          DependencyStatus `json:"status" dc:"Dependency state from the server resolver: satisfied, missing, or version_unsatisfied" eg:"missing"`
+	Status          DependencyStatus `json:"status" dc:"Dependency state from the server resolver: satisfied, missing, version_unsatisfied, or not_enabled" eg:"missing"`
 	Chain           []string         `json:"chain,omitempty" dc:"Dependency chain leading to this edge" eg:"[]"`
 }
 
@@ -148,6 +149,7 @@ type PluginDependencyReverseDependent struct {
 	Name              string                              `json:"name" dc:"Downstream plugin display name" eg:"Content Notice"`
 	Version           string                              `json:"version" dc:"Downstream plugin version" eg:"v0.1.0"`
 	RequiredVersion   string                              `json:"requiredVersion" dc:"Version range declared by downstream plugin" eg:">=0.1.0"`
+	Enabled           bool                                `json:"enabled" dc:"Whether the downstream plugin is currently enabled" eg:"true"`
 	OwnerHostServices []*PluginDependencyOwnerHostService `json:"ownerHostServices,omitempty" dc:"Owner-aware host service declarations in the downstream plugin that target the checked owner plugin" eg:"[]"`
 }
 

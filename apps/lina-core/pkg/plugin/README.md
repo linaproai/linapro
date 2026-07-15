@@ -135,6 +135,13 @@ new `Provide<Domain>` facades, such as `ProvideAIText`, for non-core domains.
 
 `apps/lina-core/internal/service/plugin` is the host-side plugin domain component. The root package exposes a unified facade covering plugin discovery, management lists, install, enable, disable, uninstall, runtime upgrades, source upgrades, runtime route dispatch, frontend asset serving, dependency checks, and capability wiring.
 
+Hard `dependencies.plugins` checks use two lifecycle axes:
+
+- **Install axis** (install / uninstall / upgrade version contracts): forward checks require dependencies to be installed and version-compatible; reverse checks protect all **installed** downstream dependents.
+- **Runtime axis** (enable / disable): forward enable requires dependencies to be installed, **enabled**, and version-compatible; reverse disable is blocked only by **enabled** downstream dependents. Installed-but-disabled dependents do not block disable, but still block uninstall.
+
+The host never auto-installs, auto-enables, auto-disables, or auto-uninstalls dependency chains.
+
 ## Declaration-Time and Runtime Capabilities
 
 ### Declaration-Time Capabilities

@@ -189,6 +189,90 @@ func TestCheckReverseBlocksInstalledDependents(t *testing.T) {
 	}
 }
 
+// TestCheckInstallRequireEnabledBlocksDisabledDependency verifies the enable
+// axis requires hard dependencies to be enabled, not only installed.
+func TestCheckInstallRequireEnabledBlocksDisabledDependency(t *testing.T) {
+	resolver := plugindep.New()
+	dep := pluginSnapshot("dep-a", "v0.1.0", true, nil)
+	dep.Enabled = false
+
+	result := resolver.CheckInstall(plugindep.InstallCheckInput{
+		TargetID:         "target",
+		FrameworkVersion: "v0.1.0",
+		RequireEnabled:   true,
+		Plugins: []*plugindep.PluginSnapshot{
+			pluginSnapshot("target", "v0.1.0", true, dependenciesWithPlugins(
+				pluginDependency("dep-a", ">=0.1.0"),
+			)),
+			dep,
+		},
+	})
+
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != pluginv1.BlockerCodeDependencyNotEnabled {
+		t.Fatalf("expected not_enabled blocker, got %#v", result.Blockers)
+	}
+	if len(result.Dependencies) != 1 || result.Dependencies[0].Status != pluginv1.DependencyStatusNotEnabled {
+		t.Fatalf("expected not_enabled dependency status, got %#v", result.Dependencies)
+	}
+}
+
+// TestCheckInstallDoesNotRequireEnabledDependency verifies install axis accepts
+// installed-but-disabled hard dependencies when versions match.
+func TestCheckInstallDoesNotRequireEnabledDependency(t *testing.T) {
+	resolver := plugindep.New()
+	dep := pluginSnapshot("dep-a", "v0.1.0", true, nil)
+	dep.Enabled = false
+
+	result := resolver.CheckInstall(plugindep.InstallCheckInput{
+		TargetID:         "target",
+		FrameworkVersion: "v0.1.0",
+		Plugins: []*plugindep.PluginSnapshot{
+			pluginSnapshot("target", "v0.1.0", false, dependenciesWithPlugins(
+				pluginDependency("dep-a", ">=0.1.0"),
+			)),
+			dep,
+		},
+	})
+
+	if len(result.Blockers) != 0 {
+		t.Fatalf("expected no install blockers for disabled dependency, got %#v", result.Blockers)
+	}
+	if len(result.Dependencies) != 1 || result.Dependencies[0].Status != pluginv1.DependencyStatusSatisfied {
+		t.Fatalf("expected satisfied install-axis dependency, got %#v", result.Dependencies)
+	}
+}
+
+// TestCheckReverseOnlyEnabledDependentsIgnoresDisabled verifies disable axis
+// reverse checks ignore installed-but-disabled downstream plugins.
+func TestCheckReverseOnlyEnabledDependentsIgnoresDisabled(t *testing.T) {
+	resolver := plugindep.New()
+	disabledConsumer := pluginSnapshot("consumer-disabled", "v0.1.0", true, dependenciesWithPlugins(
+		pluginDependency("base", ">=0.1.0"),
+	))
+	disabledConsumer.Enabled = false
+	enabledConsumer := pluginSnapshot("consumer-enabled", "v0.1.0", true, dependenciesWithPlugins(
+		pluginDependency("base", ">=0.1.0"),
+	))
+	enabledConsumer.Enabled = true
+
+	result := resolver.CheckReverse(plugindep.ReverseCheckInput{
+		TargetID:              "base",
+		OnlyEnabledDependents: true,
+		Plugins: []*plugindep.PluginSnapshot{
+			pluginSnapshot("base", "v0.1.0", true, nil),
+			disabledConsumer,
+			enabledConsumer,
+		},
+	})
+
+	if len(result.Dependents) != 1 || result.Dependents[0].PluginID != "consumer-enabled" {
+		t.Fatalf("expected only enabled reverse dependent, got %#v", result.Dependents)
+	}
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != pluginv1.BlockerCodeReverseEnabledDependency {
+		t.Fatalf("expected reverse_enabled_dependency blocker, got %#v", result.Blockers)
+	}
+}
+
 // TestCheckReverseIncludesOwnerHostServiceSummaries verifies reverse
 // dependency diagnostics preserve owner-aware host service methods for the
 // target owner only.

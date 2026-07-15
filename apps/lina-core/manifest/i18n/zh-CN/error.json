@@ -1065,6 +1065,11 @@
       "reverse": {
         "dependency": {
           "blocked": "插件 {pluginId} 不能变更，因为已有已安装插件依赖它：{dependents}"
+        },
+        "enabled": {
+          "dependency": {
+            "blocked": "插件 {pluginId} 不能禁用，因为已有已启用插件依赖它：{dependents}"
+          }
         }
       },
       "lock": {

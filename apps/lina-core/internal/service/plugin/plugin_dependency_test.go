@@ -135,10 +135,10 @@ func TestUninstallBlocksInstalledReverseHardDependency(t *testing.T) {
 	assertPluginInstalledState(t, ctx, service, baseID, statusflag.Installed.Int(), statusflag.Disabled.Int())
 }
 
-// TestDisableBlocksInstalledReverseOwnerHostServiceDependency verifies owner
-// plugin disable is blocked before it can break installed owner-aware dynamic
+// TestDisableBlocksEnabledReverseOwnerHostServiceDependency verifies owner
+// plugin disable is blocked before it can break enabled owner-aware dynamic
 // host service consumers.
-func TestDisableBlocksInstalledReverseOwnerHostServiceDependency(t *testing.T) {
+func TestDisableBlocksEnabledReverseOwnerHostServiceDependency(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
@@ -198,10 +198,98 @@ func TestDisableBlocksInstalledReverseOwnerHostServiceDependency(t *testing.T) {
 	}
 
 	err = service.UpdateStatus(ctx, ownerID, UpdateStatusOptions{Status: statusflag.Disabled.Int()})
-	if !bizerr.Is(err, CodePluginReverseDependencyBlocked) {
-		t.Fatalf("expected reverse dependency blocked owner disable, got %v", err)
+	if !bizerr.Is(err, CodePluginReverseEnabledDependencyBlocked) {
+		t.Fatalf("expected enabled reverse dependency blocked owner disable, got %v", err)
 	}
 	assertPluginInstalledState(t, ctx, service, ownerID, statusflag.Installed.Int(), statusflag.EnabledValue.Int())
+}
+
+// TestDisableAllowsInstalledButDisabledReverseDependents verifies disable uses
+// the runtime axis and does not require uninstalling disabled dependents first.
+func TestDisableAllowsInstalledButDisabledReverseDependents(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		ownerID    = "plugin-dev-source-owner-disable-relaxed"
+		consumerID = "plugin-dev-source-consumer-disable-relaxed"
+	)
+
+	createTestSourceDependencyPlugin(t, ownerID, "Source Owner Disable Relaxed", "v0.1.0", "")
+	createTestSourceDependencyPlugin(
+		t,
+		consumerID,
+		"Source Consumer Disable Relaxed",
+		"v0.1.0",
+		"dependencies:\n"+
+			"  plugins:\n"+
+			"    - id: "+ownerID+"\n"+
+			"      version: \">=0.1.0\"\n",
+	)
+	cleanupTestPluginIDs(t, ctx, ownerID, consumerID)
+
+	if _, err := service.Install(ctx, ownerID, InstallOptions{}); err != nil {
+		t.Fatalf("expected owner install to succeed, got error: %v", err)
+	}
+	if err := service.UpdateStatus(ctx, ownerID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
+		t.Fatalf("expected owner enable to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, consumerID, InstallOptions{}); err != nil {
+		t.Fatalf("expected consumer install to succeed, got error: %v", err)
+	}
+	if err := service.UpdateStatus(ctx, consumerID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
+		t.Fatalf("expected consumer enable to succeed, got error: %v", err)
+	}
+	if err := service.UpdateStatus(ctx, consumerID, UpdateStatusOptions{Status: statusflag.Disabled.Int()}); err != nil {
+		t.Fatalf("expected consumer disable to succeed, got error: %v", err)
+	}
+
+	if err := service.UpdateStatus(ctx, ownerID, UpdateStatusOptions{Status: statusflag.Disabled.Int()}); err != nil {
+		t.Fatalf("expected owner disable after disabled dependents, got error: %v", err)
+	}
+	assertPluginInstalledState(t, ctx, service, ownerID, statusflag.Installed.Int(), statusflag.Disabled.Int())
+	assertPluginInstalledState(t, ctx, service, consumerID, statusflag.Installed.Int(), statusflag.Disabled.Int())
+
+	err := service.Uninstall(ctx, ownerID, UninstallOptions{PurgeStorageData: true})
+	if !bizerr.Is(err, CodePluginReverseDependencyBlocked) {
+		t.Fatalf("expected uninstall still blocked by installed dependent, got %v", err)
+	}
+}
+
+// TestEnableBlocksInstalledButDisabledHardDependency verifies enable requires
+// hard dependencies to be enabled, not only installed.
+func TestEnableBlocksInstalledButDisabledHardDependency(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		baseID     = "plugin-dev-source-enable-axis-base"
+		consumerID = "plugin-dev-source-enable-axis-consumer"
+	)
+
+	createTestSourceDependencyPlugin(t, baseID, "Source Enable Axis Base", "v0.1.0", "")
+	createTestSourceDependencyPlugin(
+		t,
+		consumerID,
+		"Source Enable Axis Consumer",
+		"v0.1.0",
+		"dependencies:\n"+
+			"  plugins:\n"+
+			"    - id: "+baseID+"\n"+
+			"      version: \">=0.1.0\"\n",
+	)
+	cleanupTestPluginIDs(t, ctx, baseID, consumerID)
+
+	if _, err := service.Install(ctx, baseID, InstallOptions{}); err != nil {
+		t.Fatalf("expected base install to succeed, got error: %v", err)
+	}
+	// Base remains installed+disabled.
+	if _, err := service.Install(ctx, consumerID, InstallOptions{}); err != nil {
+		t.Fatalf("expected consumer install with disabled dependency, got error: %v", err)
+	}
+	err := service.UpdateStatus(ctx, consumerID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()})
+	if !bizerr.Is(err, CodePluginDependencyBlocked) {
+		t.Fatalf("expected enable blocked by disabled dependency, got %v", err)
+	}
+	assertPluginInstalledState(t, ctx, service, consumerID, statusflag.Installed.Int(), statusflag.Disabled.Int())
 }
 
 // TestSourceOwnerUpgradeBlocksInstalledReverseOwnerHostServiceDependency

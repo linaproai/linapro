@@ -175,7 +175,7 @@ func (s *serviceImpl) prepareInstallDependencies(
 	if normalizedID == "" {
 		return nil, nil
 	}
-	check, err := s.resolveInstallDependenciesForManifest(ctx, manifest, frameworkVersion)
+	check, err := s.resolveInstallDependenciesForManifest(ctx, manifest, frameworkVersion, false)
 	if err != nil {
 		return nil, err
 	}
@@ -186,21 +186,22 @@ func (s *serviceImpl) prepareInstallDependencies(
 	return result, nil
 }
 
-// resolveInstallDependencies evaluates dependency status for one discovered target.
-func (s *serviceImpl) resolveInstallDependencies(
+// resolveEnableDependencies evaluates enable-axis dependency status and
+// requires hard dependencies to be installed and enabled.
+func (s *serviceImpl) resolveEnableDependencies(
 	ctx context.Context,
 	pluginID string,
 	frameworkVersion string,
 ) (*plugindep.InstallCheckResult, error) {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	if manifest := management.ManifestByIDFromContext(ctx, normalizedPluginID); manifest != nil {
-		return s.resolveInstallDependenciesForManifest(ctx, manifest, frameworkVersion)
+		return s.resolveInstallDependenciesForManifest(ctx, manifest, frameworkVersion, true)
 	}
 	manifest, err := s.catalogSvc.GetDesiredManifest(normalizedPluginID)
 	if err != nil {
 		return nil, err
 	}
-	return s.resolveInstallDependenciesForManifest(ctx, manifest, frameworkVersion)
+	return s.resolveInstallDependenciesForManifest(ctx, manifest, frameworkVersion, true)
 }
 
 // resolveInstallDependenciesForManifest evaluates dependency status using a
@@ -209,6 +210,7 @@ func (s *serviceImpl) resolveInstallDependenciesForManifest(
 	ctx context.Context,
 	manifest *catalog.Manifest,
 	frameworkVersion string,
+	requireEnabled bool,
 ) (*plugindep.InstallCheckResult, error) {
 	snapshots, err := s.buildDependencySnapshots(ctx, manifest)
 	if err != nil {
@@ -222,6 +224,7 @@ func (s *serviceImpl) resolveInstallDependenciesForManifest(
 		TargetID:         strings.TrimSpace(manifest.ID),
 		FrameworkVersion: strings.TrimSpace(frameworkVersion),
 		Plugins:          snapshots,
+		RequireEnabled:   requireEnabled,
 	}), nil
 }
 

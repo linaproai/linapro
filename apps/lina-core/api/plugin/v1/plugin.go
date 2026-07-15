@@ -113,6 +113,7 @@ const (
 	DependencyStatusSatisfied          DependencyStatus = "satisfied"
 	DependencyStatusMissing            DependencyStatus = "missing"
 	DependencyStatusVersionUnsatisfied DependencyStatus = "version_unsatisfied"
+	DependencyStatusNotEnabled         DependencyStatus = "not_enabled"
 )
 
 // String returns the serialized dependency status value.
@@ -139,9 +140,11 @@ const (
 	BlockerCodeFrameworkVersionUnsatisfied  BlockerCode = "framework_version_unsatisfied"
 	BlockerCodeDependencyMissing            BlockerCode = "dependency_missing"
 	BlockerCodeDependencyVersionUnsatisfied BlockerCode = "dependency_version_unsatisfied"
+	BlockerCodeDependencyNotEnabled         BlockerCode = "dependency_not_enabled"
 	BlockerCodeDependencyCycle              BlockerCode = "dependency_cycle"
 	BlockerCodeDependencySnapshotUnknown    BlockerCode = "dependency_snapshot_unknown"
 	BlockerCodeReverseDependency            BlockerCode = "reverse_dependency"
+	BlockerCodeReverseEnabledDependency     BlockerCode = "reverse_enabled_dependency"
 	BlockerCodeReverseDependencyVersion     BlockerCode = "reverse_dependency_version"
 )
 

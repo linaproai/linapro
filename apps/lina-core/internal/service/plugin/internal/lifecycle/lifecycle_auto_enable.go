@@ -104,13 +104,13 @@ func (s *serviceImpl) bootstrapAutoEnablePlugin(
 }
 
 // checkStartupAutoEnableDependencies verifies that configured startup targets
-// already have their hard plugin dependencies installed.
+// already have hard plugin dependencies installed and enabled before enable.
 func (s *serviceImpl) checkStartupAutoEnableDependencies(
 	ctx context.Context,
 	pluginID string,
 	frameworkVersion string,
 ) error {
-	plan, err := s.resolveInstallDependencies(ctx, pluginID, frameworkVersion)
+	plan, err := s.resolveEnableDependencies(ctx, pluginID, frameworkVersion)
 	if err != nil {
 		return err
 	}

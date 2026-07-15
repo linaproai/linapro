@@ -30,7 +30,10 @@ func ApplyRegistrySnapshot(
 		snapshot.Version = strings.TrimSpace(registry.Version)
 	}
 	snapshot.Installed = registry.Installed == statusflag.Installed.Int()
+	// Enable-axis checks use global registry status so they match UpdateStatus.
+	snapshot.Enabled = snapshot.Installed && registry.Status == statusflag.EnabledValue.Int()
 	if !snapshot.Installed {
+		snapshot.Enabled = false
 		return
 	}
 	release, err := storeSvc.GetRegistryRelease(ctx, registry)
