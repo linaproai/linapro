@@ -70,6 +70,10 @@
           "name": "登录展示-页面标题",
           "remark": "控制登录页顶部主标题文案。"
         },
+        "sloganImage": {
+          "name": "登录展示-Slogan 插画",
+          "remark": "控制登录页侧栏 slogan 插画图片地址，支持 http(s) 或站内绝对路径；默认 /slogan.svg 为 Vben 内置插画，留空表示不使用插画。"
+        },
         "privacyPolicy": {
           "name": "登录展示-隐私政策正文",
           "remark": "控制注册页“隐私政策”弹窗正文，支持多行文本。"

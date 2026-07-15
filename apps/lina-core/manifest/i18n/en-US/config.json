@@ -70,6 +70,10 @@
           "name": "Login - Page Title",
           "remark": "Controls the headline shown at the top of the login page."
         },
+        "sloganImage": {
+          "name": "Login - Slogan Illustration",
+          "remark": "Controls the login side-slogan illustration image URL. Supports http(s) or site-absolute paths. Default /slogan.svg is the built-in Vben illustration. Leave empty to hide the illustration."
+        },
         "privacyPolicy": {
           "name": "Login - Privacy Policy Body",
           "remark": "Controls the privacy-policy body shown in the registration consent dialog. Multi-line plain text is supported."

@@ -30,6 +30,7 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 			PageDesc:              c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPageDesc, "publicFrontend.auth.pageDesc", cfg.Auth.PageDesc),
 			LoginSubtitle:         c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthLoginSubtitle, "publicFrontend.auth.loginSubtitle", cfg.Auth.LoginSubtitle),
 			PanelLayout:           v1.PanelLayout(cfg.Auth.PanelLayout),
+			SloganImage:           cfg.Auth.SloganImage,
 			ForgetPasswordEnabled: cfg.Auth.ForgetPasswordEnabled,
 			RegisterEnabled:       cfg.Auth.RegisterEnabled,
 			PrivacyPolicy:         c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPrivacyPolicy, "publicFrontend.auth.privacyPolicy", cfg.Auth.PrivacyPolicy),

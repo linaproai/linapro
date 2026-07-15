@@ -7,7 +7,6 @@ import { preferences, usePreferences } from '@vben/preferences';
 
 import { Copyright } from '../basic/copyright';
 import AuthenticationFormView from './form.vue';
-import SloganIcon from './icons/slogan.vue';
 import Toolbar from './toolbar.vue';
 
 interface Props {
@@ -117,14 +116,13 @@ const logoSrc = computed(() => {
             '-enter-x': authPanelRight,
           }"
         >
-          <template v-if="sloganImage">
-            <img
-              :alt="appName"
-              :src="sloganImage"
-              class="h-64 w-2/5 animate-float"
-            />
-          </template>
-          <SloganIcon v-else :alt="appName" class="h-64 w-2/5 animate-float" />
+          <img
+            v-if="sloganImage"
+            :alt="appName"
+            :src="sloganImage"
+            class="h-64 w-2/5 animate-float"
+            data-testid="login-slogan-image"
+          />
           <div class="text-1xl mt-6 font-sans text-foreground lg:text-2xl">
             {{ pageTitle }}
           </div>

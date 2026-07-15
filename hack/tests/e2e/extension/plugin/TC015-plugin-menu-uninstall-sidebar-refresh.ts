@@ -31,6 +31,7 @@ function publicFrontendSettings() {
       panelLayout: 'panel-right',
       pageDesc: '',
       pageTitle: '',
+      sloganImage: '',
     },
     cron: {
       logRetention: {

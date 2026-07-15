@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestPublicFrontendSettingSpecCopiesAreDetached verifies callers cannot mutate the
@@ -47,8 +48,16 @@ func TestPublicFrontendSettingSpecDefaultsExposeUpdatedLoginCopy(t *testing.T) {
 	if !ok {
 		t.Fatal("expected login panel layout spec to be present")
 	}
-	if layoutSpec.DefaultValue != string(PublicFrontendAuthPanelLayoutRight) {
+	if layoutSpec.DefaultValue != string(PublicFrontendAuthPanelLayoutCenter) {
 		t.Fatalf("unexpected login panel layout default: %q", layoutSpec.DefaultValue)
+	}
+
+	sloganSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthSloganImage)
+	if !ok {
+		t.Fatal("expected login slogan image spec to be present")
+	}
+	if sloganSpec.DefaultValue != "/slogan.svg" {
+		t.Fatalf("unexpected login slogan image default: %q", sloganSpec.DefaultValue)
 	}
 
 	avatarSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyUserDefaultAvatar)
@@ -121,6 +130,9 @@ func TestPublicFrontendSettingValueValidation(t *testing.T) {
 		{key: PublicFrontendSettingKeyUserDefaultAvatar, value: "", shouldErr: true},
 		{key: PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-center"},
 		{key: PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-bottom", shouldErr: true},
+		{key: PublicFrontendSettingKeyAuthSloganImage, value: ""},
+		{key: PublicFrontendSettingKeyAuthSloganImage, value: "/slogan.svg"},
+		{key: PublicFrontendSettingKeyAuthSloganImage, value: strings.Repeat("a", 501), shouldErr: true},
 		{key: PublicFrontendSettingKeyUIThemeMode, value: "dark"},
 		{key: PublicFrontendSettingKeyUIThemeMode, value: "night", shouldErr: true},
 		{key: PublicFrontendSettingKeyUILayout, value: "header-nav"},
@@ -219,6 +231,7 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	)
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUserDefaultAvatar, "/avatar.webp")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthLoginPanelLayout, "panel-right")
+	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthSloganImage, "/custom-slogan.webp")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthForgetPasswordEnabled, "false")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthRegisterEnabled, "false")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIThemeMode, "dark")
@@ -248,6 +261,9 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.Auth.PanelLayout != PublicFrontendAuthPanelLayoutRight {
 		t.Fatalf("expected auth panel layout override, got %q", cfg.Auth.PanelLayout)
+	}
+	if cfg.Auth.SloganImage != "/custom-slogan.webp" {
+		t.Fatalf("expected auth slogan image override, got %q", cfg.Auth.SloganImage)
 	}
 	if cfg.Auth.ForgetPasswordEnabled {
 		t.Fatal("expected forget-password switch override to false")
@@ -279,6 +295,39 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.Workspace.BasePath != defaultWorkspaceBasePath {
 		t.Fatalf("expected public frontend workspace base path %q, got %q", defaultWorkspaceBasePath, cfg.Workspace.BasePath)
+	}
+}
+
+// TestGetPublicFrontendPreservesEmptySloganImage verifies an intentional empty
+// slogan image is not replaced by the built-in default illustration path.
+func TestGetPublicFrontendPreservesEmptySloganImage(t *testing.T) {
+	withCachedRuntimeParamValue(t, PublicFrontendSettingKeyAuthSloganImage, "")
+
+	cfg, err := New().GetPublicFrontend(context.Background())
+	if err != nil {
+		t.Fatalf("get public frontend config: %v", err)
+	}
+	if cfg.Auth.SloganImage != "" {
+		t.Fatalf("expected empty slogan image to remain empty, got %q", cfg.Auth.SloganImage)
+	}
+}
+
+// TestGetPublicFrontendDefaultsSloganImageWhenMissing verifies missing slogan
+// image configuration falls back to the built-in Vben illustration path.
+func TestGetPublicFrontendDefaultsSloganImageWhenMissing(t *testing.T) {
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{
+		values:         map[string]string{},
+		durationValues: make(map[string]time.Duration),
+		int64Values:    make(map[string]int64),
+		parseErrors:    make(map[string]error),
+	})
+
+	cfg, err := New().GetPublicFrontend(context.Background())
+	if err != nil {
+		t.Fatalf("get public frontend config: %v", err)
+	}
+	if cfg.Auth.SloganImage != "/slogan.svg" {
+		t.Fatalf("expected default slogan image /slogan.svg, got %q", cfg.Auth.SloganImage)
 	}
 }
 

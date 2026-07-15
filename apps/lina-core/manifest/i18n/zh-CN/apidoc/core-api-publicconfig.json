@@ -33,6 +33,9 @@
               "panelLayout": {
                 "dc": "登录框布局：panel-left=居左 panel-center=居中 panel-right=居右"
               },
+              "sloganImage": {
+                "dc": "登录侧栏 slogan 插画图片地址；默认 /slogan.svg 为 Vben 内置插画，为空表示不展示插画"
+              },
               "privacyPolicy": {
                 "dc": "注册页隐私政策弹窗正文"
               },

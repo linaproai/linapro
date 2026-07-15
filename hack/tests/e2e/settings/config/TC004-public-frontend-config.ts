@@ -14,6 +14,7 @@ const publicFrontendParams = [
   { key: "sys.auth.pageDesc", name: "登录展示-页面说明" },
   { key: "sys.auth.loginSubtitle", name: "登录展示-登录副标题" },
   { key: "sys.auth.loginPanelLayout", name: "登录展示-登录框位置" },
+  { key: "sys.auth.sloganImage", name: "登录展示-Slogan 插画" },
   { key: "sys.ui.theme.mode", name: "界面风格-主题模式" },
   { key: "sys.ui.layout", name: "界面风格-工作台布局" },
   { key: "sys.ui.watermark.enabled", name: "界面风格-是否启用水印" },
@@ -194,6 +195,7 @@ test.describe("TC004 公开前端配置系统参数", () => {
       "sys.auth.pageDesc": "宿主工作台与插件能力统一从系统参数读取展示信息",
       "sys.auth.loginSubtitle": "请使用管理员账号登录当前宿主工作区",
       "sys.auth.loginPanelLayout": "panel-right",
+      "sys.auth.sloganImage": "/logo.webp",
       "sys.user.defaultAvatar": "/avatar.webp",
       "sys.ui.theme.mode": "dark",
       "sys.ui.layout": "header-nav",
@@ -228,6 +230,9 @@ test.describe("TC004 公开前端配置系统参数", () => {
         overrides["sys.auth.pageTitle"],
       );
       expect(publicPayload.data.auth.panelLayout).toBe("panel-right");
+      expect(publicPayload.data.auth.sloganImage).toBe(
+        overrides["sys.auth.sloganImage"],
+      );
       expect(publicPayload.data.user.defaultAvatar).toBe(
         overrides["sys.user.defaultAvatar"],
       );
@@ -251,6 +256,25 @@ test.describe("TC004 公开前端配置系统参数", () => {
       await expect(loginPage.getText(overrides["sys.app.name"])).toBeVisible();
       await expect(loginPage.rightAuthPanel).toBeVisible();
       await expect(loginPage.centerAuthPanel).toBeHidden();
+      await expect(loginPage.sloganImage).toBeVisible();
+      await expect(loginPage.sloganImage).toHaveAttribute(
+        "src",
+        new RegExp(
+          `${overrides["sys.auth.sloganImage"].replace(".", "\\.")}(?:\\?.*)?$`,
+        ),
+      );
+
+      // Empty sloganImage means hide the side illustration.
+      const sloganConfig = originals.find(
+        (item) => item.key === "sys.auth.sloganImage",
+      );
+      if (!sloganConfig) {
+        throw new Error("expected sys.auth.sloganImage original config");
+      }
+      await updateConfigValue(request, accessToken, sloganConfig.id, "");
+      await loginPage.goto();
+      await expect(loginPage.rightAuthPanel).toBeVisible();
+      await expect(loginPage.sloganImage).toHaveCount(0);
       await expect
         .poll(async () => await loginPage.getDocumentTitle())
         .toContain(overrides["sys.app.name"]);

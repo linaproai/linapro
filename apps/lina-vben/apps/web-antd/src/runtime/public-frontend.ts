@@ -23,6 +23,7 @@ interface PublicFrontendAuthSettings {
   pageTitle: string;
   privacyPolicy: string;
   registerEnabled: boolean;
+  sloganImage: string;
   termsOfService: string;
 }
 
@@ -90,11 +91,12 @@ const publicFrontendState = reactive<PublicFrontendSettings>({
   auth: {
     forgetPasswordEnabled: true,
     loginSubtitle: '',
-    panelLayout: 'panel-right',
+    panelLayout: 'panel-center',
     pageDesc: '',
     pageTitle: '',
     privacyPolicy: '',
     registerEnabled: true,
+    sloganImage: '',
     termsOfService: '',
   },
   cron: {
@@ -146,7 +148,7 @@ function normalizeAuthPanelLayout(value: unknown): AuthPageLayoutType {
     case 'panel-right':
       return normalized;
     default:
-      return 'panel-right';
+      return 'panel-center';
   }
 }
 
@@ -311,6 +313,7 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
         auth?.registerEnabled === undefined
           ? true
           : normalizeBoolean(auth.registerEnabled),
+      sloganImage: normalizeString(auth.sloganImage),
       termsOfService: normalizeString(auth.termsOfService),
     },
     cron: {

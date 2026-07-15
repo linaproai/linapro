@@ -31,6 +31,9 @@ const (
 	PublicFrontendSettingKeyAuthLoginSubtitle = "sys.auth.loginSubtitle"
 	// PublicFrontendSettingKeyAuthLoginPanelLayout stores the login-form panel layout.
 	PublicFrontendSettingKeyAuthLoginPanelLayout = "sys.auth.loginPanelLayout"
+	// PublicFrontendSettingKeyAuthSloganImage stores the optional login-page
+	// side slogan illustration image source.
+	PublicFrontendSettingKeyAuthSloganImage = "sys.auth.sloganImage"
 	// PublicFrontendSettingKeyAuthForgetPasswordEnabled stores whether the
 	// login-page forget-password entry is exposed.
 	PublicFrontendSettingKeyAuthForgetPasswordEnabled = "sys.auth.forgetPasswordEnabled"
@@ -105,12 +108,17 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthLoginPanelLayout,
-		DefaultValue: string(PublicFrontendAuthPanelLayoutRight),
+		DefaultValue: string(PublicFrontendAuthPanelLayoutCenter),
 		validator: validateAllowedStringConfigValue(
 			string(PublicFrontendAuthPanelLayoutLeft),
 			string(PublicFrontendAuthPanelLayoutCenter),
 			string(PublicFrontendAuthPanelLayoutRight),
 		),
+	},
+	{
+		Key:          PublicFrontendSettingKeyAuthSloganImage,
+		DefaultValue: "/slogan.svg",
+		validator:    validateOptionalTextConfigValue(500),
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthForgetPasswordEnabled,
@@ -195,6 +203,7 @@ type PublicFrontendAuthConfig struct {
 	PageDesc              string                        `json:"pageDesc"`              // PageDesc is the login-page description.
 	LoginSubtitle         string                        `json:"loginSubtitle"`         // LoginSubtitle is the form subtitle.
 	PanelLayout           PublicFrontendAuthPanelLayout `json:"panelLayout"`           // PanelLayout selects the login-panel placement.
+	SloganImage           string                        `json:"sloganImage"`           // SloganImage is the optional login side-slogan illustration URL.
 	ForgetPasswordEnabled bool                          `json:"forgetPasswordEnabled"` // ForgetPasswordEnabled reports whether the forget-password entry is exposed.
 	RegisterEnabled       bool                          `json:"registerEnabled"`       // RegisterEnabled reports whether the create-account entry is exposed.
 	PrivacyPolicy         string                        `json:"privacyPolicy"`         // PrivacyPolicy is the privacy-policy body for registration consent.
@@ -325,6 +334,12 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendCon
 	if err != nil {
 		return nil, err
 	}
+	// Empty sloganImage is intentional ("hide illustration") and must not fall
+	// back to the built-in default when the sys_config row exists with "".
+	authSloganImage, err := s.getProtectedConfigValueAllowEmpty(ctx, PublicFrontendSettingKeyAuthSloganImage)
+	if err != nil {
+		return nil, err
+	}
 	authForgetPasswordEnabled, err := s.getProtectedConfigBoolOrDefault(ctx, PublicFrontendSettingKeyAuthForgetPasswordEnabled)
 	if err != nil {
 		return nil, err
@@ -369,6 +384,7 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendCon
 			PageDesc:              authPageDesc,
 			LoginSubtitle:         authLoginSubtitle,
 			PanelLayout:           PublicFrontendAuthPanelLayout(authPanelLayout),
+			SloganImage:           authSloganImage,
 			ForgetPasswordEnabled: authForgetPasswordEnabled,
 			RegisterEnabled:       authRegisterEnabled,
 			PrivacyPolicy:         authPrivacyPolicy,
@@ -426,6 +442,8 @@ func resolveSystemTimezone(envTimezone string, processTimezone string) string {
 
 // getProtectedConfigValueOrDefault returns the runtime override when present,
 // then the active static config value, then built-in host default metadata.
+// Empty runtime or static values are treated as missing so required settings
+// fall back to their built-in defaults.
 func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key string) (string, error) {
 	normalizedKey := strings.TrimSpace(key)
 	if value, ok, err := s.lookupRuntimeParamValue(ctx, normalizedKey); err != nil {
@@ -444,6 +462,31 @@ func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key 
 		if trimmed != "" {
 			return trimmed, nil
 		}
+	}
+
+	defaultValue, ok := lookupHostConfigDefaultValue(normalizedKey)
+	if ok {
+		return strings.TrimSpace(hostConfigDefaultValueString(defaultValue)), nil
+	}
+	return "", nil
+}
+
+// getProtectedConfigValueAllowEmpty returns the runtime override when the key
+// exists (including intentional empty strings), then the static config value
+// when present, then the built-in default. Use this for optional display assets
+// where empty means "disabled" rather than "use default".
+func (s *serviceImpl) getProtectedConfigValueAllowEmpty(ctx context.Context, key string) (string, error) {
+	normalizedKey := strings.TrimSpace(key)
+	if value, ok, err := s.lookupRuntimeParamValue(ctx, normalizedKey); err != nil {
+		return "", err
+	} else if ok {
+		return strings.TrimSpace(value), nil
+	}
+
+	if value, ok, err := lookupStaticHostConfigValue(ctx, normalizedKey); err != nil {
+		return "", err
+	} else if ok {
+		return strings.TrimSpace(value.String()), nil
 	}
 
 	defaultValue, ok := lookupHostConfigDefaultValue(normalizedKey)
@@ -488,6 +531,14 @@ func validateRequiredTextConfigValue(maxLen int) protectedConfigValidator {
 	}
 }
 
+// validateOptionalTextConfigValue returns metadata validation for optional text
+// protected settings. Empty values are accepted; non-empty values enforce maxLen.
+func validateOptionalTextConfigValue(maxLen int) protectedConfigValidator {
+	return func(key string, value string) error {
+		return validateOptionalTextValue(key, value, maxLen)
+	}
+}
+
 // validateAllowedStringConfigValue returns metadata validation for enum-style
 // protected settings.
 func validateAllowedStringConfigValue(allowed ...string) protectedConfigValidator {
@@ -517,6 +568,23 @@ func validateRequiredTextValue(key string, value string, maxLen int) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return bizerr.NewCode(CodeConfigParamRequired, bizerr.P("key", key))
+	}
+	if utf8.RuneCountInString(trimmed) > maxLen {
+		return bizerr.NewCode(
+			CodeConfigParamTextTooLong,
+			bizerr.P("key", key),
+			bizerr.P("maxLen", maxLen),
+		)
+	}
+	return nil
+}
+
+// validateOptionalTextValue validates one protected text value that may be
+// empty, while still enforcing a maximum character-length constraint when set.
+func validateOptionalTextValue(key string, value string, maxLen int) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
 	}
 	if utf8.RuneCountInString(trimmed) > maxLen {
 		return bizerr.NewCode(

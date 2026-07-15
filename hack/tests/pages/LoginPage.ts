@@ -171,6 +171,14 @@ export class LoginPage {
     return this.page.locator('.side-content[data-side="right"]').first();
   }
 
+  /**
+   * Slogan illustration image on the left/right login layout side panel.
+   * Absent when `sys.auth.sloganImage` is empty.
+   */
+  get sloganImage() {
+    return this.page.getByTestId("login-slogan-image");
+  }
+
   get usernameInput() {
     return this.page
       .locator(
