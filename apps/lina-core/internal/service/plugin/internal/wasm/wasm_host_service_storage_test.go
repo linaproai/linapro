@@ -212,6 +212,34 @@ func (*storageDomainTestService) ProviderStatuses(context.Context) ([]*storageca
 	}}, nil
 }
 
+// CreateDirectPut returns proxy mode for in-memory WASM storage tests.
+func (*storageDomainTestService) CreateDirectPut(_ context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	return &storagecap.DirectPutOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+		Path:   in.Path,
+	}, nil
+}
+
+// ConfirmDirectPut confirms via Stat for in-memory WASM storage tests.
+func (s *storageDomainTestService) ConfirmDirectPut(ctx context.Context, in storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	stat, err := s.Stat(ctx, storagecap.StatInput{Path: in.Path})
+	if err != nil {
+		return nil, err
+	}
+	if stat == nil || !stat.Found {
+		return nil, nil
+	}
+	return &storagecap.ConfirmDirectPutOutput{Object: stat.Object}, nil
+}
+
+// CreateDirectGet returns proxy mode for in-memory WASM storage tests.
+func (*storageDomainTestService) CreateDirectGet(_ context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	return &storagecap.DirectGetOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpGet},
+		Path:   in.Path,
+	}, nil
+}
+
 func (s *storageDomainTestService) ensureObjects() {
 	if s.objects == nil {
 		s.objects = make(map[string]*storageDomainTestObject)

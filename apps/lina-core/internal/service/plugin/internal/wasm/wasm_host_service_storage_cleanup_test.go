@@ -88,6 +88,27 @@ func (*cleanupStorageService) ProviderStatuses(context.Context) ([]*storagecap.P
 	return nil, nil
 }
 
+// CreateDirectPut is unused by cleanup tests.
+func (*cleanupStorageService) CreateDirectPut(_ context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	return &storagecap.DirectPutOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+		Path:   in.Path,
+	}, nil
+}
+
+// ConfirmDirectPut is unused by cleanup tests.
+func (*cleanupStorageService) ConfirmDirectPut(context.Context, storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	return nil, nil
+}
+
+// CreateDirectGet is unused by cleanup tests.
+func (*cleanupStorageService) CreateDirectGet(_ context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	return &storagecap.DirectGetOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpGet},
+		Path:   in.Path,
+	}, nil
+}
+
 // TestPurgeAuthorizedStoragePathsRequiresStorageService verifies lifecycle
 // cleanup fails explicitly when storage capability wiring is missing.
 func TestPurgeAuthorizedStoragePathsRequiresStorageService(t *testing.T) {

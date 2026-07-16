@@ -638,6 +638,27 @@ func (scopedCapabilityStorage) ProviderStatuses(context.Context) ([]*storagecap.
 	}}, nil
 }
 
+// CreateDirectPut returns proxy mode for registration-only tests.
+func (scopedCapabilityStorage) CreateDirectPut(_ context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	return &storagecap.DirectPutOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+		Path:   in.Path,
+	}, nil
+}
+
+// ConfirmDirectPut reports missing objects because registration-only tests do not persist content.
+func (scopedCapabilityStorage) ConfirmDirectPut(context.Context, storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	return nil, nil
+}
+
+// CreateDirectGet returns proxy mode for registration-only tests.
+func (scopedCapabilityStorage) CreateDirectGet(_ context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	return &storagecap.DirectGetOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpGet},
+		Path:   in.Path,
+	}, nil
+}
+
 // scopedCapabilityI18n is a fallback translator fixture for registration-only tests.
 type scopedCapabilityI18n struct{}
 
