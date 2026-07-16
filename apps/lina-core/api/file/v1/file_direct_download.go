@@ -12,7 +12,6 @@ type DirectDownloadReq struct {
 
 // DirectDownloadRes returns neutral get access for one file.
 type DirectDownloadRes struct {
-	Access *DirectUploadAccess `json:"access" dc:"Client transfer description for get; proxy means host-mediated download"`
-	// ProxyUrl is the host download path when mode is proxy.
-	ProxyUrl string `json:"proxyUrl,omitempty" dc:"Host-mediated download URL when mode is proxy" eg:"/api/v1/file/1/download"`
+	Access   *DirectUploadAccess `json:"access" dc:"Client transfer description for get; proxy means host-mediated download"`
+	ProxyUrl string              `json:"proxyUrl,omitempty" dc:"Host-mediated download URL when mode is proxy" eg:"/api/v1/file/1/download"`
 }

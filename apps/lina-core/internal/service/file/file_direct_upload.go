@@ -29,21 +29,46 @@ type DirectUploadInitInput struct {
 	FileName    string
 	Size        int64
 	ContentType string
+	// ContentHash is optional SHA-256 hex; when set, enables instant reuse lookup.
 	ContentHash string
 }
 
 // DirectUploadInitOutput is the domain result of direct upload init.
 type DirectUploadInitOutput struct {
-	InstantReuse    bool
+	// InstantReuse is true when ContentHash matched an existing file and no upload is needed.
+	InstantReuse bool
+	// UploadSessionID is set when a new session was opened (absent on instant reuse).
 	UploadSessionID string
-	Access          *storagecap.DirectAccess
-	File            *UploadOutput
+	// Access is the neutral client transfer description; proxy mode means host-mediated upload.
+	Access *storagecap.DirectAccess
+	// File is populated only when InstantReuse is true.
+	File *UploadOutput
+	// Strategy is the planned channel/encoding for non-instant uploads.
+	Strategy *UploadStrategy
+	// Multipart is populated when Strategy.Encoding is multipart.
+	Multipart *UploadMultipartPlan
 }
 
 // DirectUploadCompleteInput finishes one direct upload session.
 type DirectUploadCompleteInput struct {
 	UploadSessionID string
-	ETag            string
+	// ETag is optional for single-object put sessions.
+	ETag string
+	// Parts is required when the session encoding is multipart.
+	Parts []MultipartPartRef
+}
+
+// DirectUploadPartURLInput issues client access for one direct multipart part.
+type DirectUploadPartURLInput struct {
+	UploadSessionID string
+	PartNumber      int32
+	// Size is the expected part size when known; zero means unspecified.
+	Size int64
+}
+
+// DirectUploadPartURLOutput returns neutral part access.
+type DirectUploadPartURLOutput struct {
+	Access *storagecap.DirectAccess
 }
 
 // DirectUploadAbortInput aborts one direct upload session.
@@ -58,7 +83,8 @@ type DirectDownloadInput struct {
 
 // DirectDownloadOutput returns direct get access or proxy indication.
 type DirectDownloadOutput struct {
-	Access   *storagecap.DirectAccess
+	Access *storagecap.DirectAccess
+	// ProxyURL is the host download path when Access is proxy mode.
 	ProxyURL string
 }
 
@@ -95,9 +121,11 @@ func (s *serviceImpl) DirectUploadInit(ctx context.Context, in *DirectUploadInit
 	userID := s.currentUserID(ctx)
 
 	if contentHash != "" {
-		if reused, reuseErr := s.tryInstantReuseByHash(ctx, tenantID, userID, sanitizedFilename, suffix, scene, in.Size, contentHash); reuseErr != nil {
+		reused, reuseErr := s.tryInstantReuseByHash(ctx, tenantID, userID, sanitizedFilename, suffix, scene, in.Size, contentHash)
+		if reuseErr != nil {
 			return nil, reuseErr
-		} else if reused != nil {
+		}
+		if reused != nil {
 			return &DirectUploadInitOutput{InstantReuse: true, File: reused}, nil
 		}
 	}
@@ -117,53 +145,174 @@ func (s *serviceImpl) DirectUploadInit(ctx context.Context, in *DirectUploadInit
 		Overwrite:   true,
 	})
 	if err != nil {
-		if bizerr.Is(err, storagecap.CodeStorageProviderConflict) {
-			return nil, bizerr.WrapCode(err, CodeFileStorageConflict)
-		}
-		return nil, bizerr.WrapCode(err, CodeFileDirectInitFailed)
+		return nil, mapStorageInitError(err)
 	}
 	access := directOut.Access
 	if access == nil {
 		access = &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut}
 	}
 
-	// Proxy mode: no session required; client uses multipart upload API.
-	if storagecap.IsProxyDirectAccess(access) {
-		return &DirectUploadInitOutput{Access: access}, nil
+	strategy, multipartPlan, planErr := s.planDirectUpload(ctx, in.Size, uploadMaxSize, !storagecap.IsProxyDirectAccess(access))
+	if planErr != nil {
+		return nil, planErr
+	}
+	if strategy.Channel == UploadChannelProxy {
+		return &DirectUploadInitOutput{
+			Access:    &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+			Strategy:  &strategy,
+			Multipart: multipartPlan,
+		}, nil
 	}
 
+	return s.openDirectUploadSession(ctx, openDirectUploadSessionInput{
+		tenantID:      tenantID,
+		userID:        userID,
+		scene:         scene,
+		filename:      sanitizedFilename,
+		suffix:        suffix,
+		contentType:   strings.TrimSpace(in.ContentType),
+		size:          in.Size,
+		contentHash:   contentHash,
+		storagePath:   storagePath,
+		ttl:           ttl,
+		access:        access,
+		directOut:     directOut,
+		strategy:      strategy,
+		multipartPlan: multipartPlan,
+	})
+}
+
+type openDirectUploadSessionInput struct {
+	tenantID      int64
+	userID        int64
+	scene         string
+	filename      string
+	suffix        string
+	contentType   string
+	size          int64
+	contentHash   string
+	storagePath   string
+	ttl           time.Duration
+	access        *storagecap.DirectAccess
+	directOut     *storagesvc.DirectAccessOutput
+	strategy      UploadStrategy
+	multipartPlan *UploadMultipartPlan
+}
+
+func (s *serviceImpl) planDirectUpload(
+	ctx context.Context,
+	sizeBytes int64,
+	uploadMaxSize int64,
+	supportsDirect bool,
+) (UploadStrategy, *UploadMultipartPlan, error) {
+	supportsCloudMP, err := s.resolveCloudMultipartSupport(ctx)
+	if err != nil {
+		return UploadStrategy{}, nil, mapStorageInitError(err)
+	}
+	multipartEnabled, err := s.configSvc.GetUploadMultipartEnabled(ctx)
+	if err != nil {
+		return UploadStrategy{}, nil, err
+	}
+	thresholdMB, err := s.configSvc.GetUploadMultipartThresholdMB(ctx)
+	if err != nil {
+		return UploadStrategy{}, nil, err
+	}
+	if thresholdMB >= uploadMaxSize {
+		multipartEnabled = false
+	}
+	strategy := planUploadStrategy(sizeBytes, multipartEnabled, thresholdMB, supportsDirect, supportsCloudMP)
+	if strategy.Encoding != UploadEncodingMultipart {
+		return strategy, nil, nil
+	}
+	partSizeMB, err := s.configSvc.GetUploadMultipartPartSizeMB(ctx)
+	if err != nil {
+		return UploadStrategy{}, nil, err
+	}
+	concurrency, err := s.configSvc.GetUploadMultipartMaxConcurrency(ctx)
+	if err != nil {
+		return UploadStrategy{}, nil, err
+	}
+	return strategy, buildMultipartPlan(partSizeMB, concurrency), nil
+}
+
+func (s *serviceImpl) openDirectUploadSession(ctx context.Context, in openDirectUploadSessionInput) (*DirectUploadInitOutput, error) {
 	sessionID, err := newDirectUploadSessionID()
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeFileDirectInitFailed)
 	}
-	expiresAt := time.Now().UTC().Add(ttl)
-	if !access.ExpiresAt.IsZero() && access.ExpiresAt.Before(expiresAt) {
-		expiresAt = access.ExpiresAt.UTC()
+	expiresAt := time.Now().UTC().Add(in.ttl)
+	if !in.access.ExpiresAt.IsZero() && in.access.ExpiresAt.Before(expiresAt) {
+		expiresAt = in.access.ExpiresAt.UTC()
 	}
-	providerID := strings.TrimSpace(directOut.ProviderID)
+	providerID := strings.TrimSpace(in.directOut.ProviderID)
 	if providerID == "" {
-		providerID = strings.TrimSpace(access.ProviderID)
+		providerID = strings.TrimSpace(in.access.ProviderID)
 	}
 	session := &directUploadSession{
 		ID:           sessionID,
-		TenantID:     tenantID,
-		UserID:       userID,
-		Scene:        scene,
-		OriginalName: sanitizedFilename,
-		Suffix:       suffix,
-		ContentType:  strings.TrimSpace(in.ContentType),
-		Size:         in.Size,
-		ContentHash:  contentHash,
-		StoragePath:  storagePath,
+		TenantID:     in.tenantID,
+		UserID:       in.userID,
+		Scene:        in.scene,
+		OriginalName: in.filename,
+		Suffix:       in.suffix,
+		ContentType:  in.contentType,
+		Size:         in.size,
+		ContentHash:  in.contentHash,
+		StoragePath:  in.storagePath,
 		ProviderID:   providerID,
-		ProviderKey:  directOut.ProviderKey,
+		ProviderKey:  in.directOut.ProviderKey,
 		ExpiresAt:    expiresAt,
+		Encoding:     in.strategy.Encoding,
+	}
+	outAccess := in.access
+	if in.strategy.Encoding == UploadEncodingMultipart {
+		created, createErr := s.storage.CreateMultipart(ctx, storagesvc.MultipartCreateInput{
+			Namespace:   storagesvc.NamespaceFiles,
+			Key:         in.storagePath,
+			ContentType: in.contentType,
+			Overwrite:   true,
+		})
+		if createErr != nil {
+			if bizerr.Is(createErr, storagecap.CodeStorageProviderConflict) {
+				return nil, bizerr.WrapCode(createErr, CodeFileStorageConflict)
+			}
+			return &DirectUploadInitOutput{
+				Access:    &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+				Strategy:  &UploadStrategy{Channel: UploadChannelProxy, Encoding: UploadEncodingMultipart},
+				Multipart: in.multipartPlan,
+			}, nil
+		}
+		if created == nil || strings.TrimSpace(created.UploadID) == "" {
+			return nil, bizerr.NewCode(CodeFileDirectInitFailed)
+		}
+		session.CloudUploadID = created.UploadID
+		if strings.TrimSpace(created.ProviderID) != "" {
+			session.ProviderID = created.ProviderID
+			providerID = created.ProviderID
+		}
+		if strings.TrimSpace(created.ProviderKey) != "" {
+			session.ProviderKey = created.ProviderKey
+		}
+		outAccess = &storagecap.DirectAccess{
+			Mode:       storagecap.DirectAccessModePresignedURL,
+			Operation:  storagecap.DirectAccessOpPut,
+			ProviderID: providerID,
+		}
 	}
 	s.sessionStore().put(session)
 	return &DirectUploadInitOutput{
 		UploadSessionID: sessionID,
-		Access:          access,
+		Access:          outAccess,
+		Strategy:        &in.strategy,
+		Multipart:       in.multipartPlan,
 	}, nil
+}
+
+func mapStorageInitError(err error) error {
+	if bizerr.Is(err, storagecap.CodeStorageProviderConflict) {
+		return bizerr.WrapCode(err, CodeFileStorageConflict)
+	}
+	return bizerr.WrapCode(err, CodeFileDirectInitFailed)
 }
 
 // DirectUploadComplete validates the uploaded object and creates sys_file.
@@ -187,6 +336,32 @@ func (s *serviceImpl) DirectUploadComplete(ctx context.Context, in *DirectUpload
 			Suffix:   session.Suffix,
 			Size:     session.Size,
 		}, nil
+	}
+
+	if strings.EqualFold(strings.TrimSpace(session.Encoding), UploadEncodingMultipart) {
+		parts := in.Parts
+		if len(parts) == 0 {
+			return nil, bizerr.NewCode(CodeFileDirectCompleteFailed)
+		}
+		sorted := sortMultipartParts(parts)
+		completeParts := make([]storagesvc.MultipartCompletedPart, 0, len(sorted))
+		for _, part := range sorted {
+			if part.PartNumber < 1 || strings.TrimSpace(part.ETag) == "" {
+				return nil, bizerr.NewCode(CodeFileDirectCompleteFailed)
+			}
+			completeParts = append(completeParts, storagesvc.MultipartCompletedPart{
+				PartNumber: part.PartNumber,
+				ETag:       strings.TrimSpace(part.ETag),
+			})
+		}
+		if _, err = s.storage.CompleteMultipart(ctx, storagesvc.MultipartCompleteInput{
+			Namespace: storagesvc.NamespaceFiles,
+			Key:       session.StoragePath,
+			UploadID:  session.CloudUploadID,
+			Parts:     completeParts,
+		}); err != nil {
+			return nil, bizerr.WrapCode(err, CodeFileDirectCompleteFailed)
+		}
 	}
 
 	stat, err := s.storage.Stat(ctx, storagesvc.StatInput{
@@ -259,12 +434,63 @@ func (s *serviceImpl) DirectUploadComplete(ctx context.Context, in *DirectUpload
 }
 
 // DirectUploadAbort discards one in-flight direct upload session.
-func (s *serviceImpl) DirectUploadAbort(_ context.Context, in *DirectUploadAbortInput) error {
+func (s *serviceImpl) DirectUploadAbort(ctx context.Context, in *DirectUploadAbortInput) error {
 	if in == nil || strings.TrimSpace(in.UploadSessionID) == "" {
 		return nil
 	}
+	session, err := s.sessionStore().get(in.UploadSessionID)
+	if err == nil && session != nil &&
+		strings.EqualFold(strings.TrimSpace(session.Encoding), UploadEncodingMultipart) &&
+		strings.TrimSpace(session.CloudUploadID) != "" {
+		_ = s.storage.AbortMultipart(ctx, storagesvc.MultipartAbortInput{
+			Namespace: storagesvc.NamespaceFiles,
+			Key:       session.StoragePath,
+			UploadID:  session.CloudUploadID,
+		})
+	}
 	s.sessionStore().delete(in.UploadSessionID)
 	return nil
+}
+
+// DirectUploadPartURL issues short-lived access for one direct multipart part.
+func (s *serviceImpl) DirectUploadPartURL(ctx context.Context, in *DirectUploadPartURLInput) (*DirectUploadPartURLOutput, error) {
+	if in == nil || strings.TrimSpace(in.UploadSessionID) == "" || in.PartNumber < 1 {
+		return nil, bizerr.NewCode(CodeFileDirectSessionInvalid)
+	}
+	session, err := s.sessionStore().get(in.UploadSessionID)
+	if err != nil {
+		_, mapped := s.mapSessionError(err)
+		return nil, mapped
+	}
+	if session.TenantID != int64(datascope.CurrentTenantID(ctx)) {
+		return nil, bizerr.NewCode(CodeFileDirectSessionInvalid)
+	}
+	if !strings.EqualFold(strings.TrimSpace(session.Encoding), UploadEncodingMultipart) {
+		return nil, bizerr.NewCode(CodeFileDirectSessionInvalid)
+	}
+	if strings.TrimSpace(session.CloudUploadID) == "" {
+		return nil, bizerr.NewCode(CodeFileDirectSessionInvalid)
+	}
+	ttl, err := s.resolveDirectUploadTTL(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accessOut, err := s.storage.CreateMultipartPartAccess(ctx, storagesvc.MultipartPartAccessInput{
+		Namespace:   storagesvc.NamespaceFiles,
+		Key:         session.StoragePath,
+		UploadID:    session.CloudUploadID,
+		PartNumber:  in.PartNumber,
+		Size:        in.Size,
+		ContentType: session.ContentType,
+		TTL:         ttl,
+	})
+	if err != nil {
+		return nil, bizerr.WrapCode(err, CodeFileDirectInitFailed)
+	}
+	if accessOut == nil || accessOut.Access == nil {
+		return nil, bizerr.NewCode(CodeFileDirectInitFailed)
+	}
+	return &DirectUploadPartURLOutput{Access: accessOut.Access}, nil
 }
 
 // DirectDownload issues get access for one visible file, or proxy mode.

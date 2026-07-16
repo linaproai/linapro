@@ -25,6 +25,20 @@ func (c *ControllerV1) DirectUploadInit(ctx context.Context, req *v1.DirectUploa
 		UploadSessionId: out.UploadSessionID,
 		Access:          mapDirectAccess(out.Access),
 	}
+	if out.Strategy != nil {
+		res.Strategy = &v1.UploadStrategy{
+			Channel:  out.Strategy.Channel,
+			Encoding: out.Strategy.Encoding,
+		}
+	}
+	if out.Multipart != nil {
+		res.Multipart = &v1.UploadMultipartPlan{
+			PartSize:       out.Multipart.PartSize,
+			MinPartSize:    out.Multipart.MinPartSize,
+			MaxParts:       out.Multipart.MaxParts,
+			MaxConcurrency: out.Multipart.MaxConcurrency,
+		}
+	}
 	if out.File != nil {
 		res.File = &v1.UploadRes{
 			Id:       out.File.Id,

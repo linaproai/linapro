@@ -2,5 +2,6 @@ go 1.25.0
 
 use (
 	./apps/lina-core
+	./apps/lina-plugins/linapro-storage-s3
 	./hack/tools/linactl
 )

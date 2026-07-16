@@ -83,6 +83,16 @@ type Service interface {
 	DirectUploadComplete(ctx context.Context, in *DirectUploadCompleteInput) (*UploadOutput, error)
 	// DirectUploadAbort discards an in-flight direct upload session.
 	DirectUploadAbort(ctx context.Context, in *DirectUploadAbortInput) error
+	// DirectUploadPartURL issues short-lived client access for one multipart part.
+	DirectUploadPartURL(ctx context.Context, in *DirectUploadPartURLInput) (*DirectUploadPartURLOutput, error)
+	// ChunkedUploadInit starts one host-mediated chunked upload session.
+	ChunkedUploadInit(ctx context.Context, in *ChunkedUploadInitInput) (*ChunkedUploadInitOutput, error)
+	// ChunkedUploadPart appends one part to a chunked upload session.
+	ChunkedUploadPart(ctx context.Context, in *ChunkedUploadPartInput) (*ChunkedUploadPartOutput, error)
+	// ChunkedUploadComplete finalizes a chunked upload and writes sys_file metadata.
+	ChunkedUploadComplete(ctx context.Context, in *ChunkedUploadCompleteInput) (*UploadOutput, error)
+	// ChunkedUploadAbort discards an in-flight chunked upload session.
+	ChunkedUploadAbort(ctx context.Context, in *ChunkedUploadAbortInput) error
 	// DirectDownload issues short-lived client get access or proxy mode.
 	DirectDownload(ctx context.Context, in *DirectDownloadInput) (*DirectDownloadOutput, error)
 }
@@ -92,24 +102,27 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	configSvc      config.Service // Configuration service
-	storage        storagesvc.Service
-	bizCtxSvc      bizctx.Service  // Business context service
-	dictSvc        dictsvc.Service // Dictionary service for scene labels
-	scopeSvc       datascope.Service
-	directSessions *directUploadSessionStore
+	configSvc config.Service
+	storage   storagesvc.Service
+	bizCtxSvc bizctx.Service
+	// dictSvc resolves usage-scene labels for list/detail presentation.
+	dictSvc         dictsvc.Service
+	scopeSvc        datascope.Service
+	directSessions  *directUploadSessionStore
+	chunkedSessions *chunkedUploadSessionStore
 }
 
 // New creates and returns a new file service from explicit runtime-owned dependencies.
 // storage is the host-wide Storage Service used for file-center content Put/Get/Delete.
 func New(configSvc config.Service, storage storagesvc.Service, bizCtxSvc bizctx.Service, dictSvc dictsvc.Service, scopeSvc datascope.Service) Service {
 	return &serviceImpl{
-		configSvc:      configSvc,
-		storage:        storage,
-		bizCtxSvc:      bizCtxSvc,
-		dictSvc:        dictSvc,
-		scopeSvc:       scopeSvc,
-		directSessions: newDirectUploadSessionStore(),
+		configSvc:       configSvc,
+		storage:         storage,
+		bizCtxSvc:       bizCtxSvc,
+		dictSvc:         dictSvc,
+		scopeSvc:        scopeSvc,
+		directSessions:  newDirectUploadSessionStore(),
+		chunkedSessions: newChunkedUploadSessionStore(),
 	}
 }
 

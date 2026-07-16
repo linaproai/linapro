@@ -112,6 +112,31 @@ var (
 		"Plugin storage direct upload complete validation failed",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeStorageMultipartUnsupported reports that the active provider cannot
+	// run cloud multipart uploads.
+	CodeStorageMultipartUnsupported = bizerr.MustDefine(
+		"PLUGIN_STORAGE_MULTIPART_UNSUPPORTED",
+		"Plugin storage multipart upload is not supported by the active provider",
+		gcode.CodeInvalidOperation,
+	)
+	// CodeStorageMultipartSessionInvalid reports a missing or mismatched multipart session.
+	CodeStorageMultipartSessionInvalid = bizerr.MustDefine(
+		"PLUGIN_STORAGE_MULTIPART_SESSION_INVALID",
+		"Plugin storage multipart upload session is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeStorageMultipartPartInvalid reports an invalid part number, etag, or body.
+	CodeStorageMultipartPartInvalid = bizerr.MustDefine(
+		"PLUGIN_STORAGE_MULTIPART_PART_INVALID",
+		"Plugin storage multipart part is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeStorageMultipartCompleteFailed reports CompleteMultipart failure.
+	CodeStorageMultipartCompleteFailed = bizerr.MustDefine(
+		"PLUGIN_STORAGE_MULTIPART_COMPLETE_FAILED",
+		"Plugin storage multipart complete failed",
+		gcode.CodeInvalidParameter,
+	)
 )
 
 // NewInvalidDirectAccessOperationError returns a stable invalid-operation error.

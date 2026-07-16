@@ -236,6 +236,26 @@ func (f *fakeRoleConfigService) GetUploadDirectUrlTTL(_ context.Context) (time.D
 	return time.Hour, nil
 }
 
+// GetUploadMultipartEnabled returns the default multipart switch for tests.
+func (f *fakeRoleConfigService) GetUploadMultipartEnabled(_ context.Context) (bool, error) {
+	return true, nil
+}
+
+// GetUploadMultipartThresholdMB returns the default multipart threshold for tests.
+func (f *fakeRoleConfigService) GetUploadMultipartThresholdMB(_ context.Context) (int64, error) {
+	return 100, nil
+}
+
+// GetUploadMultipartPartSizeMB returns the default multipart part size for tests.
+func (f *fakeRoleConfigService) GetUploadMultipartPartSizeMB(_ context.Context) (int64, error) {
+	return 8, nil
+}
+
+// GetUploadMultipartMaxConcurrency returns the default multipart concurrency for tests.
+func (f *fakeRoleConfigService) GetUploadMultipartMaxConcurrency(_ context.Context) (int64, error) {
+	return 3, nil
+}
+
 // MarkRuntimeParamsChanged is a no-op success stub for tests.
 func (f *fakeRoleConfigService) MarkRuntimeParamsChanged(_ context.Context) error {
 	return nil

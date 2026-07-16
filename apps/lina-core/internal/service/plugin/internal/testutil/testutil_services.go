@@ -991,6 +991,34 @@ func (*testStorageService) CreateDirectGet(_ context.Context, in storagecap.Dire
 	}, nil
 }
 
+// SupportsMultipart reports unsupported for registration-only tests.
+func (*testStorageService) SupportsMultipart(context.Context) (bool, error) { return false, nil }
+
+// CreateMultipart is unsupported in registration-only tests.
+func (*testStorageService) CreateMultipart(context.Context, storagecap.MultipartCreateInput) (*storagecap.MultipartCreateOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
+// UploadPart is unsupported in registration-only tests.
+func (*testStorageService) UploadPart(context.Context, storagecap.MultipartPartInput) (*storagecap.MultipartPartOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
+// CompleteMultipart is unsupported in registration-only tests.
+func (*testStorageService) CompleteMultipart(context.Context, storagecap.MultipartCompleteInput) (*storagecap.MultipartCompleteOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
+// AbortMultipart is unsupported in registration-only tests.
+func (*testStorageService) AbortMultipart(context.Context, storagecap.MultipartAbortInput) error {
+	return storagecap.NewMultipartUnsupportedError()
+}
+
+// CreateMultipartPartAccess is unsupported in registration-only tests.
+func (*testStorageService) CreateMultipartPartAccess(context.Context, storagecap.MultipartPartAccessInput) (*storagecap.MultipartPartAccessOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
 func (s *testStorageService) ensureObjects() {
 	if s.objects == nil {
 		s.objects = make(map[string]*testStorageObject)

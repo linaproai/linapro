@@ -240,6 +240,23 @@ func (*storageDomainTestService) CreateDirectGet(_ context.Context, in storageca
 	}, nil
 }
 
+func (*storageDomainTestService) SupportsMultipart(context.Context) (bool, error) { return false, nil }
+func (*storageDomainTestService) CreateMultipart(context.Context, storagecap.MultipartCreateInput) (*storagecap.MultipartCreateOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (*storageDomainTestService) UploadPart(context.Context, storagecap.MultipartPartInput) (*storagecap.MultipartPartOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (*storageDomainTestService) CompleteMultipart(context.Context, storagecap.MultipartCompleteInput) (*storagecap.MultipartCompleteOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (*storageDomainTestService) AbortMultipart(context.Context, storagecap.MultipartAbortInput) error {
+	return storagecap.NewMultipartUnsupportedError()
+}
+func (*storageDomainTestService) CreateMultipartPartAccess(context.Context, storagecap.MultipartPartAccessInput) (*storagecap.MultipartPartAccessOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
 func (s *storageDomainTestService) ensureObjects() {
 	if s.objects == nil {
 		s.objects = make(map[string]*storageDomainTestObject)

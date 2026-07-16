@@ -15,15 +15,29 @@ type DirectUploadInitReq struct {
 }
 
 // DirectUploadInitRes is the direct-upload init response.
+// Field semantics that are conditional (instant reuse, proxy mode, multipart) are
+// documented via dc tags; avoid duplicating those rules as line comments.
 type DirectUploadInitRes struct {
-	// InstantReuse reports that contentHash matched an existing file and no upload is required.
-	InstantReuse bool `json:"instantReuse" dc:"True when an existing identical file was reused without upload" eg:"false"`
-	// UploadSessionId identifies the session for complete/abort when InstantReuse is false and mode is not only proxy without session.
-	UploadSessionId string `json:"uploadSessionId,omitempty" dc:"Direct upload session id for complete or abort" eg:"a1b2c3d4e5f6789012345678abcdef01"`
-	// Access is the neutral transfer description. Mode proxy means use multipart upload.
-	Access *DirectUploadAccess `json:"access,omitempty" dc:"Client transfer description when upload is required"`
-	// File is populated when InstantReuse is true.
-	File *UploadRes `json:"file,omitempty" dc:"Existing file metadata when instant reuse succeeds"`
+	InstantReuse    bool                 `json:"instantReuse" dc:"True when an existing identical file was reused without upload" eg:"false"`
+	UploadSessionId string               `json:"uploadSessionId,omitempty" dc:"Direct upload session id for complete or abort; empty on instant reuse" eg:"a1b2c3d4e5f6789012345678abcdef01"`
+	Access          *DirectUploadAccess  `json:"access,omitempty" dc:"Client transfer description when upload is required; mode proxy means host-mediated upload"`
+	Strategy        *UploadStrategy      `json:"strategy,omitempty" dc:"Upload plan: channel direct|proxy and encoding single|multipart; omitted on instant reuse"`
+	Multipart       *UploadMultipartPlan `json:"multipart,omitempty" dc:"Multipart part size and concurrency hints when strategy.encoding is multipart"`
+	File            *UploadRes           `json:"file,omitempty" dc:"Existing file metadata when instant reuse succeeds"`
+}
+
+// UploadStrategy is the neutral upload plan returned by direct-upload init.
+type UploadStrategy struct {
+	Channel  string `json:"channel" dc:"Transfer channel: direct or proxy" eg:"direct"`
+	Encoding string `json:"encoding" dc:"Transfer encoding: single or multipart" eg:"single"`
+}
+
+// UploadMultipartPlan describes multipart execution parameters for clients.
+type UploadMultipartPlan struct {
+	PartSize       int64 `json:"partSize" dc:"Preferred part size in bytes" eg:"8388608"`
+	MinPartSize    int64 `json:"minPartSize" dc:"Minimum intermediate part size in bytes" eg:"5242880"`
+	MaxParts       int   `json:"maxParts,omitempty" dc:"Soft upper bound for part count" eg:"10000"`
+	MaxConcurrency int   `json:"maxConcurrency" dc:"Suggested client parallel part uploads" eg:"3"`
 }
 
 // DirectUploadAccess describes a vendor-neutral client transfer payload returned

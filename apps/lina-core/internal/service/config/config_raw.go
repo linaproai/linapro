@@ -93,6 +93,14 @@ const (
 	// RuntimeParamKeyUploadDirectUrlTTL stores the lifetime of client direct
 	// object-storage access (presigned upload/download URLs and related sessions).
 	RuntimeParamKeyUploadDirectUrlTTL = "sys.upload.directUrlTTL"
+	// RuntimeParamKeyUploadMultipartEnabled toggles automatic multipart planning.
+	RuntimeParamKeyUploadMultipartEnabled = "sys.upload.multipartEnabled"
+	// RuntimeParamKeyUploadMultipartThresholdMB is the auto-multipart size threshold in MB.
+	RuntimeParamKeyUploadMultipartThresholdMB = "sys.upload.multipartThresholdMB"
+	// RuntimeParamKeyUploadMultipartPartSizeMB is the multipart part size in MB.
+	RuntimeParamKeyUploadMultipartPartSizeMB = "sys.upload.multipartPartSizeMB"
+	// RuntimeParamKeyUploadMultipartMaxConcurrency is the client parallel part hint.
+	RuntimeParamKeyUploadMultipartMaxConcurrency = "sys.upload.multipartMaxConcurrency"
 	// RuntimeParamKeyLoginBlackIPList stores the runtime login IP blacklist.
 	RuntimeParamKeyLoginBlackIPList = "sys.login.blackIPList"
 	// RuntimeParamKeyLogRetentionDays stores the maximum log retention period in days.
@@ -135,7 +143,7 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 	},
 	{
 		Key:            RuntimeParamKeyUploadMaxSize,
-		DefaultValue:   "100",
+		DefaultValue:   "200",
 		validator:      validatePositiveInt64ConfigValue,
 		snapshotLoader: loadRuntimeParamInt64SnapshotValue,
 	},
@@ -144,6 +152,29 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 		DefaultValue:   defaultUploadDirectUrlTTLText,
 		validator:      validateUploadDirectUrlTTLConfigValue,
 		snapshotLoader: loadRuntimeParamDurationSnapshotValue,
+	},
+	{
+		Key:          RuntimeParamKeyUploadMultipartEnabled,
+		DefaultValue: "true",
+		validator:    validateStrictBoolConfigValue,
+	},
+	{
+		Key:            RuntimeParamKeyUploadMultipartThresholdMB,
+		DefaultValue:   "100",
+		validator:      validateUploadMultipartThresholdConfigValue,
+		snapshotLoader: loadRuntimeParamInt64SnapshotValue,
+	},
+	{
+		Key:            RuntimeParamKeyUploadMultipartPartSizeMB,
+		DefaultValue:   "8",
+		validator:      validateUploadMultipartPartSizeConfigValue,
+		snapshotLoader: loadRuntimeParamInt64SnapshotValue,
+	},
+	{
+		Key:            RuntimeParamKeyUploadMultipartMaxConcurrency,
+		DefaultValue:   "3",
+		validator:      validatePositiveInt64ConfigValue,
+		snapshotLoader: loadRuntimeParamInt64SnapshotValue,
 	},
 	{
 		Key:            RuntimeParamKeyLoginBlackIPList,

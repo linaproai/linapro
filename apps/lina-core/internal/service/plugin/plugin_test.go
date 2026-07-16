@@ -544,6 +544,23 @@ func (rootNoopStorage) CreateDirectGet(_ context.Context, in storagecap.DirectGe
 	}, nil
 }
 
+func (rootNoopStorage) SupportsMultipart(context.Context) (bool, error) { return false, nil }
+func (rootNoopStorage) CreateMultipart(context.Context, storagecap.MultipartCreateInput) (*storagecap.MultipartCreateOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (rootNoopStorage) UploadPart(context.Context, storagecap.MultipartPartInput) (*storagecap.MultipartPartOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (rootNoopStorage) CompleteMultipart(context.Context, storagecap.MultipartCompleteInput) (*storagecap.MultipartCompleteOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (rootNoopStorage) AbortMultipart(context.Context, storagecap.MultipartAbortInput) error {
+	return storagecap.NewMultipartUnsupportedError()
+}
+func (rootNoopStorage) CreateMultipartPartAccess(context.Context, storagecap.MultipartPartAccessInput) (*storagecap.MultipartPartAccessOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
 // rootNoopUsers is a registration-safe user-domain fixture for root facade tests.
 type rootNoopUsers struct{}
 

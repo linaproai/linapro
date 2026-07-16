@@ -331,6 +331,18 @@
         "init": {
           "failed": "Failed to initialize file direct upload"
         }
+      },
+      "chunked": {
+        "session": {
+          "invalid": "File chunked upload session is invalid",
+          "expired": "File chunked upload session has expired"
+        },
+        "part": {
+          "invalid": "File chunked upload part is invalid"
+        },
+        "complete": {
+          "failed": "File chunked upload complete validation failed"
+        }
       }
     },
     "job": {
@@ -1159,6 +1171,18 @@
           },
           "complete": {
             "failed": "Plugin storage direct upload complete validation failed"
+          }
+        },
+        "multipart": {
+          "unsupported": "Plugin storage multipart upload is not supported by the active provider",
+          "session": {
+            "invalid": "Plugin storage multipart upload session is invalid"
+          },
+          "part": {
+            "invalid": "Plugin storage multipart part is invalid"
+          },
+          "complete": {
+            "failed": "Plugin storage multipart complete failed"
           }
         }
       },

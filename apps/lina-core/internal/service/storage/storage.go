@@ -77,6 +77,129 @@ type Service interface {
 	// and local backends return proxy mode. Key is the host file-center relative
 	// key (without the provider files/ prefix).
 	CreateDirectAccess(ctx context.Context, in DirectAccessInput) (*DirectAccessOutput, error)
+	// SupportsMultipart reports whether NamespaceFiles can use cloud multipart
+	// on the active backend.
+	SupportsMultipart(ctx context.Context, namespace string) (bool, error)
+	// CreateMultipart starts one multipart upload for a NamespaceFiles key.
+	CreateMultipart(ctx context.Context, in MultipartCreateInput) (*MultipartCreateOutput, error)
+	// UploadPart writes one part of an in-flight multipart upload.
+	UploadPart(ctx context.Context, in MultipartPartInput) (*MultipartPartOutput, error)
+	// CompleteMultipart assembles uploaded parts into the final object.
+	CompleteMultipart(ctx context.Context, in MultipartCompleteInput) (*MultipartCompleteOutput, error)
+	// AbortMultipart aborts one multipart upload session.
+	AbortMultipart(ctx context.Context, in MultipartAbortInput) error
+	// CreateMultipartPartAccess issues client access for one multipart part.
+	CreateMultipartPartAccess(ctx context.Context, in MultipartPartAccessInput) (*MultipartPartAccessOutput, error)
+}
+
+// MultipartCreateInput starts one host-internal multipart upload.
+type MultipartCreateInput struct {
+	// Namespace must be NamespaceFiles for cloud multipart.
+	Namespace string
+	// Key is the host-relative object key.
+	Key string
+	// ContentType is optional MIME type.
+	ContentType string
+	// Overwrite controls put overwrite when the provider can encode it.
+	Overwrite bool
+}
+
+// MultipartCreateOutput identifies one host-visible multipart session.
+type MultipartCreateOutput struct {
+	// UploadID is the provider-issued multipart upload identifier.
+	UploadID string
+	// ProviderID is the resolved backend id.
+	ProviderID string
+	// ProviderKey is the scoped provider object key.
+	ProviderKey string
+}
+
+// MultipartPartInput writes one host-internal part.
+type MultipartPartInput struct {
+	// Namespace must be NamespaceFiles.
+	Namespace string
+	// Key is the host-relative object key.
+	Key string
+	// UploadID identifies the multipart session.
+	UploadID string
+	// PartNumber is a 1-based part index.
+	PartNumber int32
+	// Body carries the part payload.
+	Body io.Reader
+	// Size is the part size when known. Negative means unknown.
+	Size int64
+}
+
+// MultipartPartOutput acknowledges one uploaded part.
+type MultipartPartOutput struct {
+	// PartNumber is the 1-based part index.
+	PartNumber int32
+	// ETag is the part etag required for CompleteMultipart.
+	ETag string
+}
+
+// MultipartCompleteInput finishes one host-internal multipart upload.
+type MultipartCompleteInput struct {
+	// Namespace must be NamespaceFiles.
+	Namespace string
+	// Key is the host-relative object key.
+	Key string
+	// UploadID identifies the multipart session.
+	UploadID string
+	// Parts lists uploaded parts in ascending PartNumber order.
+	Parts []MultipartCompletedPart
+}
+
+// MultipartCompletedPart is one part entry for CompleteMultipart.
+type MultipartCompletedPart struct {
+	// PartNumber is the 1-based part index.
+	PartNumber int32
+	// ETag is the part etag.
+	ETag string
+}
+
+// MultipartCompleteOutput returns host-visible object metadata after complete.
+type MultipartCompleteOutput struct {
+	// Object contains metadata for the written object.
+	Object *Object
+}
+
+// MultipartAbortInput aborts one host-internal multipart upload.
+type MultipartAbortInput struct {
+	// Namespace must be NamespaceFiles.
+	Namespace string
+	// Key is the host-relative object key.
+	Key string
+	// UploadID identifies the multipart session.
+	UploadID string
+}
+
+// MultipartPartAccessInput issues client access for one part.
+type MultipartPartAccessInput struct {
+	// Namespace must be NamespaceFiles.
+	Namespace string
+	// Key is the host-relative object key.
+	Key string
+	// UploadID identifies the multipart session.
+	UploadID string
+	// PartNumber is the 1-based part index.
+	PartNumber int32
+	// Size is the expected part size when known. Negative means unknown.
+	Size int64
+	// ContentType is optional MIME type.
+	ContentType string
+	// TTL optionally bounds issued access lifetime.
+	TTL time.Duration
+}
+
+// MultipartPartAccessOutput returns host-visible part access plus provider metadata.
+type MultipartPartAccessOutput struct {
+	// Access is the neutral client transfer description.
+	Access *storagecap.DirectAccess
+	// ProviderID is the resolved backend id.
+	ProviderID string
+	// ProviderKey is the scoped provider object key.
+	ProviderKey string
 }
 
 // DirectAccessInput defines one host-internal direct access request.

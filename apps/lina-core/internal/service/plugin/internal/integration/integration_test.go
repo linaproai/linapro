@@ -659,6 +659,23 @@ func (scopedCapabilityStorage) CreateDirectGet(_ context.Context, in storagecap.
 	}, nil
 }
 
+func (scopedCapabilityStorage) SupportsMultipart(context.Context) (bool, error) { return false, nil }
+func (scopedCapabilityStorage) CreateMultipart(context.Context, storagecap.MultipartCreateInput) (*storagecap.MultipartCreateOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (scopedCapabilityStorage) UploadPart(context.Context, storagecap.MultipartPartInput) (*storagecap.MultipartPartOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (scopedCapabilityStorage) CompleteMultipart(context.Context, storagecap.MultipartCompleteInput) (*storagecap.MultipartCompleteOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (scopedCapabilityStorage) AbortMultipart(context.Context, storagecap.MultipartAbortInput) error {
+	return storagecap.NewMultipartUnsupportedError()
+}
+func (scopedCapabilityStorage) CreateMultipartPartAccess(context.Context, storagecap.MultipartPartAccessInput) (*storagecap.MultipartPartAccessOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
 // scopedCapabilityI18n is a fallback translator fixture for registration-only tests.
 type scopedCapabilityI18n struct{}
 

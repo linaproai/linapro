@@ -36,13 +36,60 @@ export interface DirectUploadAccess {
 }
 
 /**
+ * Neutral upload strategy from direct-upload init / chunked init.
+ */
+export interface UploadStrategy {
+  channel: 'direct' | 'proxy' | string;
+  encoding: 'single' | 'multipart' | string;
+}
+
+/**
+ * Multipart execution plan returned by the host.
+ */
+export interface UploadMultipartPlan {
+  partSize: number;
+  minPartSize?: number;
+  maxParts?: number;
+  maxConcurrency?: number;
+}
+
+/**
+ * One completed multipart part for complete APIs.
+ */
+export interface MultipartPartItem {
+  partNumber: number;
+  etag: string;
+}
+
+/**
  * Direct upload init response.
+ * Optional fields are conditional: file only on instant reuse, multipart only when
+ * strategy.encoding is multipart, access/session absent when instant reuse succeeds.
  */
 export interface DirectUploadInitResult {
+  /** True when contentHash matched an existing file and no upload is required. */
   instantReuse: boolean;
+  /** Session id for complete/abort; empty/absent on instant reuse. */
   uploadSessionId?: string;
+  /** Neutral transfer description; mode proxy means host-mediated upload. */
   access?: DirectUploadAccess;
+  /** Planned channel/encoding for non-instant uploads. */
+  strategy?: UploadStrategy;
+  /** Part size/concurrency when strategy.encoding is multipart. */
+  multipart?: UploadMultipartPlan;
+  /** Existing file metadata when instantReuse is true. */
   file?: UploadResult;
+}
+
+/**
+ * Chunked upload init response (host-mediated proxy multipart).
+ */
+export interface ChunkedUploadInitResult {
+  uploadSessionId: string;
+  /** Planned channel/encoding (typically proxy + multipart). */
+  strategy?: UploadStrategy;
+  /** Part size/concurrency when encoding is multipart. */
+  multipart?: UploadMultipartPlan;
 }
 
 /**
@@ -74,6 +121,7 @@ export function directUploadInit(body: {
 export function directUploadComplete(body: {
   uploadSessionId: string;
   etag?: string;
+  parts?: MultipartPartItem[];
 }) {
   return requestClient.post<UploadResult>('/file/direct-upload/complete', body);
 }
@@ -86,8 +134,81 @@ export function directUploadAbort(uploadSessionId: string) {
 }
 
 /**
- * Upload a single file via direct cloud access when available, otherwise
- * fall back to host-mediated multipart upload. Callers never branch on vendor IDs.
+ * Issue short-lived access for one direct multipart part.
+ */
+export function directUploadPartURL(body: {
+  uploadSessionId: string;
+  partNumber: number;
+  size?: number;
+}) {
+  return requestClient.post<{ access: DirectUploadAccess }>(
+    '/file/direct-upload/part-url',
+    body,
+  );
+}
+
+/**
+ * Initialize host-mediated chunked upload.
+ */
+export function chunkedUploadInit(body: {
+  scene: string;
+  fileName: string;
+  size: number;
+  contentType?: string;
+  contentHash?: string;
+}) {
+  return requestClient.post<ChunkedUploadInitResult>(
+    '/file/upload/chunked/init',
+    body,
+  );
+}
+
+/**
+ * Upload one host-mediated chunked part.
+ */
+export function chunkedUploadPart(body: {
+  uploadSessionId: string;
+  partNumber: number;
+  file: Blob;
+  onUploadProgress?: AxiosProgressEvent;
+  signal?: AbortSignal;
+}) {
+  const formData = new FormData();
+  formData.append('uploadSessionId', body.uploadSessionId);
+  formData.append('partNumber', String(body.partNumber));
+  formData.append('file', body.file);
+  return requestClient.post<{
+    partNumber: number;
+    etag?: string;
+    receivedBytes?: number;
+  }>('/file/upload/chunked/part', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: body.onUploadProgress,
+    signal: body.signal,
+    timeout: 120_000,
+  });
+}
+
+/**
+ * Complete host-mediated chunked upload.
+ */
+export function chunkedUploadComplete(body: {
+  uploadSessionId: string;
+  parts?: MultipartPartItem[];
+}) {
+  return requestClient.post<UploadResult>('/file/upload/chunked/complete', body);
+}
+
+/**
+ * Abort host-mediated chunked upload.
+ */
+export function chunkedUploadAbort(uploadSessionId: string) {
+  return requestClient.post('/file/upload/chunked/abort', { uploadSessionId });
+}
+
+/**
+ * Upload a single file via strategy returned by init:
+ * direct/proxy × single/multipart. Callers never branch on vendor IDs.
  */
 export async function uploadApi(file: Blob | File, options: UploadOptions) {
   const { onUploadProgress, signal, scene } = options;
@@ -105,45 +226,71 @@ export async function uploadApi(file: Blob | File, options: UploadOptions) {
       contentType,
     });
   } catch {
-    // Init endpoint unavailable or failed closed → classic multipart path.
-    return multipartUpload(file, options);
+    // Init endpoint unavailable or failed closed → classic whole-file path.
+    return wholeFileUpload(file, options);
   }
 
   if (init.instantReuse && init.file) {
-    onUploadProgress?.({
-      loaded: file.size,
-      total: file.size,
-      bytes: file.size,
-      lengthComputable: true,
-    } as any);
+    reportProgress(onUploadProgress, file.size, file.size);
     return init.file;
   }
 
-  const mode = (init.access?.mode || 'proxy').toLowerCase();
-  if (mode === 'proxy' || !init.uploadSessionId || !init.access) {
-    return multipartUpload(file, options);
+  const strategy = normalizeStrategy(init);
+  if (strategy.channel === 'proxy' && strategy.encoding === 'multipart') {
+    return proxyMultipartUpload(file, options, init.multipart);
   }
-
-  try {
-    const etag = await executeDirectTransfer(file, init.access, {
+  if (strategy.channel === 'direct' && strategy.encoding === 'multipart') {
+    if (!init.uploadSessionId) {
+      return proxyMultipartUpload(file, options, init.multipart);
+    }
+    return directMultipartUpload(file, init.uploadSessionId, init.multipart, {
       onUploadProgress,
       signal,
     });
-    return await directUploadComplete({
-      uploadSessionId: init.uploadSessionId,
-      etag,
-    });
-  } catch (error) {
-    try {
-      await directUploadAbort(init.uploadSessionId);
-    } catch {
-      // best-effort abort
-    }
-    throw error;
   }
+  if (strategy.channel === 'direct' && strategy.encoding === 'single') {
+    if (!init.uploadSessionId || !init.access) {
+      return wholeFileUpload(file, options);
+    }
+    try {
+      const etag = await executeDirectTransfer(file, init.access, {
+        onUploadProgress,
+        signal,
+      });
+      return await directUploadComplete({
+        uploadSessionId: init.uploadSessionId,
+        etag,
+      });
+    } catch (error) {
+      try {
+        await directUploadAbort(init.uploadSessionId);
+      } catch {
+        // best-effort abort
+      }
+      throw error;
+    }
+  }
+
+  // proxy + single (default)
+  return wholeFileUpload(file, options);
 }
 
-async function multipartUpload(file: Blob | File, options: UploadOptions) {
+function normalizeStrategy(init: DirectUploadInitResult): UploadStrategy {
+  if (init.strategy?.channel && init.strategy?.encoding) {
+    return {
+      channel: String(init.strategy.channel).toLowerCase(),
+      encoding: String(init.strategy.encoding).toLowerCase(),
+    };
+  }
+  // Backward compatibility: access.mode proxy → proxy single; else direct single.
+  const mode = (init.access?.mode || 'proxy').toLowerCase();
+  if (mode === 'proxy' || !init.uploadSessionId || !init.access) {
+    return { channel: 'proxy', encoding: 'single' };
+  }
+  return { channel: 'direct', encoding: 'single' };
+}
+
+async function wholeFileUpload(file: Blob | File, options: UploadOptions) {
   const { onUploadProgress, signal, scene } = options;
   const formData = new FormData();
   formData.append('file', file);
@@ -152,8 +299,171 @@ async function multipartUpload(file: Blob | File, options: UploadOptions) {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress,
     signal,
-    timeout: 60_000,
+    timeout: 120_000,
   });
+}
+
+async function proxyMultipartUpload(
+  file: Blob | File,
+  options: UploadOptions,
+  plan?: UploadMultipartPlan,
+) {
+  const { onUploadProgress, signal, scene } = options;
+  const fileName =
+    file instanceof File && file.name ? file.name : 'upload.bin';
+  const contentType =
+    file instanceof File && file.type ? file.type : 'application/octet-stream';
+
+  const init = await chunkedUploadInit({
+    scene,
+    fileName,
+    size: file.size,
+    contentType,
+  });
+  const partSize = Math.max(plan?.partSize || init.multipart?.partSize || 8 * 1024 * 1024, 5 * 1024 * 1024);
+  const slices = sliceFile(file, partSize);
+  const parts: MultipartPartItem[] = [];
+  let uploaded = 0;
+
+  try {
+    for (let i = 0; i < slices.length; i++) {
+      const part = slices[i]!;
+      const partNumber = i + 1;
+      const result = await chunkedUploadPart({
+        uploadSessionId: init.uploadSessionId,
+        partNumber,
+        file: part,
+        signal,
+        onUploadProgress: (event) => {
+          const loaded = uploaded + (event.loaded || 0);
+          reportProgress(onUploadProgress, loaded, file.size);
+        },
+      });
+      uploaded += part.size;
+      reportProgress(onUploadProgress, uploaded, file.size);
+      if (result.etag) {
+        parts.push({ partNumber, etag: result.etag });
+      }
+    }
+    return await chunkedUploadComplete({
+      uploadSessionId: init.uploadSessionId,
+      parts: parts.length > 0 ? parts : undefined,
+    });
+  } catch (error) {
+    try {
+      await chunkedUploadAbort(init.uploadSessionId);
+    } catch {
+      // best-effort abort
+    }
+    throw error;
+  }
+}
+
+async function directMultipartUpload(
+  file: Blob | File,
+  uploadSessionId: string,
+  plan: UploadMultipartPlan | undefined,
+  options: {
+    onUploadProgress?: AxiosProgressEvent;
+    signal?: AbortSignal;
+  },
+) {
+  const partSize = Math.max(plan?.partSize || 8 * 1024 * 1024, 5 * 1024 * 1024);
+  const maxConcurrency = Math.max(plan?.maxConcurrency || 3, 1);
+  const slices = sliceFile(file, partSize);
+  const parts: MultipartPartItem[] = new Array(slices.length);
+  let uploaded = 0;
+
+  try {
+    await runWithConcurrency(slices.length, maxConcurrency, async (index) => {
+      const part = slices[index]!;
+      const partNumber = index + 1;
+      const { access } = await directUploadPartURL({
+        uploadSessionId,
+        partNumber,
+        size: part.size,
+      });
+      const etag = await executeDirectTransfer(part, access, {
+        signal: options.signal,
+        onUploadProgress: (event) => {
+          // Approximate progress from completed parts only for concurrent uploads.
+          reportProgress(
+            options.onUploadProgress,
+            uploaded + (event.loaded || 0),
+            file.size,
+          );
+        },
+      });
+      parts[index] = {
+        partNumber,
+        etag: etag || '',
+      };
+      uploaded += part.size;
+      reportProgress(options.onUploadProgress, uploaded, file.size);
+    });
+
+    const completed = parts.filter((p) => p && p.etag);
+    if (completed.length !== slices.length) {
+      throw new Error('Direct multipart upload missing part etags');
+    }
+    return await directUploadComplete({
+      uploadSessionId,
+      parts: completed,
+    });
+  } catch (error) {
+    try {
+      await directUploadAbort(uploadSessionId);
+    } catch {
+      // best-effort abort
+    }
+    throw error;
+  }
+}
+
+function sliceFile(file: Blob, partSize: number): Blob[] {
+  const slices: Blob[] = [];
+  let offset = 0;
+  while (offset < file.size) {
+    const end = Math.min(offset + partSize, file.size);
+    slices.push(file.slice(offset, end));
+    offset = end;
+  }
+  if (slices.length === 0) {
+    slices.push(file.slice(0, 0));
+  }
+  return slices;
+}
+
+async function runWithConcurrency(
+  total: number,
+  concurrency: number,
+  worker: (index: number) => Promise<void>,
+) {
+  let next = 0;
+  const runners = Array.from(
+    { length: Math.min(concurrency, total) },
+    async () => {
+      while (next < total) {
+        const current = next;
+        next += 1;
+        await worker(current);
+      }
+    },
+  );
+  await Promise.all(runners);
+}
+
+function reportProgress(
+  onUploadProgress: AxiosProgressEvent | undefined,
+  loaded: number,
+  total: number,
+) {
+  onUploadProgress?.({
+    loaded,
+    total,
+    bytes: loaded,
+    lengthComputable: true,
+  } as any);
 }
 
 /**

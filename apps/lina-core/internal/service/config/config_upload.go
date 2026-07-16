@@ -1,4 +1,5 @@
-// This file defines upload-related configuration loading and runtime overrides.
+// This file defines upload-related configuration loading and runtime overrides,
+// including multipart auto-threshold settings used by file-center upload planning.
 
 package config
 
@@ -12,20 +13,34 @@ import (
 // Upload config defaults used when config.yaml omits the upload section.
 const (
 	defaultUploadPath    = "temp/upload"
-	defaultUploadMaxSize = int64(100)
+	defaultUploadMaxSize = int64(200)
 	// defaultUploadDirectUrlTTL is the default for sys.upload.directUrlTTL.
 	defaultUploadDirectUrlTTL = time.Hour
 	// defaultUploadDirectUrlTTLText is the sys_config seed / runtime-param text.
 	defaultUploadDirectUrlTTLText = "1h"
 	// maxUploadDirectUrlTTL is the maximum allowed direct access lifetime.
 	maxUploadDirectUrlTTL = time.Hour
+	// defaultUploadMultipartThresholdMB is the auto-multipart threshold in MB.
+	defaultUploadMultipartThresholdMB = int64(100)
+	// defaultUploadMultipartPartSizeMB is the default part size in MB (S3 min is 5).
+	defaultUploadMultipartPartSizeMB = int64(8)
+	// defaultUploadMultipartMaxConcurrency is the client-side parallel part hint.
+	defaultUploadMultipartMaxConcurrency = int64(3)
+	// minUploadMultipartPartSizeMB is the lowest allowed intermediate part size.
+	minUploadMultipartPartSizeMB = int64(5)
+	// defaultUploadMultipartEnabled enables auto multipart when true.
+	defaultUploadMultipartEnabled = true
 )
 
 // UploadConfig holds file upload configuration.
 type UploadConfig struct {
-	Path         string        `json:"path"`         // Upload directory
-	MaxSize      int64         `json:"maxSize"`      // Max file size (MB)
-	DirectUrlTTL time.Duration `json:"directUrlTTL"` // Client direct access lifetime
+	Path                    string        `json:"path"`                    // Upload directory
+	MaxSize                 int64         `json:"maxSize"`                 // Max file size (MB)
+	DirectUrlTTL            time.Duration `json:"directUrlTTL"`            // Client direct access lifetime
+	MultipartEnabled        bool          `json:"multipartEnabled"`        // Auto multipart switch
+	MultipartThresholdMB    int64         `json:"multipartThresholdMB"`    // Auto multipart threshold (MB)
+	MultipartPartSizeMB     int64         `json:"multipartPartSizeMB"`     // Suggested part size (MB)
+	MultipartMaxConcurrency int64         `json:"multipartMaxConcurrency"` // Suggested client concurrency
 }
 
 // getStaticUploadConfig lazily loads the config-file-backed upload settings so
@@ -33,16 +48,20 @@ type UploadConfig struct {
 func (s *serviceImpl) getStaticUploadConfig(ctx context.Context) *UploadConfig {
 	return processStaticConfigCaches.upload.load(func() *UploadConfig {
 		cfg := &UploadConfig{
-			Path:         defaultUploadPath,
-			MaxSize:      defaultUploadMaxSize,
-			DirectUrlTTL: defaultUploadDirectUrlTTL,
+			Path:                    defaultUploadPath,
+			MaxSize:                 defaultUploadMaxSize,
+			DirectUrlTTL:            defaultUploadDirectUrlTTL,
+			MultipartEnabled:        defaultUploadMultipartEnabled,
+			MultipartThresholdMB:    defaultUploadMultipartThresholdMB,
+			MultipartPartSizeMB:     defaultUploadMultipartPartSizeMB,
+			MultipartMaxConcurrency: defaultUploadMultipartMaxConcurrency,
 		}
 		mustScanConfig(ctx, "upload", cfg)
 		return cfg
 	})
 }
 
-// GetUpload reads upload config from configuration file.
+// GetUpload reads upload config from configuration file and runtime overrides.
 func (s *serviceImpl) GetUpload(ctx context.Context) (*UploadConfig, error) {
 	cfg := cloneUploadConfig(s.getStaticUploadConfig(ctx))
 	maxSize, err := s.resolveRuntimeInt64Override(ctx, RuntimeParamKeyUploadMaxSize, cfg.MaxSize)
@@ -55,6 +74,26 @@ func (s *serviceImpl) GetUpload(ctx context.Context) (*UploadConfig, error) {
 		return nil, err
 	}
 	cfg.DirectUrlTTL = ttl
+	enabled, err := s.GetUploadMultipartEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MultipartEnabled = enabled
+	threshold, err := s.GetUploadMultipartThresholdMB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MultipartThresholdMB = threshold
+	partSize, err := s.GetUploadMultipartPartSizeMB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MultipartPartSizeMB = partSize
+	concurrency, err := s.GetUploadMultipartMaxConcurrency(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MultipartMaxConcurrency = concurrency
 	return cfg, nil
 }
 
@@ -95,6 +134,41 @@ func (s *serviceImpl) GetUploadDirectUrlTTL(ctx context.Context) (time.Duration,
 	return ttl, nil
 }
 
+// GetUploadMultipartEnabled returns whether automatic multipart planning is on.
+func (s *serviceImpl) GetUploadMultipartEnabled(ctx context.Context) (bool, error) {
+	return s.getProtectedConfigBoolOrDefault(ctx, RuntimeParamKeyUploadMultipartEnabled)
+}
+
+// GetUploadMultipartThresholdMB returns the auto-multipart size threshold in MB.
+func (s *serviceImpl) GetUploadMultipartThresholdMB(ctx context.Context) (int64, error) {
+	cfg := s.getStaticUploadConfig(ctx)
+	fallback := defaultUploadMultipartThresholdMB
+	if cfg != nil && cfg.MultipartThresholdMB > 0 {
+		fallback = cfg.MultipartThresholdMB
+	}
+	return s.resolveRuntimeInt64Override(ctx, RuntimeParamKeyUploadMultipartThresholdMB, fallback)
+}
+
+// GetUploadMultipartPartSizeMB returns the multipart part size in MB.
+func (s *serviceImpl) GetUploadMultipartPartSizeMB(ctx context.Context) (int64, error) {
+	cfg := s.getStaticUploadConfig(ctx)
+	fallback := defaultUploadMultipartPartSizeMB
+	if cfg != nil && cfg.MultipartPartSizeMB > 0 {
+		fallback = cfg.MultipartPartSizeMB
+	}
+	return s.resolveRuntimeInt64Override(ctx, RuntimeParamKeyUploadMultipartPartSizeMB, fallback)
+}
+
+// GetUploadMultipartMaxConcurrency returns the suggested client part concurrency.
+func (s *serviceImpl) GetUploadMultipartMaxConcurrency(ctx context.Context) (int64, error) {
+	cfg := s.getStaticUploadConfig(ctx)
+	fallback := defaultUploadMultipartMaxConcurrency
+	if cfg != nil && cfg.MultipartMaxConcurrency > 0 {
+		fallback = cfg.MultipartMaxConcurrency
+	}
+	return s.resolveRuntimeInt64Override(ctx, RuntimeParamKeyUploadMultipartMaxConcurrency, fallback)
+}
+
 // validateUploadDirectUrlTTLConfigValue validates sys.upload.directUrlTTL.
 func validateUploadDirectUrlTTLConfigValue(key string, value string) error {
 	duration, err := validatePositiveDurationValue(key, value)
@@ -115,4 +189,23 @@ func validateUploadDirectUrlTTLConfigValue(key string, value string) error {
 		return bizerr.NewCode(CodeConfigParamDurationInvalid, bizerr.P("key", key))
 	}
 	return nil
+}
+
+// validateUploadMultipartPartSizeConfigValue validates sys.upload.multipartPartSizeMB.
+func validateUploadMultipartPartSizeConfigValue(key string, value string) error {
+	parsed, err := validatePositiveInt64Value(key, value)
+	if err != nil {
+		return err
+	}
+	if parsed < minUploadMultipartPartSizeMB {
+		return bizerr.NewCode(CodeConfigParamIntegerInvalid, bizerr.P("key", key))
+	}
+	return nil
+}
+
+// validateUploadMultipartThresholdConfigValue validates threshold is a positive
+// integer. Cross-field threshold < maxSize is enforced when planning uploads.
+func validateUploadMultipartThresholdConfigValue(key string, value string) error {
+	_, err := validatePositiveInt64Value(key, value)
+	return err
 }

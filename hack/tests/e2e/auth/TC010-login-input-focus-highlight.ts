@@ -3,9 +3,16 @@ import type { Locator } from "@playwright/test";
 import { test, expect } from "../../fixtures/auth";
 
 /**
- * Regression: Vben Input uses focus-visible:ring-1 (box-shadow). When the form
- * control wrapper applies overflow-x-hidden without matching p-px, the focus
- * ring is clipped and only corner fragments remain visible on the login page.
+ * Regression coverage for form-field control wrapper layout:
+ *
+ * 1) Focus ring: Vben Input uses focus-visible:ring-1 (box-shadow). When the
+ *    control row applies overflow-x-hidden without matching p-px, the ring is
+ *    clipped and only corner fragments remain visible.
+ *
+ * 2) Validation message: FormMessage is absolutely positioned under the control
+ *    column. overflow-x-hidden must stay on the INNER control row only — putting
+ *    it on the outer column clips FormMessage (CSS treats overflow-y as auto when
+ *    overflow-x is not visible).
  */
 
 type FocusStyleSnapshot = {
@@ -111,7 +118,7 @@ test.describe("TC-10 登录页输入域焦点高亮", () => {
     });
   });
 
-  test("TC-10b: 校验错误后重新聚焦输入域仍保留完整焦点高亮", async ({
+  test("TC-10b: 空提交显示校验错误，且重新聚焦仍保留完整焦点高亮", async ({
     loginPage,
     page,
   }) => {
@@ -121,17 +128,18 @@ test.describe("TC-10 登录页输入域焦点高亮", () => {
     // Empty submit → field-level validation errors on username/password.
     await loginPage.loginButton.click();
 
-    const usernameError = page
-      .locator('[role="alert"], .text-destructive, .text-destructive-foreground')
-      .filter({ hasText: /用户名|username|account|请输入/i })
-      .first();
-    // Validation message may be under the field; tolerate either message or invalid state.
-    const invalidClassApplied = await loginPage.usernameInput.evaluate((el) =>
-      el.className.includes("border-destructive"),
-    );
-    if (!invalidClassApplied) {
-      await expect(usernameError).toBeVisible({ timeout: 5000 });
-    }
+    // FormMessage uses text-destructive; must be visible (not overflow-clipped).
+    const fieldErrors = page.locator("p.text-destructive");
+    await expect(fieldErrors.first()).toBeVisible({ timeout: 5000 });
+    await expect(fieldErrors.first()).not.toBeEmpty();
+    // At least one error message has non-zero layout box (not clipped to 0 height).
+    const errorBox = await fieldErrors.first().boundingBox();
+    expect(
+      errorBox && errorBox.height > 0 && errorBox.width > 0,
+      "validation FormMessage must have a visible layout box (not overflow-clipped)",
+    ).toBe(true);
+
+    await expect(loginPage.usernameInput).toHaveClass(/border-destructive/);
 
     await loginPage.usernameInput.click();
     await expect(loginPage.usernameInput).toBeFocused();

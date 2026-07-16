@@ -102,6 +102,14 @@ type Service interface {
 	// direct object-storage access (presigned put/get and direct-upload sessions).
 	// Default is 1h via sys.upload.directUrlTTL.
 	GetUploadDirectUrlTTL(ctx context.Context) (time.Duration, error)
+	// GetUploadMultipartEnabled reports whether automatic multipart planning is enabled.
+	GetUploadMultipartEnabled(ctx context.Context) (bool, error)
+	// GetUploadMultipartThresholdMB returns the auto-multipart threshold in MB.
+	GetUploadMultipartThresholdMB(ctx context.Context) (int64, error)
+	// GetUploadMultipartPartSizeMB returns the multipart part size in MB.
+	GetUploadMultipartPartSizeMB(ctx context.Context) (int64, error)
+	// GetUploadMultipartMaxConcurrency returns the suggested client part concurrency.
+	GetUploadMultipartMaxConcurrency(ctx context.Context) (int64, error)
 
 	// MarkRuntimeParamsChanged bumps the shared sys_config revision and clears
 	// the current process snapshot after one system-configuration mutation.

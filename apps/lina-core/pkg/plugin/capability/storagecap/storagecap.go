@@ -38,6 +38,18 @@ type Service interface {
 	// CreateDirectGet issues client get access for one logical path, or returns
 	// proxy mode when the active backend cannot support direct download.
 	CreateDirectGet(ctx context.Context, in DirectGetInput) (*DirectGetOutput, error)
+	// SupportsMultipart reports whether the active backend can run multipart uploads.
+	SupportsMultipart(ctx context.Context) (bool, error)
+	// CreateMultipart starts one multipart upload for a logical path.
+	CreateMultipart(ctx context.Context, in MultipartCreateInput) (*MultipartCreateOutput, error)
+	// UploadPart writes one part of an in-flight multipart upload.
+	UploadPart(ctx context.Context, in MultipartPartInput) (*MultipartPartOutput, error)
+	// CompleteMultipart assembles uploaded parts into the final object.
+	CompleteMultipart(ctx context.Context, in MultipartCompleteInput) (*MultipartCompleteOutput, error)
+	// AbortMultipart aborts one multipart upload session.
+	AbortMultipart(ctx context.Context, in MultipartAbortInput) error
+	// CreateMultipartPartAccess issues client access for one multipart part.
+	CreateMultipartPartAccess(ctx context.Context, in MultipartPartAccessInput) (*MultipartPartAccessOutput, error)
 	// ProviderStatuses returns registered provider status snapshots.
 	ProviderStatuses(ctx context.Context) ([]*ProviderStatus, error)
 }

@@ -854,3 +854,172 @@ func TestNormalizeGcronPatternSupportsFiveAndSixFields(t *testing.T) {
 		})
 	}
 }
+
+// TestExecuteJobPanicMarksLogFailed verifies handler panics close the log as
+// failed, keep an error summary, and release the concurrency slot.
+func TestExecuteJobPanicMarksLogFailed(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		registry = newRegistryWithHandler(t, "host:scheduler-panic", func(ctx context.Context, params json.RawMessage) (any, error) {
+			panic("scheduler panic fixture")
+		})
+		svc   = New(fakeClusterService{primary: true, nodeID: "panic-node"}, registry, nil).(*serviceImpl)
+		jobID = insertTestJob(t, ctx, "host:scheduler-panic", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
+	)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
+
+	svc.runCronJob(ctx, jobID)
+	waitForCondition(t, 3*time.Second, func() bool {
+		logs := latestLogs(t, ctx, jobID)
+		return len(logs) == 1 && logs[0] != nil && logs[0].Status == string(joblogv1.StatusFailed)
+	})
+
+	logs := latestLogs(t, ctx, jobID)
+	if len(logs) != 1 || logs[0] == nil {
+		t.Fatalf("expected one failed panic log, got %#v", logs)
+	}
+	if !strings.Contains(logs[0].ErrMsg, "panicked") {
+		t.Fatalf("expected panic log err_msg to mention panic, got %q", logs[0].ErrMsg)
+	}
+	if !strings.Contains(logs[0].ErrMsg, "scheduler panic fixture") {
+		t.Fatalf("expected panic log err_msg to include panic value, got %q", logs[0].ErrMsg)
+	}
+	if len(logs[0].ErrMsg) > maxJobLogErrMsgLen {
+		t.Fatalf("expected panic err_msg length <= %d, got %d", maxJobLogErrMsgLen, len(logs[0].ErrMsg))
+	}
+
+	// A recovered panic must free the singleton slot for later ticks.
+	svc.runCronJob(ctx, jobID)
+	waitForCondition(t, 3*time.Second, func() bool {
+		return len(latestLogs(t, ctx, jobID)) == 2
+	})
+	statuses := latestLogStatuses(t, ctx, jobID)
+	if len(statuses) != 2 {
+		t.Fatalf("expected two terminal logs after second run, got %#v", statuses)
+	}
+	for _, status := range statuses {
+		if status != string(joblogv1.StatusFailed) {
+			t.Fatalf("expected both runs to fail after panic handler, got statuses %#v", statuses)
+		}
+	}
+}
+
+// TestLoadAndRegisterReclaimsOrphanRunningLogs verifies startup reclaims only
+// this node's leftover running logs and leaves other nodes untouched.
+func TestLoadAndRegisterReclaimsOrphanRunningLogs(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		registry = jobhandler.New()
+		svc      = New(fakeClusterService{primary: true, nodeID: "reclaim-node-a"}, registry, nil).(*serviceImpl)
+		jobID    = insertTestJob(t, ctx, "host:scheduler-reclaim", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
+	)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
+
+	// Disable the fixture job so LoadAndRegister does not attempt to resolve
+	// its missing handler; reclaim only needs orphan log rows and a job_id.
+	if _, err := dao.SysJob.Ctx(ctx).
+		Where(do.SysJob{Id: jobID}).
+		Data(do.SysJob{Status: string(jobv1.StatusDisabled)}).
+		Update(); err != nil {
+		t.Fatalf("expected fixture job disable to succeed, got error: %v", err)
+	}
+	registerEnabledHostHandlersAsNoop(t, ctx, registry)
+
+	localStart := time.Now().Add(-2 * time.Minute)
+	localLogID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
+		JobId:       jobID,
+		JobSnapshot: `{}`,
+		NodeId:      "reclaim-node-a",
+		Trigger:     string(joblogv1.TriggerCron),
+		StartAt:     &localStart,
+		Status:      string(joblogv1.StatusRunning),
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("expected local orphan running log insert to succeed, got error: %v", err)
+	}
+
+	remoteStart := time.Now().Add(-time.Minute)
+	remoteLogID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
+		JobId:       jobID,
+		JobSnapshot: `{}`,
+		NodeId:      "reclaim-node-b",
+		Trigger:     string(joblogv1.TriggerCron),
+		StartAt:     &remoteStart,
+		Status:      string(joblogv1.StatusRunning),
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("expected remote orphan running log insert to succeed, got error: %v", err)
+	}
+
+	if err = svc.LoadAndRegister(ctx); err != nil {
+		t.Fatalf("expected LoadAndRegister to succeed after reclaim, got error: %v", err)
+	}
+
+	localLog := querySchedulerLog(t, ctx, int64(localLogID))
+	if localLog.Status != string(joblogv1.StatusFailed) {
+		t.Fatalf("expected local orphan log to be reclaimed as failed, got %q", localLog.Status)
+	}
+	if localLog.ErrMsg != errMsgJobInterruptedByRestart {
+		t.Fatalf("expected reclaimed err_msg %q, got %q", errMsgJobInterruptedByRestart, localLog.ErrMsg)
+	}
+	if localLog.EndAt == nil {
+		t.Fatal("expected reclaimed log to set end_at")
+	}
+
+	remoteLog := querySchedulerLog(t, ctx, int64(remoteLogID))
+	if remoteLog.Status != string(joblogv1.StatusRunning) {
+		t.Fatalf("expected remote node running log to stay running, got %q", remoteLog.Status)
+	}
+}
+
+// TestBuildPanicErrMsgTruncatesToColumnLimit verifies panic summaries stay
+// within the sys_job_log.err_msg column width.
+func TestBuildPanicErrMsgTruncatesToColumnLimit(t *testing.T) {
+	message := buildPanicErrMsg(strings.Repeat("x", maxJobLogErrMsgLen+200))
+	if len(message) > maxJobLogErrMsgLen {
+		t.Fatalf("expected panic err_msg length <= %d, got %d", maxJobLogErrMsgLen, len(message))
+	}
+	if !strings.HasPrefix(message, "Scheduled-job handler panicked:") {
+		t.Fatalf("expected panic prefix, got %q", message)
+	}
+	if !strings.HasSuffix(message, "...") {
+		t.Fatalf("expected truncated panic message to end with ellipsis, got %q", message)
+	}
+}
+
+// TestExecuteJobInjectsExecutionLogID verifies handlers can read the job-log id
+// from context for at-least-once idempotency.
+func TestExecuteJobInjectsExecutionLogID(t *testing.T) {
+	var (
+		ctx           = context.Background()
+		observedLogID int64
+		registry      = newRegistryWithHandler(t, "host:scheduler-execution-id", func(ctx context.Context, params json.RawMessage) (any, error) {
+			logID, ok := jobmeta.ExecutionLogID(ctx)
+			if !ok {
+				t.Fatal("expected ExecutionLogID in handler context")
+			}
+			observedLogID = logID
+			return map[string]any{"executionLogId": logID}, nil
+		})
+		svc   = New(fakeClusterService{primary: true, nodeID: "execution-id-node"}, registry, nil).(*serviceImpl)
+		jobID = insertTestJob(t, ctx, "host:scheduler-execution-id", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
+	)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
+
+	svc.runCronJob(ctx, jobID)
+	waitForCondition(t, 3*time.Second, func() bool {
+		logs := latestLogs(t, ctx, jobID)
+		return len(logs) == 1 && logs[0] != nil && logs[0].Status == string(joblogv1.StatusSuccess)
+	})
+
+	logs := latestLogs(t, ctx, jobID)
+	if len(logs) != 1 || logs[0] == nil {
+		t.Fatalf("expected one success log, got %#v", logs)
+	}
+	if observedLogID != logs[0].Id {
+		t.Fatalf("expected handler ExecutionLogID=%d, got %d", logs[0].Id, observedLogID)
+	}
+	if !strings.Contains(logs[0].ResultJson, fmt.Sprintf(`"executionLogId":%d`, logs[0].Id)) {
+		t.Fatalf("expected result_json to echo execution log id, got %q", logs[0].ResultJson)
+	}
+}

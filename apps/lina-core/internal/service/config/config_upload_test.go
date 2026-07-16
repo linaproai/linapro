@@ -93,6 +93,56 @@ func TestGetUploadPrefersRuntimeParamMaxSize(t *testing.T) {
 	}
 }
 
+// TestGetUploadMultipartDefaults verifies multipart planning defaults.
+func TestGetUploadMultipartDefaults(t *testing.T) {
+	t.Parallel()
+	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMultipartEnabled)
+	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMultipartThresholdMB)
+	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMultipartPartSizeMB)
+	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMultipartMaxConcurrency)
+
+	svc := New()
+	enabled, err := svc.GetUploadMultipartEnabled(context.Background())
+	if err != nil {
+		t.Fatalf("GetUploadMultipartEnabled: %v", err)
+	}
+	if !enabled {
+		t.Fatal("expected multipart enabled by default")
+	}
+	threshold, err := svc.GetUploadMultipartThresholdMB(context.Background())
+	if err != nil {
+		t.Fatalf("GetUploadMultipartThresholdMB: %v", err)
+	}
+	if threshold != defaultUploadMultipartThresholdMB {
+		t.Fatalf("threshold: got %d want %d", threshold, defaultUploadMultipartThresholdMB)
+	}
+	partSize, err := svc.GetUploadMultipartPartSizeMB(context.Background())
+	if err != nil {
+		t.Fatalf("GetUploadMultipartPartSizeMB: %v", err)
+	}
+	if partSize != defaultUploadMultipartPartSizeMB {
+		t.Fatalf("partSize: got %d want %d", partSize, defaultUploadMultipartPartSizeMB)
+	}
+	concurrency, err := svc.GetUploadMultipartMaxConcurrency(context.Background())
+	if err != nil {
+		t.Fatalf("GetUploadMultipartMaxConcurrency: %v", err)
+	}
+	if concurrency != defaultUploadMultipartMaxConcurrency {
+		t.Fatalf("concurrency: got %d want %d", concurrency, defaultUploadMultipartMaxConcurrency)
+	}
+}
+
+// TestValidateUploadMultipartPartSizeConfigValue rejects values below 5MB.
+func TestValidateUploadMultipartPartSizeConfigValue(t *testing.T) {
+	t.Parallel()
+	if err := validateUploadMultipartPartSizeConfigValue(RuntimeParamKeyUploadMultipartPartSizeMB, "4"); err == nil {
+		t.Fatal("expected part size 4 to be rejected")
+	}
+	if err := validateUploadMultipartPartSizeConfigValue(RuntimeParamKeyUploadMultipartPartSizeMB, "5"); err != nil {
+		t.Fatalf("expected part size 5 to be accepted: %v", err)
+	}
+}
+
 // TestGetUploadDirectUrlTTLDefaultsToOneHour verifies the host default when the
 // runtime parameter is absent.
 func TestGetUploadDirectUrlTTLDefaultsToOneHour(t *testing.T) {

@@ -28,12 +28,19 @@ type directUploadSession struct {
 	ContentHash  string
 	StoragePath  string
 	ProviderID   string
-	ProviderKey  string
-	ExpiresAt    time.Time
+	// ProviderKey is the scoped provider object key when the backend returns one.
+	ProviderKey string
+	// Encoding is single or multipart and selects complete/abort semantics.
+	Encoding string
+	// CloudUploadID is the provider multipart upload id when Encoding is multipart.
+	CloudUploadID string
+	ExpiresAt     time.Time
+	// Completed marks an idempotent complete; FileID/CompletedURL are then valid.
 	Completed    bool
 	FileID       int64
 	CompletedURL string
-	CompletedAt  time.Time
+	// CompletedAt drives brief retention of completed sessions for idempotent complete.
+	CompletedAt time.Time
 }
 
 // directUploadSessionStore is a process-local session map with lazy expiry purge.

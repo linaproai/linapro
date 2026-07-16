@@ -1,6 +1,12 @@
 // Package jobmeta defines shared scheduled-job domain types, input value
 // objects, and JSON payload helpers used by job management, scheduling, and
 // handler execution.
+//
+// Execution delivery is at-least-once: handlers may observe the same logical
+// work more than once after failures or restarts. Use ExecutionLogID from the
+// invocation context as a stable execution id when side effects must be
+// de-duplicated. The scheduler does not catch up missed cron ticks on restart;
+// it only reclaims orphan running logs on the current node.
 package jobmeta
 
 import (

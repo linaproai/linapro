@@ -33,6 +33,22 @@ func (c *directUploadTestConfig) GetUploadDirectUrlTTL(context.Context) (time.Du
 	return time.Hour, nil
 }
 
+func (c *directUploadTestConfig) GetUploadMultipartEnabled(context.Context) (bool, error) {
+	return true, nil
+}
+
+func (c *directUploadTestConfig) GetUploadMultipartThresholdMB(context.Context) (int64, error) {
+	return 100, nil
+}
+
+func (c *directUploadTestConfig) GetUploadMultipartPartSizeMB(context.Context) (int64, error) {
+	return 8, nil
+}
+
+func (c *directUploadTestConfig) GetUploadMultipartMaxConcurrency(context.Context) (int64, error) {
+	return 3, nil
+}
+
 // directUploadTestStorage implements only the storage methods used by direct-upload tests.
 type directUploadTestStorage struct {
 	access    *storagecap.DirectAccess
@@ -94,6 +110,25 @@ func (s *directUploadTestStorage) Stat(context.Context, storagesvc.StatInput) (*
 			Size: s.statSize,
 		},
 	}, nil
+}
+
+func (s *directUploadTestStorage) SupportsMultipart(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (s *directUploadTestStorage) CreateMultipart(context.Context, storagesvc.MultipartCreateInput) (*storagesvc.MultipartCreateOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (s *directUploadTestStorage) UploadPart(context.Context, storagesvc.MultipartPartInput) (*storagesvc.MultipartPartOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (s *directUploadTestStorage) CompleteMultipart(context.Context, storagesvc.MultipartCompleteInput) (*storagesvc.MultipartCompleteOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (s *directUploadTestStorage) AbortMultipart(context.Context, storagesvc.MultipartAbortInput) error {
+	return storagecap.NewMultipartUnsupportedError()
+}
+func (s *directUploadTestStorage) CreateMultipartPartAccess(context.Context, storagesvc.MultipartPartAccessInput) (*storagesvc.MultipartPartAccessOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
 }
 
 func TestDirectUploadInitReturnsProxyWithoutSession(t *testing.T) {

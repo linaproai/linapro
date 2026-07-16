@@ -9,9 +9,14 @@ import (
 
 // DirectUploadComplete validates the client-uploaded object and creates file metadata.
 func (c *ControllerV1) DirectUploadComplete(ctx context.Context, req *v1.DirectUploadCompleteReq) (res *v1.DirectUploadCompleteRes, err error) {
+	parts := make([]filesvc.MultipartPartRef, 0, len(req.Parts))
+	for _, part := range req.Parts {
+		parts = append(parts, filesvc.MultipartPartRef{PartNumber: part.PartNumber, ETag: part.ETag})
+	}
 	out, err := c.fileSvc.DirectUploadComplete(ctx, &filesvc.DirectUploadCompleteInput{
 		UploadSessionID: req.UploadSessionId,
 		ETag:            req.ETag,
+		Parts:           parts,
 	})
 	if err != nil {
 		return nil, err

@@ -426,6 +426,37 @@ func (s *storageService) CreateDirectGet(_ context.Context, in storagecap.Direct
 	}, nil
 }
 
+// SupportsMultipart is not yet published on the dynamic storage host-service
+// transport; guest callers use Put (chunked) instead.
+func (s *storageService) SupportsMultipart(_ context.Context) (bool, error) {
+	return false, nil
+}
+
+// CreateMultipart is not published on the dynamic transport; use Put.
+func (s *storageService) CreateMultipart(_ context.Context, _ storagecap.MultipartCreateInput) (*storagecap.MultipartCreateOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
+// UploadPart is not published on the dynamic transport; use Put.
+func (s *storageService) UploadPart(_ context.Context, _ storagecap.MultipartPartInput) (*storagecap.MultipartPartOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
+// CompleteMultipart is not published on the dynamic transport; use Put.
+func (s *storageService) CompleteMultipart(_ context.Context, _ storagecap.MultipartCompleteInput) (*storagecap.MultipartCompleteOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
+// AbortMultipart is not published on the dynamic transport; use Put.
+func (s *storageService) AbortMultipart(_ context.Context, _ storagecap.MultipartAbortInput) error {
+	return storagecap.NewMultipartUnsupportedError()
+}
+
+// CreateMultipartPartAccess is not published on the dynamic transport.
+func (s *storageService) CreateMultipartPartAccess(_ context.Context, _ storagecap.MultipartPartAccessInput) (*storagecap.MultipartPartAccessOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
 func storageObjectFromWire(object *protocol.HostServiceStorageObject) *storagecap.Object {
 	if object == nil {
 		return nil

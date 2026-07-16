@@ -125,19 +125,15 @@ func (s *serviceImpl) createRunningLog(
 	trigger jobmeta.TriggerType,
 	startedAt time.Time,
 ) (int64, error) {
-	snapshot, err := json.Marshal(job)
+	snapshot, paramsSnapshot, err := jobLogSnapshots(job)
 	if err != nil {
 		return 0, bizerr.WrapCode(err, jobmeta.CodeJobSnapshotMarshalFailed)
-	}
-	paramsSnapshot := ""
-	if jobmeta.NormalizeTaskType(job.TaskType) == jobv1.TaskTypeHandler {
-		paramsSnapshot = job.Params
 	}
 
 	insertID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
 		TenantId:       job.TenantId,
 		JobId:          job.Id,
-		JobSnapshot:    string(snapshot),
+		JobSnapshot:    snapshot,
 		NodeId:         s.nodeID(),
 		Trigger:        string(trigger),
 		ParamsSnapshot: paramsSnapshot,
@@ -159,19 +155,15 @@ func (s *serviceImpl) createTerminalLog(
 	errMsg string,
 ) error {
 	now := time.Now()
-	snapshot, err := json.Marshal(job)
+	snapshot, paramsSnapshot, err := jobLogSnapshots(job)
 	if err != nil {
 		return err
-	}
-	paramsSnapshot := ""
-	if jobmeta.NormalizeTaskType(job.TaskType) == jobv1.TaskTypeHandler {
-		paramsSnapshot = job.Params
 	}
 
 	_, err = dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
 		TenantId:       job.TenantId,
 		JobId:          job.Id,
-		JobSnapshot:    string(snapshot),
+		JobSnapshot:    snapshot,
 		NodeId:         s.nodeID(),
 		Trigger:        string(trigger),
 		ParamsSnapshot: paramsSnapshot,
@@ -182,6 +174,22 @@ func (s *serviceImpl) createTerminalLog(
 		ErrMsg:         errMsg,
 	}).Insert()
 	return err
+}
+
+// jobLogSnapshots builds the shared job/params snapshot fields used by log inserts.
+func jobLogSnapshots(job *entity.SysJob) (string, string, error) {
+	if job == nil {
+		return "", "", nil
+	}
+	snapshot, err := json.Marshal(job)
+	if err != nil {
+		return "", "", err
+	}
+	paramsSnapshot := ""
+	if jobmeta.NormalizeTaskType(job.TaskType) == jobv1.TaskTypeHandler {
+		paramsSnapshot = job.Params
+	}
+	return string(snapshot), paramsSnapshot, nil
 }
 
 // finishLog updates one running log row with its terminal result snapshot.
