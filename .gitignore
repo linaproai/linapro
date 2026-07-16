@@ -78,7 +78,14 @@ test-results/
 *.test
 *.out
 apps/lina-plugins/*/temp/
-/apps/lina-plugins/.linapro-plugins.lock.yaml
+apps/lina-plugins/.linapro-plugins.lock.yaml
+
+# =============================================================================
+# Runtime configs that may contain secrets (tokens, credentials)
+# Templates (*.example.yaml / *.template.yaml) stay tracked.
+# Host runtime config is already ignored via apps/lina-core/.gitignore.
+# =============================================================================
+apps/lina-plugins/*/manifest/config/config.yaml
 
 # =============================================================================
 # Agent private project directories
