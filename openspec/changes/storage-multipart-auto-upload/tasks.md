@@ -60,4 +60,4 @@
   - 缓存：会话进程内，无新业务缓存语义
   - DI：file.New 自建 chunkedSessions，无新运行期依赖 owner
   - 开发工具跨平台：无 Makefile/脚本变更
-- [ ] 7.4 任务完成后执行 `lina-review`
+- [x] 7.4 任务完成后执行 `lina-review`（实现已完成；CI 修复中补齐 go.work host-only、packed 默认值断言与 apidoc i18n；正式归档前可再跑完整 review）

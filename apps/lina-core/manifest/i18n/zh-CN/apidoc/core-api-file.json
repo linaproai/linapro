@@ -495,13 +495,55 @@
                 "dc": "为 true 时表示已秒传复用已有文件，无需再上传"
               },
               "uploadSessionId": {
-                "dc": "用于 complete 或 abort 的直传会话 ID"
+                "dc": "用于 complete 或 abort 的直传会话 ID；秒传时为空"
               },
               "access": {
-                "dc": "需要上传时的客户端传输描述"
+                "dc": "需要上传时的客户端传输描述；mode 为 proxy 表示由宿主中转上传"
+              },
+              "strategy": {
+                "dc": "上传计划：channel 为 direct|proxy，encoding 为 single|multipart；秒传时省略"
+              },
+              "multipart": {
+                "dc": "当 strategy.encoding 为 multipart 时的分片大小与并发提示"
               },
               "file": {
                 "dc": "秒传成功时的已有文件元数据"
+              }
+            }
+          },
+          "UploadStrategy": {
+            "fields": {
+              "channel": {
+                "dc": "传输通道：direct 或 proxy"
+              },
+              "encoding": {
+                "dc": "传输编码：single 或 multipart"
+              }
+            }
+          },
+          "UploadMultipartPlan": {
+            "fields": {
+              "partSize": {
+                "dc": "建议分片大小（字节）"
+              },
+              "minPartSize": {
+                "dc": "中间分片的最小大小（字节）"
+              },
+              "maxParts": {
+                "dc": "分片数量的软上限"
+              },
+              "maxConcurrency": {
+                "dc": "建议的客户端并行分片上传数"
+              }
+            }
+          },
+          "MultipartPartItem": {
+            "fields": {
+              "partNumber": {
+                "dc": "从 1 开始的分片序号"
+              },
+              "etag": {
+                "dc": "存储后端返回的分片 ETag"
               }
             }
           },
@@ -511,16 +553,19 @@
                 "dc": "direct-upload init 返回的会话 ID"
               },
               "etag": {
-                "dc": "可选的云端 put 返回 ETag"
+                "dc": "单对象 put 后云厂商可选返回的 ETag"
+              },
+              "parts": {
+                "dc": "直传分片会话必填：已完成分片的序号与 etag 列表"
               }
             },
             "meta": {
-              "dc": "校验客户端写入的对象已存在于宿主分配的 key，然后创建文件中心元数据。对已完成会话的 complete 幂等，返回同一文件元数据。",
+              "dc": "校验客户端写入的对象已存在于宿主分配的 key（或使用 parts 完成云端 Multipart），然后创建文件中心元数据。对已完成会话的 complete 幂等，返回同一文件元数据。",
               "summary": "完成文件直传",
               "tags": "文件管理"
             },
             "schema": {
-              "dc": "校验客户端写入的对象已存在于宿主分配的 key，然后创建文件中心元数据。对已完成会话的 complete 幂等，返回同一文件元数据。"
+              "dc": "校验客户端写入的对象已存在于宿主分配的 key（或使用 parts 完成云端 Multipart），然后创建文件中心元数据。对已完成会话的 complete 幂等，返回同一文件元数据。"
             }
           },
           "DirectUploadAbortReq": {
@@ -536,6 +581,141 @@
             },
             "schema": {
               "dc": "丢弃进行中的直传会话。会话不存在时视为成功空操作。"
+            }
+          },
+          "DirectUploadPartURLReq": {
+            "fields": {
+              "uploadSessionId": {
+                "dc": "direct-upload init 返回的会话 ID"
+              },
+              "partNumber": {
+                "dc": "从 1 开始的分片序号"
+              },
+              "size": {
+                "dc": "可选的声明分片大小（字节）"
+              }
+            },
+            "meta": {
+              "dc": "为直传会话的一个 Multipart 分片创建短时签名访问描述。分片序号从 1 开始。",
+              "summary": "签发直传分片访问",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "为直传会话的一个 Multipart 分片创建短时签名访问描述。分片序号从 1 开始。"
+            }
+          },
+          "DirectUploadPartURLRes": {
+            "fields": {
+              "access": {
+                "dc": "单个分片的中立客户端传输描述"
+              }
+            }
+          },
+          "ChunkedUploadInitReq": {
+            "fields": {
+              "scene": {
+                "dc": "使用场景标识（必填）"
+              },
+              "fileName": {
+                "dc": "原始文件名，用于后缀与存储名生成"
+              },
+              "size": {
+                "dc": "声明的文件大小（字节）"
+              },
+              "contentType": {
+                "dc": "可选的 MIME 类型约束"
+              },
+              "contentHash": {
+                "dc": "可选的文件内容 SHA-256 十六进制摘要"
+              }
+            },
+            "meta": {
+              "dc": "当自动分片规划选择 proxy multipart 时，为大型文件创建短时的宿主中转分片上传会话。可选 contentHash 主要在直传路径启用秒传；本接口聚焦分片传输会话建立。",
+              "summary": "初始化分片上传",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "当自动分片规划选择 proxy multipart 时，为大型文件创建短时的宿主中转分片上传会话。可选 contentHash 主要在直传路径启用秒传；本接口聚焦分片传输会话建立。"
+            }
+          },
+          "ChunkedUploadInitRes": {
+            "fields": {
+              "uploadSessionId": {
+                "dc": "用于 part、complete 或 abort 的分片上传会话 ID"
+              },
+              "strategy": {
+                "dc": "上传计划；channel 为 proxy，encoding 为 multipart"
+              },
+              "multipart": {
+                "dc": "分片大小与并发提示"
+              }
+            }
+          },
+          "ChunkedUploadPartReq": {
+            "fields": {
+              "uploadSessionId": {
+                "dc": "chunked init 返回的会话 ID"
+              },
+              "partNumber": {
+                "dc": "从 1 开始的分片序号"
+              },
+              "file": {
+                "dc": "分片载荷的文件字段"
+              }
+            },
+            "meta": {
+              "dc": "向宿主中转的分片上传会话追加一个有序分片。分片序号从 1 开始。",
+              "summary": "上传分片文件块",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "向宿主中转的分片上传会话追加一个有序分片。分片序号从 1 开始。"
+            }
+          },
+          "ChunkedUploadPartRes": {
+            "fields": {
+              "partNumber": {
+                "dc": "从 1 开始的分片序号"
+              },
+              "etag": {
+                "dc": "后端返回时的分片 ETag"
+              },
+              "receivedBytes": {
+                "dc": "该会话迄今已接受的总字节数"
+              }
+            }
+          },
+          "ChunkedUploadCompleteReq": {
+            "fields": {
+              "uploadSessionId": {
+                "dc": "chunked init 返回的会话 ID"
+              },
+              "parts": {
+                "dc": "云端 Multipart complete 的可选分片列表；宿主本地拼装会话可省略"
+              }
+            },
+            "meta": {
+              "dc": "将已上传分片组装为最终对象并创建 sys_file 元数据。对已完成会话的 complete 幂等。",
+              "summary": "完成分片上传",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "将已上传分片组装为最终对象并创建 sys_file 元数据。对已完成会话的 complete 幂等。"
+            }
+          },
+          "ChunkedUploadAbortReq": {
+            "fields": {
+              "uploadSessionId": {
+                "dc": "chunked init 返回的会话 ID"
+              }
+            },
+            "meta": {
+              "dc": "丢弃进行中的分片上传会话。会话不存在时视为成功空操作。",
+              "summary": "中止分片上传",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "丢弃进行中的分片上传会话。会话不存在时视为成功空操作。"
             }
           },
           "DirectDownloadReq": {
