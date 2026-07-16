@@ -90,6 +90,9 @@ const (
 	RuntimeParamKeySessionTimeout = "sys.session.timeout"
 	// RuntimeParamKeyUploadMaxSize stores the runtime upload size ceiling in MB.
 	RuntimeParamKeyUploadMaxSize = "sys.upload.maxSize"
+	// RuntimeParamKeyUploadDirectUrlTTL stores the lifetime of client direct
+	// object-storage access (presigned upload/download URLs and related sessions).
+	RuntimeParamKeyUploadDirectUrlTTL = "sys.upload.directUrlTTL"
 	// RuntimeParamKeyLoginBlackIPList stores the runtime login IP blacklist.
 	RuntimeParamKeyLoginBlackIPList = "sys.login.blackIPList"
 	// RuntimeParamKeyLogRetentionDays stores the maximum log retention period in days.
@@ -135,6 +138,12 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 		DefaultValue:   "100",
 		validator:      validatePositiveInt64ConfigValue,
 		snapshotLoader: loadRuntimeParamInt64SnapshotValue,
+	},
+	{
+		Key:            RuntimeParamKeyUploadDirectUrlTTL,
+		DefaultValue:   defaultUploadDirectUrlTTLText,
+		validator:      validateUploadDirectUrlTTLConfigValue,
+		snapshotLoader: loadRuntimeParamDurationSnapshotValue,
 	},
 	{
 		Key:            RuntimeParamKeyLoginBlackIPList,

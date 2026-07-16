@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -382,6 +384,46 @@ func (s *storageService) BatchStat(_ context.Context, in storagecap.BatchStatInp
 // transport. Source plugins can call the host-side storagecap.Service directly.
 func (s *storageService) ProviderStatuses(_ context.Context) ([]*storagecap.ProviderStatus, error) {
 	return nil, errHostCallsUnavailable
+}
+
+// CreateDirectPut is not yet published on the dynamic storage host-service
+// transport; guest callers receive proxy mode and should use Put or multipart.
+func (s *storageService) CreateDirectPut(_ context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	return &storagecap.DirectPutOutput{
+		Access: &storagecap.DirectAccess{
+			Mode:      storagecap.DirectAccessModeProxy,
+			Operation: storagecap.DirectAccessOpPut,
+		},
+		Path: strings.TrimSpace(in.Path),
+	}, nil
+}
+
+// ConfirmDirectPut is not yet published on the dynamic storage host-service
+// transport; guest callers should use Stat after Put.
+func (s *storageService) ConfirmDirectPut(ctx context.Context, in storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	stat, err := s.Stat(ctx, storagecap.StatInput{Path: in.Path})
+	if err != nil {
+		return nil, err
+	}
+	if stat == nil || !stat.Found || stat.Object == nil {
+		return nil, bizerr.NewCode(storagecap.CodeStorageDirectCompleteFailed)
+	}
+	if in.Size >= 0 && stat.Object.Size >= 0 && stat.Object.Size != in.Size {
+		return nil, bizerr.NewCode(storagecap.CodeStorageDirectCompleteFailed)
+	}
+	return &storagecap.ConfirmDirectPutOutput{Object: stat.Object}, nil
+}
+
+// CreateDirectGet is not yet published on the dynamic storage host-service
+// transport; guest callers receive proxy mode and should use Get.
+func (s *storageService) CreateDirectGet(_ context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	return &storagecap.DirectGetOutput{
+		Access: &storagecap.DirectAccess{
+			Mode:      storagecap.DirectAccessModeProxy,
+			Operation: storagecap.DirectAccessOpGet,
+		},
+		Path: strings.TrimSpace(in.Path),
+	}, nil
 }
 
 func storageObjectFromWire(object *protocol.HostServiceStorageObject) *storagecap.Object {

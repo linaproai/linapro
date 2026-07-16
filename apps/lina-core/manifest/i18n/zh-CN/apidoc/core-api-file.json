@@ -427,6 +427,141 @@
                 "dc": "使用场景列表"
               }
             }
+          },
+          "DirectUploadInitReq": {
+            "fields": {
+              "scene": {
+                "dc": "使用场景标识（必填）"
+              },
+              "fileName": {
+                "dc": "原始文件名，用于后缀与存储名生成"
+              },
+              "size": {
+                "dc": "声明的文件大小（字节）"
+              },
+              "contentType": {
+                "dc": "可选的 MIME 类型约束"
+              },
+              "contentHash": {
+                "dc": "可选的文件内容 SHA-256 十六进制摘要，用于秒传复用"
+              }
+            },
+            "meta": {
+              "dc": "创建短时直传会话。当活动对象后端支持客户端直连时，响应包含中立传输描述（预签名 URL 或表单直传）。仅本地或不支持的后端时 mode 为 proxy，客户端应改用标准 multipart 上传。可选 contentHash 可复用已有相同文件。",
+              "summary": "初始化文件直传",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "创建短时直传会话。当活动对象后端支持客户端直连时，响应包含中立传输描述（预签名 URL 或表单直传）。仅本地或不支持的后端时 mode 为 proxy，客户端应改用标准 multipart 上传。可选 contentHash 可复用已有相同文件。"
+            }
+          },
+          "DirectUploadAccess": {
+            "fields": {
+              "mode": {
+                "dc": "传输模式：presigned_url、form_post、temporary_credentials 或 proxy"
+              },
+              "operation": {
+                "dc": "传输操作：put 或 get"
+              },
+              "method": {
+                "dc": "presigned_url 模式的 HTTP 方法"
+              },
+              "url": {
+                "dc": "presigned_url 或 form_post 的目标 URL"
+              },
+              "headers": {
+                "dc": "presigned_url 模式需要的请求头"
+              },
+              "formFields": {
+                "dc": "form_post 模式需要的表单字段"
+              },
+              "accessKeyId": {
+                "dc": "temporary_credentials 模式下的临时访问密钥 ID"
+              },
+              "secretAccessKey": {
+                "dc": "temporary_credentials 模式下的临时密钥"
+              },
+              "sessionToken": {
+                "dc": "temporary_credentials 模式下的会话令牌"
+              },
+              "expiresAt": {
+                "dc": "访问过期时间（Unix 毫秒）"
+              }
+            }
+          },
+          "DirectUploadInitRes": {
+            "fields": {
+              "instantReuse": {
+                "dc": "为 true 时表示已秒传复用已有文件，无需再上传"
+              },
+              "uploadSessionId": {
+                "dc": "用于 complete 或 abort 的直传会话 ID"
+              },
+              "access": {
+                "dc": "需要上传时的客户端传输描述"
+              },
+              "file": {
+                "dc": "秒传成功时的已有文件元数据"
+              }
+            }
+          },
+          "DirectUploadCompleteReq": {
+            "fields": {
+              "uploadSessionId": {
+                "dc": "direct-upload init 返回的会话 ID"
+              },
+              "etag": {
+                "dc": "可选的云端 put 返回 ETag"
+              }
+            },
+            "meta": {
+              "dc": "校验客户端写入的对象已存在于宿主分配的 key，然后创建文件中心元数据。对已完成会话的 complete 幂等，返回同一文件元数据。",
+              "summary": "完成文件直传",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "校验客户端写入的对象已存在于宿主分配的 key，然后创建文件中心元数据。对已完成会话的 complete 幂等，返回同一文件元数据。"
+            }
+          },
+          "DirectUploadAbortReq": {
+            "fields": {
+              "uploadSessionId": {
+                "dc": "direct-upload init 返回的会话 ID"
+              }
+            },
+            "meta": {
+              "dc": "丢弃进行中的直传会话。会话不存在时视为成功空操作。",
+              "summary": "中止文件直传",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "丢弃进行中的直传会话。会话不存在时视为成功空操作。"
+            }
+          },
+          "DirectDownloadReq": {
+            "fields": {
+              "id": {
+                "dc": "文件 ID"
+              }
+            },
+            "meta": {
+              "dc": "当活动后端支持客户端 get 直连时返回短时只读访问描述。不支持时 mode 为 proxy，客户端应使用标准下载或公开访问 URL。",
+              "summary": "签发文件直链下载访问",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "当活动后端支持客户端 get 直连时返回短时只读访问描述。不支持时 mode 为 proxy，客户端应使用标准下载或公开访问 URL。"
+            }
+          },
+          "DirectDownloadRes": {
+            "fields": {
+              "access": {
+                "dc": "get 操作的客户端传输描述；proxy 表示宿主中转下载"
+              },
+              "proxyUrl": {
+                "dc": "mode 为 proxy 时的宿主下载路径"
+              }
+            }
           }
         }
       }

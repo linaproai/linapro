@@ -7,7 +7,7 @@ package jobgroup
 import (
 	"context"
 
-	v1 "lina-core/api/jobgroup/v1"
+	"lina-core/api/jobgroup/v1"
 )
 
 type IJobgroupV1 interface {

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"io"
 	"time"
+
+	"lina-core/pkg/plugin/capability/storagecap"
 )
 
 // Stable storage namespaces owned by the host.
@@ -70,6 +72,39 @@ type Service interface {
 	// are reported in MissingKeys without exposing whether a domain caller may
 	// see the object.
 	BatchStat(ctx context.Context, in BatchStatInput) (*BatchStatOutput, error)
+	// CreateDirectAccess issues client transfer access for NamespaceFiles when
+	// the active backend supports it. Other namespaces, unsupported providers,
+	// and local backends return proxy mode. Key is the host file-center relative
+	// key (without the provider files/ prefix).
+	CreateDirectAccess(ctx context.Context, in DirectAccessInput) (*DirectAccessOutput, error)
+}
+
+// DirectAccessInput defines one host-internal direct access request.
+type DirectAccessInput struct {
+	// Namespace must be NamespaceFiles for cloud direct access.
+	Namespace string
+	// Key is the host-relative object key (sys_file.path style for files).
+	Key string
+	// Operation is put or get.
+	Operation storagecap.DirectAccessOperation
+	// Size is expected object size for put when known. Negative means unknown.
+	Size int64
+	// ContentType is optional MIME type for put.
+	ContentType string
+	// TTL optionally bounds issued access lifetime.
+	TTL time.Duration
+	// Overwrite controls put overwrite when the provider can encode it.
+	Overwrite bool
+}
+
+// DirectAccessOutput returns host-visible direct access plus provider metadata.
+type DirectAccessOutput struct {
+	// Access is the neutral client transfer description.
+	Access *storagecap.DirectAccess
+	// ProviderID is the resolved backend id.
+	ProviderID string
+	// ProviderKey is the scoped provider object key used for the access.
+	ProviderKey string
 }
 
 // Config defines local object-storage roots. NamespaceRoots override RootDir

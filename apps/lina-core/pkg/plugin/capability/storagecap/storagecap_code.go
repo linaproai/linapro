@@ -75,4 +75,51 @@ var (
 		"Plugin storage provider factory is required",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeStorageDirectAccessUnsupported reports that the active provider cannot
+	// issue client direct access for the requested operation.
+	CodeStorageDirectAccessUnsupported = bizerr.MustDefine(
+		"PLUGIN_STORAGE_DIRECT_ACCESS_UNSUPPORTED",
+		"Plugin storage direct access is not supported for this operation",
+		gcode.CodeInvalidOperation,
+	)
+	// CodeStorageDirectAccessOperationInvalid reports an unknown direct-access operation.
+	CodeStorageDirectAccessOperationInvalid = bizerr.MustDefine(
+		"PLUGIN_STORAGE_DIRECT_ACCESS_OPERATION_INVALID",
+		"Plugin storage direct access operation is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeStorageDirectAccessIssueFailed reports provider failure while signing access.
+	CodeStorageDirectAccessIssueFailed = bizerr.MustDefine(
+		"PLUGIN_STORAGE_DIRECT_ACCESS_ISSUE_FAILED",
+		"Failed to issue plugin storage direct access",
+		gcode.CodeInternalError,
+	)
+	// CodeStorageDirectSessionInvalid reports a missing or foreign direct-upload session.
+	CodeStorageDirectSessionInvalid = bizerr.MustDefine(
+		"PLUGIN_STORAGE_DIRECT_SESSION_INVALID",
+		"Plugin storage direct access session is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeStorageDirectSessionExpired reports an expired direct-upload session.
+	CodeStorageDirectSessionExpired = bizerr.MustDefine(
+		"PLUGIN_STORAGE_DIRECT_SESSION_EXPIRED",
+		"Plugin storage direct access session has expired",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeStorageDirectCompleteFailed reports object validation failure on complete.
+	CodeStorageDirectCompleteFailed = bizerr.MustDefine(
+		"PLUGIN_STORAGE_DIRECT_COMPLETE_FAILED",
+		"Plugin storage direct upload complete validation failed",
+		gcode.CodeInvalidParameter,
+	)
 )
+
+// NewInvalidDirectAccessOperationError returns a stable invalid-operation error.
+func NewInvalidDirectAccessOperationError() error {
+	return bizerr.NewCode(CodeStorageDirectAccessOperationInvalid)
+}
+
+// NewDirectAccessIssueFailedError returns a stable issue-failed error.
+func NewDirectAccessIssueFailedError() error {
+	return bizerr.NewCode(CodeStorageDirectAccessIssueFailed)
+}

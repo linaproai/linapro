@@ -106,4 +106,28 @@ var (
 		"File data is outside the current data permission scope",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeFileDirectSessionInvalid reports a missing or foreign direct-upload session.
+	CodeFileDirectSessionInvalid = bizerr.MustDefine(
+		"FILE_DIRECT_SESSION_INVALID",
+		"File direct upload session is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileDirectSessionExpired reports an expired direct-upload session.
+	CodeFileDirectSessionExpired = bizerr.MustDefine(
+		"FILE_DIRECT_SESSION_EXPIRED",
+		"File direct upload session has expired",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileDirectCompleteFailed reports that complete validation failed.
+	CodeFileDirectCompleteFailed = bizerr.MustDefine(
+		"FILE_DIRECT_COMPLETE_FAILED",
+		"File direct upload complete validation failed",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileDirectInitFailed reports that direct-upload init cannot proceed.
+	CodeFileDirectInitFailed = bizerr.MustDefine(
+		"FILE_DIRECT_INIT_FAILED",
+		"Failed to initialize file direct upload",
+		gcode.CodeInternalError,
+	)
 )

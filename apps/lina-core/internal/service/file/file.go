@@ -74,6 +74,17 @@ type Service interface {
 	// dictionary-derived scene label. Missing or out-of-scope records return file
 	// business errors.
 	Detail(ctx context.Context, id int64) (*DetailOutput, error)
+	// DirectUploadInit starts a client direct upload session or returns proxy mode
+	// / instant reuse metadata. Host assigns storage keys; permanent credentials
+	// are never returned.
+	DirectUploadInit(ctx context.Context, in *DirectUploadInitInput) (*DirectUploadInitOutput, error)
+	// DirectUploadComplete validates the client-uploaded object and creates
+	// sys_file metadata. Completed sessions are idempotent.
+	DirectUploadComplete(ctx context.Context, in *DirectUploadCompleteInput) (*UploadOutput, error)
+	// DirectUploadAbort discards an in-flight direct upload session.
+	DirectUploadAbort(ctx context.Context, in *DirectUploadAbortInput) error
+	// DirectDownload issues short-lived client get access or proxy mode.
+	DirectDownload(ctx context.Context, in *DirectDownloadInput) (*DirectDownloadOutput, error)
 }
 
 // Ensure serviceImpl implements Service.
@@ -81,22 +92,24 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	configSvc config.Service // Configuration service
-	storage   storagesvc.Service
-	bizCtxSvc bizctx.Service  // Business context service
-	dictSvc   dictsvc.Service // Dictionary service for scene labels
-	scopeSvc  datascope.Service
+	configSvc      config.Service // Configuration service
+	storage        storagesvc.Service
+	bizCtxSvc      bizctx.Service  // Business context service
+	dictSvc        dictsvc.Service // Dictionary service for scene labels
+	scopeSvc       datascope.Service
+	directSessions *directUploadSessionStore
 }
 
 // New creates and returns a new file service from explicit runtime-owned dependencies.
 // storage is the host-wide Storage Service used for file-center content Put/Get/Delete.
 func New(configSvc config.Service, storage storagesvc.Service, bizCtxSvc bizctx.Service, dictSvc dictsvc.Service, scopeSvc datascope.Service) Service {
 	return &serviceImpl{
-		configSvc: configSvc,
-		storage:   storage,
-		bizCtxSvc: bizCtxSvc,
-		dictSvc:   dictSvc,
-		scopeSvc:  scopeSvc,
+		configSvc:      configSvc,
+		storage:        storage,
+		bizCtxSvc:      bizCtxSvc,
+		dictSvc:        dictSvc,
+		scopeSvc:       scopeSvc,
+		directSessions: newDirectUploadSessionStore(),
 	}
 }
 

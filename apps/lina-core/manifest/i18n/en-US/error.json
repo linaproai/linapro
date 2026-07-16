@@ -319,6 +319,18 @@
       },
       "upload": {
         "required": "Please upload a file"
+      },
+      "direct": {
+        "session": {
+          "invalid": "File direct upload session is invalid",
+          "expired": "File direct upload session has expired"
+        },
+        "complete": {
+          "failed": "File direct upload complete validation failed"
+        },
+        "init": {
+          "failed": "Failed to initialize file direct upload"
+        }
       }
     },
     "job": {
@@ -1129,6 +1141,24 @@
           },
           "factory": {
             "required": "Plugin storage provider factory is required"
+          }
+        },
+        "direct": {
+          "access": {
+            "unsupported": "Plugin storage direct access is not supported for this operation",
+            "operation": {
+              "invalid": "Plugin storage direct access operation is invalid"
+            },
+            "issue": {
+              "failed": "Failed to issue plugin storage direct access"
+            }
+          },
+          "session": {
+            "invalid": "Plugin storage direct access session is invalid",
+            "expired": "Plugin storage direct access session has expired"
+          },
+          "complete": {
+            "failed": "Plugin storage direct upload complete validation failed"
           }
         }
       },

@@ -277,6 +277,84 @@ func (s *storageAdapter) ProviderStatuses(ctx context.Context) ([]*storagecap.Pr
 	return storagecap.ProviderStatuses(ctx, s.runtime, s.localProvider), nil
 }
 
+// CreateDirectPut issues client put access for one logical path.
+func (s *storageAdapter) CreateDirectPut(ctx context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	objectPath, err := s.normalizeObjectPath(in.Path)
+	if err != nil {
+		return nil, err
+	}
+	providerID, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
+	if err != nil {
+		return nil, err
+	}
+	access, err := storagecap.CreateDirectAccess(ctx, providerID, provider, storagecap.ProviderDirectAccessInput{
+		Key:         s.objectKey(ctx, objectPath),
+		Operation:   storagecap.DirectAccessOpPut,
+		Size:        in.Size,
+		ContentType: strings.TrimSpace(in.ContentType),
+		TTL:         in.TTL,
+		Overwrite:   in.Overwrite,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &storagecap.DirectPutOutput{Access: access, Path: objectPath}, nil
+}
+
+// ConfirmDirectPut validates that a direct put target exists and returns metadata.
+func (s *storageAdapter) ConfirmDirectPut(ctx context.Context, in storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	objectPath, err := s.normalizeObjectPath(in.Path)
+	if err != nil {
+		return nil, err
+	}
+	providerID, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
+	if err != nil {
+		return nil, err
+	}
+	output, err := provider.Stat(ctx, storagecap.ProviderStatInput{Key: s.objectKey(ctx, objectPath)})
+	if err != nil {
+		return nil, err
+	}
+	if output == nil || !output.Found || output.Object == nil {
+		return nil, bizerr.NewCode(storagecap.CodeStorageDirectCompleteFailed)
+	}
+	if in.Size >= 0 && output.Object.Size >= 0 && output.Object.Size != in.Size {
+		return nil, bizerr.NewCode(storagecap.CodeStorageDirectCompleteFailed)
+	}
+	return &storagecap.ConfirmDirectPutOutput{
+		Object: s.providerObject(objectPath, providerID, output.Object),
+	}, nil
+}
+
+// CreateDirectGet issues client get access for one logical path.
+func (s *storageAdapter) CreateDirectGet(ctx context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	objectPath, err := s.normalizeObjectPath(in.Path)
+	if err != nil {
+		return nil, err
+	}
+	providerID, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure the object exists before issuing get access when the backend is online.
+	stat, err := provider.Stat(ctx, storagecap.ProviderStatInput{Key: s.objectKey(ctx, objectPath)})
+	if err != nil {
+		return nil, err
+	}
+	if stat == nil || !stat.Found {
+		return nil, bizerr.NewCode(storagecap.CodeStorageDirectCompleteFailed)
+	}
+	access, err := storagecap.CreateDirectAccess(ctx, providerID, provider, storagecap.ProviderDirectAccessInput{
+		Key:       s.objectKey(ctx, objectPath),
+		Operation: storagecap.DirectAccessOpGet,
+		TTL:       in.TTL,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &storagecap.DirectGetOutput{Access: access, Path: objectPath}, nil
+}
+
 // normalizeObjectPath validates one plugin logical object path.
 func (s *storageAdapter) normalizeObjectPath(rawPath string) (string, error) {
 	if err := s.validateServiceScope(); err != nil {

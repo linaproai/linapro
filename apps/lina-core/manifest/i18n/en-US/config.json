@@ -165,6 +165,10 @@
         "maxSize": {
           "name": "File Management - Upload Size Limit",
           "remark": "Controls the maximum size of a single uploaded file in MB."
+        },
+        "directUrlTTL": {
+          "name": "File Management - Direct Access TTL",
+          "remark": "Controls the lifetime of temporary client direct upload/download access to object storage and the file-center direct-upload session. Uses Go duration format such as 30m or 1h; must be positive and at most 1h."
         }
       },
       "user": {

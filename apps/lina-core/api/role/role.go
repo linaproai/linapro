@@ -7,7 +7,7 @@ package role
 import (
 	"context"
 
-	v1 "lina-core/api/role/v1"
+	"lina-core/api/role/v1"
 )
 
 type IRoleV1 interface {

@@ -523,6 +523,27 @@ func (rootNoopStorage) ProviderStatuses(context.Context) ([]*storagecap.Provider
 	return []*storagecap.ProviderStatus{}, nil
 }
 
+// CreateDirectPut returns proxy mode for root facade tests.
+func (rootNoopStorage) CreateDirectPut(_ context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	return &storagecap.DirectPutOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+		Path:   in.Path,
+	}, nil
+}
+
+// ConfirmDirectPut reports missing objects for root facade tests.
+func (rootNoopStorage) ConfirmDirectPut(context.Context, storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	return nil, nil
+}
+
+// CreateDirectGet returns proxy mode for root facade tests.
+func (rootNoopStorage) CreateDirectGet(_ context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	return &storagecap.DirectGetOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpGet},
+		Path:   in.Path,
+	}, nil
+}
+
 // rootNoopUsers is a registration-safe user-domain fixture for root facade tests.
 type rootNoopUsers struct{}
 

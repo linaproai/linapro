@@ -231,6 +231,11 @@ func (f *fakeRoleConfigService) GetUploadMaxSize(_ context.Context) (int64, erro
 	return 0, nil
 }
 
+// GetUploadDirectUrlTTL returns the default one-hour direct access TTL for tests.
+func (f *fakeRoleConfigService) GetUploadDirectUrlTTL(_ context.Context) (time.Duration, error) {
+	return time.Hour, nil
+}
+
 // MarkRuntimeParamsChanged is a no-op success stub for tests.
 func (f *fakeRoleConfigService) MarkRuntimeParamsChanged(_ context.Context) error {
 	return nil

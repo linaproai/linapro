@@ -363,6 +363,27 @@ func (s *fileCapabilityPluginStorage) ProviderStatuses(context.Context) ([]*stor
 	return nil, nil
 }
 
+// CreateDirectPut returns proxy mode for file promotion tests.
+func (s *fileCapabilityPluginStorage) CreateDirectPut(_ context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	return &storagecap.DirectPutOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+		Path:   in.Path,
+	}, nil
+}
+
+// ConfirmDirectPut is unused by file promotion tests.
+func (s *fileCapabilityPluginStorage) ConfirmDirectPut(context.Context, storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	return nil, nil
+}
+
+// CreateDirectGet returns proxy mode for file promotion tests.
+func (s *fileCapabilityPluginStorage) CreateDirectGet(_ context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	return &storagecap.DirectGetOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpGet},
+		Path:   in.Path,
+	}, nil
+}
+
 // fileCapabilityDetailOwner records whether detail fallback was reached.
 type fileCapabilityDetailOwner struct {
 	detailCalled bool
@@ -429,6 +450,26 @@ func (o *fileCapabilityDetailOwner) Detail(_ context.Context, id int64) (*Detail
 			Scene:    DefaultFileSceneOther,
 		},
 	}, nil
+}
+
+// DirectUploadInit is unused by capability detail tests.
+func (o *fileCapabilityDetailOwner) DirectUploadInit(context.Context, *DirectUploadInitInput) (*DirectUploadInitOutput, error) {
+	return nil, nil
+}
+
+// DirectUploadComplete is unused by capability detail tests.
+func (o *fileCapabilityDetailOwner) DirectUploadComplete(context.Context, *DirectUploadCompleteInput) (*UploadOutput, error) {
+	return nil, nil
+}
+
+// DirectUploadAbort is unused by capability detail tests.
+func (o *fileCapabilityDetailOwner) DirectUploadAbort(context.Context, *DirectUploadAbortInput) error {
+	return nil
+}
+
+// DirectDownload is unused by capability detail tests.
+func (o *fileCapabilityDetailOwner) DirectDownload(context.Context, *DirectDownloadInput) (*DirectDownloadOutput, error) {
+	return nil, nil
 }
 
 // fileCapabilityTenantFilter returns a fixed tenant filter context.
