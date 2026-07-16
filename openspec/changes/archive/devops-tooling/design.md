@@ -103,15 +103,24 @@ release 发布链路以`framework.version`为唯一 tag 基线。`linactl releas
 
 | `v` 输入 | 行为 |
 | --- | --- |
-| 省略 / 空 | 从官方 tags 取最新稳定版（匹配`^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`，规范化为`vMAJOR.MINOR.PATCH`；含`-`预发布后缀不参与默认选择） |
-| 稳定版本模式 | 合并对应 tag（缺`v`前缀则补齐）；用户显式指定时可尝试含预发布的 tag |
-| 其它非空（如`main`） | 合并`linapro/<name>`分支 |
+| 省略 / 空 | 通过`git ls-remote --tags --refs`轻量列出远端 tag 名（不下载对象），本地`selectLatestStableTag`取最新稳定版（匹配`^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`，规范化为`vMAJOR.MINOR.PATCH`；含`-`预发布后缀不参与默认选择） |
+| 稳定版本模式 | 规范化为`vX.Y.Z`（缺`v`前缀则补齐），无需 ls-remote；用户显式指定时可尝试含预发布的 tag |
+| 其它非空（如`main`） | 作为分支目标，合并`linapro/<name>` |
+
+**发现与下载拆分**：将「发现目标」与「下载对象」拆开。下载阶段 MUST 仅 fetch 已解析目标 ref 的可达对象，禁止默认路径使用`git fetch <remote> --tags`或`--tags --prune`全量拉 tag。
+
+| 目标类型 | 下载命令要点 |
+| --- | --- |
+| tag | `git fetch --no-tags <remote> refs/tags/<name>:refs/tags/<name>`，只更新该 tag 及其可达对象 |
+| 分支 | `git fetch --no-tags <remote> +refs/heads/<name>:refs/remotes/<remote>/<name>`，只更新该 remote-tracking 分支 |
+
+必须带`--no-tags`，避免 Git 默认 tag following 把指向本地已有对象的其它远端 tag 自动物化回来。若用户本机已有其它 tags，不受影响；upgrade 不再主动补齐全部远端 tags。远端无稳定 tag 时与现网一致提示传`v=`；指定 tag/分支不存在则 fetch 或`rev-parse`失败非零退出。
 
 **安全门禁**：detached HEAD 始终拒绝（`force`不得跳过）。脏工作区且未传`force`时，在`ensureCleanWorktree`中提示工作区不干净，向 stdout 输出`Continue upgrade with a dirty worktree? [y/N]: `，从`app.stdin`用`bufio.Reader`读取一行：`y`/`yes`（大小写不敏感、trim）则继续；其它值、空行或 EOF 返回错误且不执行 merge。`force=1`跳过脏检查与确认提示。不强制 TTY：管道可注入`y\n`继续；CI 默认空 stdin 失败，需显式`force=1`。逻辑在 Go`linactl`中实现，Windows/Linux/macOS 一致；不自动 stash/commit。
 
-**Git 操作序列**：确认`git`可用与仓库根 → 解析当前分支 → 安全门禁 → 确保官方 remote 并`git fetch linapro --tags --prune` → 解析目标 ref → 记录 pre-merge`HEAD` →`git merge --no-edit --no-commit <ref>` → 将`apps/lina-plugins`恢复为升级前状态（官方插件变更不进入结果；升级前不存在则丢弃官方引入的该路径）→ 若剔除插件后无差异则`merge --abort`并报告无宿主变更 → 否则`git commit --no-edit`完成合并并提示插件需`plugins.update`单独更新。不自动处理冲突、不 hard reset、不 rebase、不 force-push；不自动执行`db.upgrade`、依赖 tidy 或服务重启。
+**Git 操作序列**：确认`git`可用与仓库根 → 解析当前分支 → 安全门禁 → 确保官方 remote → 解析目标（ls-remote 或参数）并选择性 fetch 目标 ref → 记录 pre-merge`HEAD` →`git merge --no-edit --no-commit <ref>` → 将`apps/lina-plugins`恢复为升级前状态（官方插件变更不进入结果；升级前不存在则丢弃官方引入的该路径）→ 若剔除插件后无差异则`merge --abort`并报告无宿主变更 → 否则`git commit --no-edit`完成合并并提示插件需`plugins.update`单独更新。不自动处理冲突、不 hard reset、不 rebase、不 force-push；不自动执行`db.upgrade`、依赖 tidy 或服务重启。
 
-历史`upgrade-governance`中带`scope=framework|source-plugin`、基于`hack/config.yaml`的`frameworkUpgrade`元数据与宿主 SQL 全量重放的源码升级路径，已由上述官方 remote + 稳定 tag 合并模型取代为当前开发期框架升级入口；插件运行时升级、有效版本隔离与发布切换仍归`plugin-upgrade-governance`。
+历史`upgrade-governance`中带`scope=framework|source-plugin`、基于`hack/config.yaml`的`frameworkUpgrade`元数据与宿主 SQL 全量重放的源码升级路径，已由上述官方 remote + 稳定 tag 合并模型取代为当前开发期框架升级入口；早期默认`git fetch --tags`全量同步 tags 的下载路径，已演进为先发现再窄范围 fetch。插件运行时升级、有效版本隔离与发布切换仍归`plugin-upgrade-governance`。
 
 ## Installation
 
@@ -138,4 +147,4 @@ release 发布链路以`framework.version`为唯一 tag 基线。`linactl releas
 
 本分组覆盖开发工具、脚本、workflow、README、Agent skill、OpenSpec 文档、框架源码升级命令与运行时 i18n 扫描门禁。跨平台入口以`linactl`/Go 标准库为准，`Makefile`/`make.cmd`仅透传。测试策略以工具单测、临时 Git 仓库集成路径、命令 smoke、`make i18n.check`、workflow/shell 语法、OpenSpec 校验和手工 dry-run 为主；E2E 仅在用户可观察页面行为变更的 owner 中维护。
 
-关键反馈闭环：代码生成目标目录与插件 Makefile 硬编码路径、Redis cluster smoke 旧`init`目标、静态检查首批噪声与 wasip1 死代码归并、builder 配置迁入`hack/config.yaml`、`linactl`兼容面删除、升级源固定官方 remote 且合并不更新`lina-plugins`、参数设置页 config 展示键缺译导致类 i18n key 裸显（扩展`i18n.check`并补齐宿主/插件资源）。
+关键反馈闭环：代码生成目标目录与插件 Makefile 硬编码路径、Redis cluster smoke 旧`init`目标、静态检查首批噪声与 wasip1 死代码归并、builder 配置迁入`hack/config.yaml`、`linactl`兼容面删除、升级源固定官方 remote 且合并不更新`lina-plugins`、默认升级全量`fetch --tags`导致大仓库过慢（改为 ls-remote 发现 + 目标 ref 选择性 fetch）、参数设置页 config 展示键缺译导致类 i18n key 裸显（扩展`i18n.check`并补齐宿主/插件资源）。

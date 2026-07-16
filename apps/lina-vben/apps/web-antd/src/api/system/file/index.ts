@@ -51,6 +51,24 @@ export function fileDownloadUrl(id: number) {
   return `/file/download/${id}`;
 }
 
+/** Direct download access description for one file (proxy or presigned). */
+export interface DirectDownloadResult {
+  access?: {
+    mode: string;
+    operation?: string;
+    method?: string;
+    url?: string;
+    headers?: Record<string, string>;
+    expiresAt?: number;
+  };
+  proxyUrl?: string;
+}
+
+/** Issue client direct download access or proxy indication for one file. */
+export function fileDirectDownload(id: number) {
+  return requestClient.get<DirectDownloadResult>(`/file/${id}/direct-download`);
+}
+
 /** Get file usage scene options */
 export async function fileUsageScenes() {
   const res = await requestClient.get<{ list: FileUsageSceneItem[] }>(

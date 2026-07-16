@@ -106,4 +106,52 @@ var (
 		"File data is outside the current data permission scope",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeFileDirectSessionInvalid reports a missing or foreign direct-upload session.
+	CodeFileDirectSessionInvalid = bizerr.MustDefine(
+		"FILE_DIRECT_SESSION_INVALID",
+		"File direct upload session is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileDirectSessionExpired reports an expired direct-upload session.
+	CodeFileDirectSessionExpired = bizerr.MustDefine(
+		"FILE_DIRECT_SESSION_EXPIRED",
+		"File direct upload session has expired",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileDirectCompleteFailed reports that complete validation failed.
+	CodeFileDirectCompleteFailed = bizerr.MustDefine(
+		"FILE_DIRECT_COMPLETE_FAILED",
+		"File direct upload complete validation failed",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileDirectInitFailed reports that direct-upload init cannot proceed.
+	CodeFileDirectInitFailed = bizerr.MustDefine(
+		"FILE_DIRECT_INIT_FAILED",
+		"Failed to initialize file direct upload",
+		gcode.CodeInternalError,
+	)
+	// CodeFileChunkedSessionInvalid reports a missing or foreign chunked-upload session.
+	CodeFileChunkedSessionInvalid = bizerr.MustDefine(
+		"FILE_CHUNKED_SESSION_INVALID",
+		"File chunked upload session is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileChunkedSessionExpired reports an expired chunked-upload session.
+	CodeFileChunkedSessionExpired = bizerr.MustDefine(
+		"FILE_CHUNKED_SESSION_EXPIRED",
+		"File chunked upload session has expired",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileChunkedPartInvalid reports an invalid chunked part number, size, or body.
+	CodeFileChunkedPartInvalid = bizerr.MustDefine(
+		"FILE_CHUNKED_PART_INVALID",
+		"File chunked upload part is invalid",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeFileChunkedCompleteFailed reports that chunked complete validation failed.
+	CodeFileChunkedCompleteFailed = bizerr.MustDefine(
+		"FILE_CHUNKED_COMPLETE_FAILED",
+		"File chunked upload complete validation failed",
+		gcode.CodeInvalidParameter,
+	)
 )

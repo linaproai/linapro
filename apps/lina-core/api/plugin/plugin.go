@@ -7,7 +7,7 @@ package plugin
 import (
 	"context"
 
-	v1 "lina-core/api/plugin/v1"
+	"lina-core/api/plugin/v1"
 )
 
 type IPluginV1 interface {

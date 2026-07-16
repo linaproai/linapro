@@ -1,5 +1,8 @@
 // Package jobhandler implements the in-memory scheduled-job handler registry
 // shared by job management, the scheduler, and plugin lifecycle hooks.
+//
+// Handlers run under at-least-once delivery. Prefer jobmeta.ExecutionLogID(ctx)
+// as an idempotency key when side effects are not naturally safe to repeat.
 package jobhandler
 
 import (

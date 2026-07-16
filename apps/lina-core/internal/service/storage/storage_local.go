@@ -21,6 +21,7 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/pkg/closeutil"
+	"lina-core/pkg/plugin/capability/storagecap"
 )
 
 var errListLimitReached = errors.New("storage list limit reached")
@@ -391,4 +392,20 @@ func localETag(key string, fileInfo os.FileInfo) string {
 	}
 	hash := sha1.Sum([]byte(key + "|" + strconv.FormatInt(fileInfo.Size(), 10) + "|" + fileInfo.ModTime().UTC().Format(time.RFC3339Nano)))
 	return hex.EncodeToString(hash[:])
+}
+
+// CreateDirectAccess always returns proxy mode for the local filesystem backend.
+func (s *serviceImpl) CreateDirectAccess(_ context.Context, in DirectAccessInput) (*DirectAccessOutput, error) {
+	op := storagecap.NormalizeDirectAccessOperation(in.Operation)
+	if op == "" {
+		op = storagecap.DirectAccessOpPut
+	}
+	return &DirectAccessOutput{
+		Access: &storagecap.DirectAccess{
+			Mode:       storagecap.DirectAccessModeProxy,
+			Operation:  op,
+			ProviderID: storagecap.LocalProviderID,
+		},
+		ProviderID: storagecap.LocalProviderID,
+	}, nil
 }

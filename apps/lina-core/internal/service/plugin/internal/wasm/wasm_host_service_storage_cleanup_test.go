@@ -88,6 +88,44 @@ func (*cleanupStorageService) ProviderStatuses(context.Context) ([]*storagecap.P
 	return nil, nil
 }
 
+// CreateDirectPut is unused by cleanup tests.
+func (*cleanupStorageService) CreateDirectPut(_ context.Context, in storagecap.DirectPutInput) (*storagecap.DirectPutOutput, error) {
+	return &storagecap.DirectPutOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpPut},
+		Path:   in.Path,
+	}, nil
+}
+
+// ConfirmDirectPut is unused by cleanup tests.
+func (*cleanupStorageService) ConfirmDirectPut(context.Context, storagecap.ConfirmDirectPutInput) (*storagecap.ConfirmDirectPutOutput, error) {
+	return nil, nil
+}
+
+// CreateDirectGet is unused by cleanup tests.
+func (*cleanupStorageService) CreateDirectGet(_ context.Context, in storagecap.DirectGetInput) (*storagecap.DirectGetOutput, error) {
+	return &storagecap.DirectGetOutput{
+		Access: &storagecap.DirectAccess{Mode: storagecap.DirectAccessModeProxy, Operation: storagecap.DirectAccessOpGet},
+		Path:   in.Path,
+	}, nil
+}
+
+func (*cleanupStorageService) SupportsMultipart(context.Context) (bool, error) { return false, nil }
+func (*cleanupStorageService) CreateMultipart(context.Context, storagecap.MultipartCreateInput) (*storagecap.MultipartCreateOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (*cleanupStorageService) UploadPart(context.Context, storagecap.MultipartPartInput) (*storagecap.MultipartPartOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (*cleanupStorageService) CompleteMultipart(context.Context, storagecap.MultipartCompleteInput) (*storagecap.MultipartCompleteOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+func (*cleanupStorageService) AbortMultipart(context.Context, storagecap.MultipartAbortInput) error {
+	return storagecap.NewMultipartUnsupportedError()
+}
+func (*cleanupStorageService) CreateMultipartPartAccess(context.Context, storagecap.MultipartPartAccessInput) (*storagecap.MultipartPartAccessOutput, error) {
+	return nil, storagecap.NewMultipartUnsupportedError()
+}
+
 // TestPurgeAuthorizedStoragePathsRequiresStorageService verifies lifecycle
 // cleanup fails explicitly when storage capability wiring is missing.
 func TestPurgeAuthorizedStoragePathsRequiresStorageService(t *testing.T) {

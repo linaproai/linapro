@@ -434,8 +434,8 @@ func TestRuntimeParamSpecCopiesAreDetached(t *testing.T) {
 	if !ok {
 		t.Fatal("expected upload-size runtime param spec to be present")
 	}
-	if uploadSpec.DefaultValue != "100" {
-		t.Fatalf("expected upload-size runtime default to be 100, got %q", uploadSpec.DefaultValue)
+	if uploadSpec.DefaultValue != "200" {
+		t.Fatalf("expected upload-size runtime default to be 200, got %q", uploadSpec.DefaultValue)
 	}
 	original := runtimeParamSpecs[0].DefaultValue
 	specs[0].DefaultValue = "mutated"

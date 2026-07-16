@@ -29,6 +29,27 @@ type Service interface {
 	Stat(ctx context.Context, in StatInput) (*StatOutput, error)
 	// BatchStat reads plugin object metadata for an explicit bounded path set.
 	BatchStat(ctx context.Context, in BatchStatInput) (*BatchStatOutput, error)
+	// CreateDirectPut issues client put access for one logical path, or returns
+	// proxy mode when the active backend cannot support direct upload.
+	CreateDirectPut(ctx context.Context, in DirectPutInput) (*DirectPutOutput, error)
+	// ConfirmDirectPut validates that a previously issued direct put target
+	// exists and returns plugin-visible object metadata.
+	ConfirmDirectPut(ctx context.Context, in ConfirmDirectPutInput) (*ConfirmDirectPutOutput, error)
+	// CreateDirectGet issues client get access for one logical path, or returns
+	// proxy mode when the active backend cannot support direct download.
+	CreateDirectGet(ctx context.Context, in DirectGetInput) (*DirectGetOutput, error)
+	// SupportsMultipart reports whether the active backend can run multipart uploads.
+	SupportsMultipart(ctx context.Context) (bool, error)
+	// CreateMultipart starts one multipart upload for a logical path.
+	CreateMultipart(ctx context.Context, in MultipartCreateInput) (*MultipartCreateOutput, error)
+	// UploadPart writes one part of an in-flight multipart upload.
+	UploadPart(ctx context.Context, in MultipartPartInput) (*MultipartPartOutput, error)
+	// CompleteMultipart assembles uploaded parts into the final object.
+	CompleteMultipart(ctx context.Context, in MultipartCompleteInput) (*MultipartCompleteOutput, error)
+	// AbortMultipart aborts one multipart upload session.
+	AbortMultipart(ctx context.Context, in MultipartAbortInput) error
+	// CreateMultipartPartAccess issues client access for one multipart part.
+	CreateMultipartPartAccess(ctx context.Context, in MultipartPartAccessInput) (*MultipartPartAccessOutput, error)
 	// ProviderStatuses returns registered provider status snapshots.
 	ProviderStatuses(ctx context.Context) ([]*ProviderStatus, error)
 }
@@ -352,4 +373,56 @@ type ProviderStatus struct {
 	Available bool
 	// Message carries a diagnostic string for unavailable providers.
 	Message string
+}
+
+// DirectPutInput defines one plugin-visible direct put request.
+type DirectPutInput struct {
+	// Path is the plugin-local logical object path. The host maps it to a scoped key.
+	Path string
+	// Size is the expected object size when known. Negative means unknown.
+	Size int64
+	// ContentType is the optional MIME type.
+	ContentType string
+	// Overwrite controls whether an existing object may be replaced.
+	Overwrite bool
+	// TTL optionally bounds issued access lifetime.
+	TTL time.Duration
+}
+
+// DirectPutOutput defines one plugin-visible direct put response.
+type DirectPutOutput struct {
+	// Access is the neutral client transfer description (may be proxy mode).
+	Access *DirectAccess
+	// Path is the normalized plugin-local logical path.
+	Path string
+}
+
+// ConfirmDirectPutInput validates a completed client put for one logical path.
+type ConfirmDirectPutInput struct {
+	// Path is the plugin-local logical object path.
+	Path string
+	// Size optionally asserts expected size. Negative skips size matching.
+	Size int64
+}
+
+// ConfirmDirectPutOutput returns metadata after a successful direct put confirm.
+type ConfirmDirectPutOutput struct {
+	// Object is plugin-visible object metadata.
+	Object *Object
+}
+
+// DirectGetInput defines one plugin-visible direct get request.
+type DirectGetInput struct {
+	// Path is the plugin-local logical object path.
+	Path string
+	// TTL optionally bounds issued access lifetime.
+	TTL time.Duration
+}
+
+// DirectGetOutput defines one plugin-visible direct get response.
+type DirectGetOutput struct {
+	// Access is the neutral client transfer description (may be proxy mode).
+	Access *DirectAccess
+	// Path is the normalized plugin-local logical path.
+	Path string
 }

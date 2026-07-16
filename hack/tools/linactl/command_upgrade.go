@@ -77,12 +77,13 @@ func runFrameworkUpgrade(ctx context.Context, a *app, input commandInput) error 
 		return err
 	}
 
-	if err = a.runCommand(ctx, commandOptions{Dir: a.root}, "git", "fetch", officialFrameworkRemoteName, "--tags", "--prune"); err != nil {
-		return fmt.Errorf("fetch official framework repository %s: %w", officialFrameworkRepoURL, err)
-	}
-
+	// Resolve the upgrade target first (ls-remote for default latest tag is
+	// ref-list only), then fetch only that tag or branch. Never fetch --tags.
 	target, err := resolveUpgradeTarget(ctx, a, versionParam)
 	if err != nil {
+		return err
+	}
+	if err = fetchUpgradeTarget(ctx, a, target); err != nil {
 		return err
 	}
 
@@ -283,7 +284,8 @@ func confirmDirtyWorktreeContinue(a *app) error {
 }
 
 // resolveUpgradeTarget decides whether to merge a tag or a remote branch from
-// the official framework remote.
+// the official framework remote. It does not download objects: default latest
+// stable discovery uses ls-remote tag names only.
 func resolveUpgradeTarget(ctx context.Context, a *app, versionParam string) (upgradeTarget, error) {
 	versionParam = strings.TrimSpace(versionParam)
 	if versionParam == "" {
@@ -307,6 +309,41 @@ func resolveUpgradeTarget(ctx context.Context, a *app, versionParam string) (upg
 		return upgradeTarget{}, fmt.Errorf("invalid v=%q; use a version tag or branch name such as main", versionParam)
 	}
 	return upgradeTarget{Kind: upgradeTargetBranch, Name: versionParam}, nil
+}
+
+// fetchUpgradeTarget downloads only the selected tag or branch from the
+// official remote. Full-history tag sync (git fetch --tags) is intentionally
+// avoided so upgrades stay fast on large repositories.
+//
+// --no-tags disables Git's automatic tag following, which would otherwise
+// re-materialize other remote tags that point at already-local objects.
+func fetchUpgradeTarget(ctx context.Context, a *app, target upgradeTarget) error {
+	switch target.Kind {
+	case upgradeTargetTag:
+		if target.Name == "" {
+			return fmt.Errorf("upgrade tag is empty")
+		}
+		// Explicit single-tag refspec + --no-tags: only this tag is updated.
+		refspec := "refs/tags/" + target.Name + ":refs/tags/" + target.Name
+		if err := a.runCommand(ctx, commandOptions{Dir: a.root}, "git", "fetch", "--no-tags", officialFrameworkRemoteName, refspec); err != nil {
+			return fmt.Errorf("fetch official tag %s from %s: %w", target.Name, officialFrameworkRepoURL, err)
+		}
+		return nil
+	case upgradeTargetBranch:
+		if target.Name == "" {
+			return fmt.Errorf("upgrade branch is empty")
+		}
+		// Single-branch refspec: avoid fetching other remote heads or any tags.
+		src := "refs/heads/" + target.Name
+		dst := "refs/remotes/" + officialFrameworkRemoteName + "/" + target.Name
+		refspec := "+" + src + ":" + dst
+		if err := a.runCommand(ctx, commandOptions{Dir: a.root}, "git", "fetch", "--no-tags", officialFrameworkRemoteName, refspec); err != nil {
+			return fmt.Errorf("fetch official branch %s from %s: %w", target.Name, officialFrameworkRepoURL, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown upgrade target kind %q", target.Kind)
+	}
 }
 
 // upgradeMergeRef builds the Git ref passed to git merge.

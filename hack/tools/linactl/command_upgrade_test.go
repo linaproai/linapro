@@ -143,6 +143,43 @@ func TestRunFrameworkUpgradeDefaultLatestStable(t *testing.T) {
 	assertPluginsPreserved(t, local, "local-0.4.0")
 }
 
+func TestRunFrameworkUpgradeFetchesOnlySelectedTag(t *testing.T) {
+	local, cleanup := setupUpgradeRepos(t)
+	defer cleanup()
+
+	// Remove local tags so we can observe which refs selective fetch restores.
+	for _, tag := range []string{"v0.4.0", "v0.5.0", "v0.6.0-rc.1"} {
+		runGit(t, local, "tag", "-d", tag)
+	}
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, &stdout, strings.NewReader(""))
+	application.root = local
+
+	if err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{}}); err != nil {
+		t.Fatalf("runFrameworkUpgrade selective fetch: %v\n%s", err, stdout.String())
+	}
+	if got := strings.TrimSpace(runGitOutput(t, local, "tag", "-l", "v0.5.0")); got != "v0.5.0" {
+		t.Fatalf("expected selected tag v0.5.0 after upgrade, got %q", got)
+	}
+	if got := strings.TrimSpace(runGitOutput(t, local, "tag", "-l", "v0.6.0-rc.1")); got != "" {
+		t.Fatalf("full tag fetch must not restore pre-release tag, got %q", got)
+	}
+	if got := strings.TrimSpace(runGitOutput(t, local, "tag", "-l", "v0.4.0")); got != "" {
+		t.Fatalf("full tag fetch must not restore older stable tag, got %q", got)
+	}
+}
+
+func TestFetchUpgradeTargetRejectsUnknownKind(t *testing.T) {
+	t.Parallel()
+	var stdout bytes.Buffer
+	application := newApp(&stdout, &stdout, strings.NewReader(""))
+	err := fetchUpgradeTarget(context.Background(), application, upgradeTarget{Kind: "unknown", Name: "x"})
+	if err == nil || !strings.Contains(err.Error(), "unknown upgrade target kind") {
+		t.Fatalf("expected unknown kind error, got %v", err)
+	}
+}
+
 func TestRunFrameworkUpgradeSpecificVersion(t *testing.T) {
 	local, cleanup := setupUpgradeRepos(t)
 	defer cleanup()

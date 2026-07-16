@@ -7,7 +7,7 @@ package usermsg
 import (
 	"context"
 
-	v1 "lina-core/api/usermsg/v1"
+	"lina-core/api/usermsg/v1"
 )
 
 type IUsermsgV1 interface {

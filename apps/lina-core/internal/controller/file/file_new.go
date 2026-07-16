@@ -11,7 +11,7 @@ import (
 
 // ControllerV1 is the file controller.
 type ControllerV1 struct {
-	fileSvc filesvc.Service // file service
+	fileSvc filesvc.Service
 }
 
 // NewV1 creates and returns a new file controller instance.

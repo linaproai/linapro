@@ -7,7 +7,7 @@ package config
 import (
 	"context"
 
-	v1 "lina-core/api/config/v1"
+	"lina-core/api/config/v1"
 )
 
 type IConfigV1 interface {

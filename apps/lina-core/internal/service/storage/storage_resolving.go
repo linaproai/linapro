@@ -277,6 +277,43 @@ func (s *resolvingService) BatchStat(ctx context.Context, in BatchStatInput) (*B
 	return result, nil
 }
 
+// CreateDirectAccess issues client transfer access for NamespaceFiles.
+func (s *resolvingService) CreateDirectAccess(ctx context.Context, in DirectAccessInput) (*DirectAccessOutput, error) {
+	if !isFilesNamespace(in.Namespace) {
+		return &DirectAccessOutput{
+			Access: &storagecap.DirectAccess{
+				Mode:      storagecap.DirectAccessModeProxy,
+				Operation: storagecap.NormalizeDirectAccessOperation(in.Operation),
+			},
+			ProviderID: storagecap.LocalProviderID,
+		}, nil
+	}
+	providerKey, err := filesProviderKey(in.Key)
+	if err != nil {
+		return nil, err
+	}
+	providerID, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
+	if err != nil {
+		return nil, mapResolveError(err)
+	}
+	access, err := storagecap.CreateDirectAccess(ctx, providerID, provider, storagecap.ProviderDirectAccessInput{
+		Key:         providerKey,
+		Operation:   in.Operation,
+		Size:        in.Size,
+		ContentType: in.ContentType,
+		TTL:         in.TTL,
+		Overwrite:   in.Overwrite,
+	})
+	if err != nil {
+		return nil, mapResolveError(err)
+	}
+	return &DirectAccessOutput{
+		Access:      access,
+		ProviderID:  providerID,
+		ProviderKey: providerKey,
+	}, nil
+}
+
 // filesProviderID returns the currently resolved provider identifier for
 // NamespaceFiles (local or the unique enabled cloud plugin id).
 func (s *resolvingService) filesProviderID(ctx context.Context) (string, error) {

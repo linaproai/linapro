@@ -165,6 +165,26 @@
         "maxSize": {
           "name": "File Management - Upload Size Limit",
           "remark": "Controls the maximum size of a single uploaded file in MB."
+        },
+        "directUrlTTL": {
+          "name": "File Management - Direct Access TTL",
+          "remark": "Controls the lifetime of temporary client direct upload/download access to object storage and the file-center direct-upload session. Uses Go duration format such as 30m or 1h; must be positive and at most 1h."
+        },
+        "multipartEnabled": {
+          "name": "File Management - Multipart Upload Switch",
+          "remark": "Controls whether automatic object multipart upload is enabled based on file size thresholds. Values: true or false."
+        },
+        "multipartThresholdMB": {
+          "name": "File Management - Multipart Threshold",
+          "remark": "Automatic multipart threshold in MB. Must be a positive integer and less than the upload size limit."
+        },
+        "multipartPartSizeMB": {
+          "name": "File Management - Multipart Part Size",
+          "remark": "Object multipart part size in MB. Must be a positive integer of at least 5."
+        },
+        "multipartMaxConcurrency": {
+          "name": "File Management - Multipart Concurrency",
+          "remark": "Suggested parallel part count for client direct multipart upload. Must be a positive integer."
         }
       },
       "user": {

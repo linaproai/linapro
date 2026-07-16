@@ -7,7 +7,7 @@ package jobhandler
 import (
 	"context"
 
-	v1 "lina-core/api/jobhandler/v1"
+	"lina-core/api/jobhandler/v1"
 )
 
 type IJobhandlerV1 interface {

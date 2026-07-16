@@ -145,3 +145,31 @@ TBD - created by archiving change make-upgrade-framework. Update Purpose after a
 - **THEN** 命令返回错误
 - **AND** 不自动 hard reset 工作区
 
+### Requirement: 升级时仅下载所选目标 ref
+
+系统在执行 `upgrade` 的对象下载阶段 MUST 仅 fetch 本次已解析的目标 ref 可达对象，MUST NOT 使用会下载官方 remote 全部 tags 的命令作为默认路径（例如 `git fetch <remote> --tags`）。
+
+解析目标时：
+
+1. 未指定 `v`：MUST 通过远端 tag 列表发现（例如 `git ls-remote --tags --refs`，不下载对象）并选出最新稳定 tag，再仅 fetch 该 tag；
+2. `v` 为稳定版本：MUST 仅 fetch 对应 tag；
+3. `v` 为分支名：MUST 仅 fetch 该分支到 `linapro/<branch>` 对应的 remote-tracking ref。
+
+#### Scenario: 默认升级不拉取全部 tags
+
+- **WHEN** 开发者运行默认 `make upgrade` 或 `linactl upgrade` 且官方存在多个稳定 tag
+- **THEN** 系统选择最新稳定 tag 并只下载该 tag 所需对象
+- **AND** 系统不执行会同步官方全部 tags 的 fetch
+
+#### Scenario: 指定版本只拉取该 tag
+
+- **WHEN** 开发者运行 `make upgrade v=v0.5.0`
+- **THEN** 系统只 fetch tag `v0.5.0`（及其合并所需对象）
+- **AND** 不 fetch 其它无关 release tags
+
+#### Scenario: 指定分支只拉取该分支
+
+- **WHEN** 开发者运行 `make upgrade v=main`
+- **THEN** 系统只更新 `linapro/main` 所需对象
+- **AND** 不执行全量 tags fetch
+

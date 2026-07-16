@@ -73,8 +73,10 @@ plugin-owned 非核心能力不归属`capability.Services`。owner 插件在`app
 | 插件命令从请求中接收宿主文件 ID。 | `Files().EnsureVisible` / `files.visible.ensure` | 命令执行写入前必须先校验全部 ID。不存在和不可见使用相同拒绝语义，避免泄露资源存在性。 |
 | 插件需要上传内容并登记到宿主文件中心。 | `Files().Upload` / `files.upload` | 宿主通过文件 owner 写入，让`sys_file`记录租户、上传人、场景、hash 和存储元数据。动态直传有大小上限；更大的动态 payload 应先使用`Storage().Put`。 |
 | 插件已经把对象写入私有存储，并需要宿主文件中心记录。 | `Files().CreateFromStorage` / `files.create_from_storage` | 宿主从插件作用域`Storage()`对象复制到文件中心存储。动态插件还必须为源路径声明`storage.get`。该操作不会移动或删除源对象，也不会暴露 provider key 或本地路径。 |
+| 浏览器/客户端需要绕过宿主中转上传或下载云对象。 | 文件中心`direct-upload/*`与`direct-download` HTTP API；插件侧`Storage().CreateDirectPut` / `ConfirmDirectPut` / `CreateDirectGet` | 宿主签发中立`DirectAccess`（`presigned_url` / `form_post` / `temporary_credentials` / `proxy`），密钥永不下发；object key 由宿主按租户/插件作用域分配；local 或不支持时 mode=`proxy` 回退中转。文件中心仍须`complete`后才写`sys_file`。 |
+| 大对象需要云 Multipart 或宿主分片中转。 | 文件中心`direct-upload/init` 自动策略 + `direct-upload/part-url` / `upload/chunked/*`；云 Provider 可选实现`storagecap.MultipartUploadProvider` | init 按大小阈值与能力探测返回中立`strategy.channel`（`direct`/`proxy`）与`strategy.encoding`（`single`/`multipart`）。直传分片使用 part 级短时访问；中转分片由宿主拼装或经 Provider UploadPart。源码插件可在 Provider 支持时调用 Service Multipart 方法；动态插件一期仍用`Put`（guest 传输分片），不暴露公共 Multipart API。 |
 
-`Storage()`provider 选择不依赖主配置项。宿主在恰好一个 storage provider 插件可服务时使用该插件，没有可服务 provider 时回退到内置本地 provider，多个 provider 插件同时可服务时拒绝 storage 调用。官方云后端（`linapro-storage-cos`、`linapro-storage-oss`、`linapro-storage-aws`、`linapro-storage-s3`）通过`storagecap.Provide`注册，并在宿主稳定目录**系统设置**（`menu_key=setting`）下提供凭证配置页。文件中心对象内容写入/读取/删除与插件`Storage()`共用同一套 provider 选择规则（0→local，1→云，≥2→冲突）；列表与检索仍基于`sys_file`。
+`Storage()`provider 选择不依赖主配置项。宿主在恰好一个 storage provider 插件可服务时使用该插件，没有可服务 provider 时回退到内置本地 provider，多个 provider 插件同时可服务时拒绝 storage 调用。官方云后端（`linapro-storage-cos`、`linapro-storage-oss`、`linapro-storage-aws`、`linapro-storage-s3`等）通过`storagecap.Provide`注册，并在宿主稳定目录**系统设置**（`menu_key=setting`）下提供凭证配置页。文件中心对象内容写入/读取/删除与插件`Storage()`共用同一套 provider 选择规则（0→local，1→云，≥2→冲突）；列表与检索仍基于`sys_file`。客户端直连同样遵守该选择规则，且永不把永久 AK/SK 暴露给前端。
 
 ## 插件配置来源
 

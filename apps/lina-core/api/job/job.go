@@ -7,7 +7,7 @@ package job
 import (
 	"context"
 
-	v1 "lina-core/api/job/v1"
+	"lina-core/api/job/v1"
 )
 
 type IJobV1 interface {

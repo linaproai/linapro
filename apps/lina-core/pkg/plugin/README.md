@@ -73,14 +73,17 @@ New capabilities should enter `capability.Services` only when source plugins and
 | A plugin command accepts host file IDs from a request. | `Files().EnsureVisible` / `files.visible.ensure` | The command checks all IDs before mutation. Missing and invisible files share the same rejection semantics to avoid existence probing. |
 | A plugin needs to upload content and register it in the host file center. | `Files().Upload` / `files.upload` | The host writes through the file owner so `sys_file` receives tenant, uploader, scene, hash, and storage metadata. Dynamic direct upload is bounded; larger dynamic payloads should use `Storage().Put` first. |
 | A plugin has already written an object to its private storage and needs a host file-center record. | `Files().CreateFromStorage` / `files.create_from_storage` | The host copies from the plugin-scoped `Storage()` object into file-center storage. Dynamic plugins must also declare `storage.get` for the source path. The operation does not move or delete the source object and does not expose provider keys or local paths. |
+| A browser/client needs to transfer cloud object bytes without host proxying. | File-center `direct-upload/*` and `direct-download` HTTP APIs; plugin `Storage().CreateDirectPut` / `ConfirmDirectPut` / `CreateDirectGet` | The host issues a neutral `DirectAccess` payload (`presigned_url` / `form_post` / `temporary_credentials` / `proxy`). Permanent credentials are never returned. Object keys are host-assigned with tenant/plugin scope. Local or unsupported backends return `mode=proxy` and keep host-mediated transfer. File-center metadata is written only after successful `complete`. |
+| Large object upload needs cloud multipart or host-chunked transfer. | File-center auto strategy on `direct-upload/init` plus `direct-upload/part-url` / `upload/chunked/*`; optional `storagecap.MultipartUploadProvider` on active cloud providers | Init returns neutral `strategy.channel` (`direct`/`proxy`) and `strategy.encoding` (`single`/`multipart`) from size thresholds and capability probes. Direct multipart uses part-level short-lived access; proxy chunked assembles on the host or uploads parts through the provider. Source plugins may call Service multipart methods when the provider supports them; dynamic guests keep `Put` (chunked transport) without a public Multipart API in phase one. |
 
 `Storage()` provider selection is configuration-free. The host uses the only
 enabled storage provider plugin when exactly one is serviceable, falls back to
 the built-in local provider when none is serviceable, and rejects storage calls
 when multiple provider plugins are serviceable. File-center object content
 (upload/download/delete) uses the same provider selection rules; list and search
-remain on `sys_file`. Official cloud backends
-(`linapro-storage-cos`, `linapro-storage-oss`, `linapro-storage-aws`, `linapro-storage-s3`) register via
+remain on `sys_file`. Client direct access follows the same selection rules and
+never exposes long-lived access keys to the frontend. Official cloud backends
+(`linapro-storage-cos`, `linapro-storage-oss`, `linapro-storage-aws`, `linapro-storage-s3`, and related plugins) register via
 `storagecap.Provide` and expose credentials under the host stable **System Settings**
 menu (`menu_key=setting`).
 

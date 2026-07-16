@@ -1,5 +1,10 @@
 // Package scheduler implements persistent scheduled-job registration and
 // execution on top of GoFrame's gcron runner.
+//
+// Delivery is at-least-once. Process restarts re-register future ticks only
+// (no misfire catch-up) and reclaim this node's orphan running logs as failed
+// without re-running business work. Handler invocations receive the job-log id
+// via jobmeta.WithExecutionLogID for optional idempotency.
 package scheduler
 
 import (

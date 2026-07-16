@@ -7,7 +7,7 @@ package publicconfig
 import (
 	"context"
 
-	v1 "lina-core/api/publicconfig/v1"
+	"lina-core/api/publicconfig/v1"
 )
 
 type IPublicconfigV1 interface {

@@ -319,6 +319,30 @@
       },
       "upload": {
         "required": "请上传文件"
+      },
+      "direct": {
+        "session": {
+          "invalid": "文件直传会话无效",
+          "expired": "文件直传会话已过期"
+        },
+        "complete": {
+          "failed": "文件直传完成校验失败"
+        },
+        "init": {
+          "failed": "初始化文件直传失败"
+        }
+      },
+      "chunked": {
+        "session": {
+          "invalid": "文件分片上传会话无效",
+          "expired": "文件分片上传会话已过期"
+        },
+        "part": {
+          "invalid": "文件分片上传分片无效"
+        },
+        "complete": {
+          "failed": "文件分片上传完成校验失败"
+        }
       }
     },
     "job": {
@@ -1129,6 +1153,36 @@
           },
           "factory": {
             "required": "需要插件存储提供者工厂"
+          }
+        },
+        "direct": {
+          "access": {
+            "unsupported": "当前操作不支持插件存储客户端直连",
+            "operation": {
+              "invalid": "插件存储直连操作无效"
+            },
+            "issue": {
+              "failed": "签发插件存储直连访问失败"
+            }
+          },
+          "session": {
+            "invalid": "插件存储直连会话无效",
+            "expired": "插件存储直连会话已过期"
+          },
+          "complete": {
+            "failed": "插件存储直传完成校验失败"
+          }
+        },
+        "multipart": {
+          "unsupported": "当前存储提供者不支持分片上传",
+          "session": {
+            "invalid": "插件存储分片上传会话无效"
+          },
+          "part": {
+            "invalid": "插件存储分片无效"
+          },
+          "complete": {
+            "failed": "插件存储分片上传完成失败"
           }
         }
       },

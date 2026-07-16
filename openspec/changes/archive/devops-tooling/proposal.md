@@ -16,7 +16,7 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - 建立月度 OpenSpec 自动归档和归档聚合 workflow，支持 Codex、Claude Code 和 GitHub Copilot CLI，使用共享 prompt、运行时凭据注入、阶段性 fail-fast、OpenSpec 校验和 PR 写回。
 - 加强 release 与 nightly 镜像发布治理：release 复用共享测试验证套件，校验 tag 与`framework.version`一致，成功后创建 GitHub Release；manual nightly 可显式跳过测试门禁用于维护重发。
 - 提供受控 release tag 创建入口、跨平台 tag 校验、GitHub App token 规则集绕过说明和 Docker tag 兼容版本格式约束。
-- 提供跨平台框架源码升级入口`make upgrade` / `linactl upgrade`：固定从官方 remote`linapro`（`https://github.com/linaproai/linapro.git`）拉取；默认合并最新稳定 tag（`vMAJOR.MINOR.PATCH`，排除预发布）；支持`v=<version>`指定稳定版本与`v=main`（或其它分支名）合并 remote 分支；detached HEAD 始终拒绝；脏工作区且未传`force`时提示并要求交互确认（`y`/`yes`继续，其它输入、空输入或非交互空 stdin 则退出），`force=1`跳过脏检查与确认；合并时保留本地`apps/lina-plugins`，不自动更新插件。
+- 提供跨平台框架源码升级入口`make upgrade` / `linactl upgrade`：固定从官方 remote`linapro`（`https://github.com/linaproai/linapro.git`）拉取；默认合并最新稳定 tag（`vMAJOR.MINOR.PATCH`，排除预发布）；支持`v=<version>`指定稳定版本与`v=main`（或其它分支名）合并 remote 分支；对象下载阶段先解析目标再仅 fetch 该 tag/分支，禁止默认路径使用`git fetch --tags`全量拉 tag（未指定`v`时用`ls-remote --tags`轻量发现最新稳定版）；detached HEAD 始终拒绝；脏工作区且未传`force`时提示并要求交互确认（`y`/`yes`继续，其它输入、空输入或非交互空 stdin 则退出），`force=1`跳过脏检查与确认；合并时保留本地`apps/lina-plugins`，不自动更新插件。
 - 扩展`linactl i18n.check` / `make i18n.check`：静态收集宿主 SQL seed 与受保护常量、以及`i18n.enabled: true`插件的`SysConfigKey`，强制各运行时 locale 具备`config.<key>.name`与`config.<key>.remark`；同步`.agents/rules/i18n.md`与`linactl`文档；参数设置页 config 展示键可本地化。
 - 提供跨平台安装脚本、内存态 demo Compose、开发容器 Compose、`lina-perf-audit`手动触发性能审计技能和持久 issue-card 机制。
 - 将非工具链 owner 的项目初始化、数据库启动、E2E 组织和定时任务清理内容迁移为交叉影响摘要，避免在本分组重复保存完整能力规范。
@@ -34,7 +34,7 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - `linactl-build-tool-consolidation`
 - `agents-multi-resource`
 - `framework-bootstrap-installer`
-- `framework-upgrade`：`make upgrade` / `linactl upgrade` 从官方仓库合并稳定版本或指定 ref 到当前本地分支，保留本地插件。
+- `framework-upgrade`：`make upgrade` / `linactl upgrade` 从官方仓库合并稳定版本或指定 ref 到当前本地分支，保留本地插件；升级对象下载范围收敛为所选目标 ref。
 - `lina-perf-audit-skill`
 - `monthly-openspec-archive`
 - `release-version-governance`
@@ -57,5 +57,5 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - 不改变 HTTP API 契约、数据库 schema、业务权限、数据权限、插件运行时宿主契约或前端页面结构；`plugin-upgrade-governance`等运行时插件升级契约由`archive/plugin-framework`和主规范承载。
 - 插件目录影响包括根目录薄`Makefile`/`plugin.codegen.mk`、启用 i18n 时插件侧`config.*`语言包与`SysConfigKey`声明约定；不修改插件业务逻辑或运行时授权边界。
 - `i18n`影响：`i18n.check`强制宿主与启用 i18n 的插件补齐`config.<key>.name/remark`；规则文件与 linactl 文档同步；参数设置页依赖投影键本地化显示。静态检查`dir=`与框架`upgrade`命令无运行时语言包变更义务。
-- 跨平台：`dir`解析、参数处理与`upgrade`业务逻辑继续走 Go 标准库/`linactl`，`Makefile`/`make.cmd`仅透传参数；`upgrade`依赖本机`git`，不引入新的第三方 Go 依赖。
-- 验证以工具单元测试、命令 smoke、GitHub Actions YAML/shell 检查、OpenSpec 校验、release/nightly workflow 验证、性能审计 dry-run、`i18n.check`、`linactl` lint 定向/全量 smoke 和文档镜像同步为主。
+- 跨平台：`dir`解析、参数处理与`upgrade`业务逻辑继续走 Go 标准库/`linactl`，`Makefile`/`make.cmd`仅透传参数；`upgrade`依赖本机`git`，不引入新的第三方 Go 依赖；选择性 fetch 同样在 Go 中实现，Windows/Linux/macOS 行为一致。
+- 验证以工具单元测试（含默认最新稳定 / 指定版本 / 指定分支且不依赖全量 tags fetch）、命令 smoke、GitHub Actions YAML/shell 检查、OpenSpec 校验、release/nightly workflow 验证、性能审计 dry-run、`i18n.check`、`linactl` lint 定向/全量 smoke 和文档镜像同步为主。

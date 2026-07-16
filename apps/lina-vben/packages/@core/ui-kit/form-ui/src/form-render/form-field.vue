@@ -330,12 +330,24 @@ onUnmounted(() => {
         Positioning context for absolute FormMessage must be the control column
         (not FormItem). FormItem is relative for other reasons; if FormMessage
         uses left-0 against FormItem, horizontal forms pin errors under labels.
-        Keep overflow clipping on the control row only so FormMessage can still
-        extend into FormItem bottom padding without being clipped.
+
+        Do NOT put overflow-x-hidden on this outer column: CSS computes
+        overflow-y as auto when overflow-x is not visible, which clips the
+        absolute FormMessage that extends into FormItem bottom padding.
+
+        Keep overflow-x-hidden on the INNER control row only, and put p-px on
+        the SAME element: Vben inputs use focus-visible:ring-1 (box-shadow).
+        Without matching padding, the ring is clipped to corner fragments
+        (login page focus highlight regression).
       -->
-      <div class="relative flex-auto p-px">
+      <div class="relative flex-auto">
         <div
-          :class="cn('relative flex w-full items-center overflow-x-hidden', wrapperClass)"
+          :class="
+            cn(
+              'relative flex w-full items-center overflow-x-hidden p-px',
+              wrapperClass,
+            )
+          "
         >
           <FormControl :class="cn(controlClass)">
             <slot

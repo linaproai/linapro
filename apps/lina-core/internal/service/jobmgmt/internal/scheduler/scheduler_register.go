@@ -9,6 +9,7 @@ import (
 	jobv1 "lina-core/api/job/v1"
 	joblogv1 "lina-core/api/joblog/v1"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/os/gcron"
 
@@ -18,10 +19,19 @@ import (
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/logger"
 )
 
 // LoadAndRegister registers all currently enabled persistent jobs at startup.
+// Before registration it reclaims this node's leftover running logs so process
+// restarts do not leave permanent running rows from aborted executions.
 func (s *serviceImpl) LoadAndRegister(ctx context.Context) error {
+	if err := s.reclaimOrphanRunningLogs(ctx); err != nil {
+		// Continue registration after reclaim failures so a log cleanup issue
+		// does not prevent the scheduler from loading enabled jobs.
+		logger.Warningf(ctx, "reclaim orphan scheduled-job logs failed: %v", err)
+	}
+
 	jobs, err := s.listEnabledJobs(ctx)
 	if err != nil {
 		return err
@@ -36,6 +46,42 @@ func (s *serviceImpl) LoadAndRegister(ctx context.Context) error {
 			}
 			return err
 		}
+	}
+	return nil
+}
+
+// reclaimOrphanRunningLogs closes leftover running logs that belong to the
+// current node. Multi-node deployments only touch this node's rows so in-flight
+// executions on other nodes keep their running status.
+// Reclaim is log bookkeeping only: status becomes failed with a restart
+// message, and the interrupted business work is not re-executed.
+func (s *serviceImpl) reclaimOrphanRunningLogs(ctx context.Context) error {
+	now := time.Now()
+	result, err := dao.SysJobLog.Ctx(ctx).
+		Where(do.SysJobLog{
+			Status: string(joblogv1.StatusRunning),
+			NodeId: s.nodeID(),
+		}).
+		Data(do.SysJobLog{
+			EndAt:  &now,
+			Status: string(joblogv1.StatusFailed),
+			ErrMsg: errMsgJobInterruptedByRestart,
+		}).
+		Update()
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
+		logger.Warningf(
+			ctx,
+			"reclaimed %d orphan running scheduled-job log(s) on node %s",
+			affected,
+			s.nodeID(),
+		)
 	}
 	return nil
 }

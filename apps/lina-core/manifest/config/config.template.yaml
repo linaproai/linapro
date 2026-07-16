@@ -165,7 +165,7 @@ upload:
   path: "temp/upload"
   # Maximum size of a single uploaded file in MB
   # 单个上传文件大小上限（MB）
-  maxSize: 100
+  maxSize: 200
 
 # Plugin configuration
 # 插件配置

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/hostlock"
@@ -141,6 +142,48 @@ func TestStorageAdapterUsesLocalProviderByDefault(t *testing.T) {
 	}
 	if localProvider.putKey != "plugins/reporting/platform/reports/a.json" {
 		t.Fatalf("expected local provider key, got %q", localProvider.putKey)
+	}
+}
+
+// TestStorageAdapterCreateDirectPutProxyAndPresign verifies local falls back to
+// proxy mode while an active cloud provider can issue presigned put access.
+func TestStorageAdapterCreateDirectPutProxyAndPresign(t *testing.T) {
+	ctx := context.Background()
+
+	localServices := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{}, &storageProviderTestProvider{})
+	localStorage := capabilityowner.ServicesForPlugin(localServices, "reporting").Storage()
+	proxyOut, err := localStorage.CreateDirectPut(ctx, storagecap.DirectPutInput{
+		Path: "reports/a.bin",
+		Size: 8,
+	})
+	if err != nil {
+		t.Fatalf("local CreateDirectPut: %v", err)
+	}
+	if !storagecap.IsProxyDirectAccess(proxyOut.Access) {
+		t.Fatalf("local must proxy, got %#v", proxyOut.Access)
+	}
+
+	providerID := fmt.Sprintf("storage-provider-direct-%d", storageProviderTestSequence())
+	cloud := &storageProviderTestProvider{directSupport: true, directURL: "https://cloud.test/put"}
+	registerStorageProviderForTest(t, providerID, cloud)
+	cloudServices := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{
+		available: map[string]bool{providerID: true},
+	}, &storageProviderTestProvider{})
+	cloudStorage := capabilityowner.ServicesForPlugin(cloudServices, "reporting").Storage()
+	directOut, err := cloudStorage.CreateDirectPut(ctx, storagecap.DirectPutInput{
+		Path:        "reports/a.bin",
+		Size:        8,
+		ContentType: "application/octet-stream",
+		Overwrite:   true,
+	})
+	if err != nil {
+		t.Fatalf("cloud CreateDirectPut: %v", err)
+	}
+	if storagecap.IsProxyDirectAccess(directOut.Access) || directOut.Access.URL == "" {
+		t.Fatalf("expected presigned access, got %#v", directOut.Access)
+	}
+	if directOut.Path != "reports/a.bin" {
+		t.Fatalf("path=%q", directOut.Path)
 	}
 }
 
@@ -396,6 +439,8 @@ type storageProviderTestProvider struct {
 	putSize        int64
 	putContentType string
 	listKeys       []string
+	directSupport  bool
+	directURL      string
 }
 
 func (p *storageProviderTestProvider) Put(_ context.Context, in storagecap.ProviderPutInput) (*storagecap.ProviderObject, error) {
@@ -559,6 +604,28 @@ func (p *storageProviderTestProvider) BatchStat(_ context.Context, in storagecap
 		})
 	}
 	return output, nil
+}
+
+func (p *storageProviderTestProvider) SupportsDirectAccess(_ context.Context, op storagecap.DirectAccessOperation) bool {
+	return p.directSupport && (op == storagecap.DirectAccessOpPut || op == storagecap.DirectAccessOpGet)
+}
+
+func (p *storageProviderTestProvider) CreateDirectAccess(_ context.Context, in storagecap.ProviderDirectAccessInput) (*storagecap.DirectAccess, error) {
+	url := p.directURL
+	if url == "" {
+		url = "https://example.test/" + in.Key
+	}
+	method := "PUT"
+	if in.Operation == storagecap.DirectAccessOpGet {
+		method = "GET"
+	}
+	return &storagecap.DirectAccess{
+		Mode:      storagecap.DirectAccessModePresignedURL,
+		Operation: in.Operation,
+		Method:    method,
+		URL:       url,
+		ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
+	}, nil
 }
 
 func (p *storageProviderTestProvider) ensureObjects() {

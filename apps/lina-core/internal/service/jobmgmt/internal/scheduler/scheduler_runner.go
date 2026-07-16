@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	jobv1 "lina-core/api/job/v1"
 	joblogv1 "lina-core/api/joblog/v1"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -21,6 +23,15 @@ import (
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/jobmgmt/internal/shellexec"
 	"lina-core/pkg/logger"
+)
+
+// maxJobLogErrMsgLen matches sys_job_log.err_msg VARCHAR(1000).
+const maxJobLogErrMsgLen = 1000
+
+// Stable terminal-log messages used by scheduler crash and restart recovery.
+// Reclaim closes the log only; it does not re-run the interrupted business work.
+const (
+	errMsgJobInterruptedByRestart = "Interrupted by process restart; log reclaimed without re-running the job"
 )
 
 // runCronJob handles one gcron callback for the target persistent job.
@@ -170,6 +181,10 @@ func (s *serviceImpl) disableForMaxExecutions(ctx context.Context, jobID int64) 
 }
 
 // executeJob dispatches one running job instance and persists its final log state.
+// Handler panics are recovered so concurrency slots are released and the log
+// row is closed as failed instead of remaining stuck in running forever.
+// The job-log id is attached to the dispatch context so handlers can read
+// jobmeta.ExecutionLogID for at-least-once idempotency.
 func (s *serviceImpl) executeJob(
 	ctx context.Context,
 	execution executionState,
@@ -178,13 +193,67 @@ func (s *serviceImpl) executeJob(
 ) {
 	defer s.finishRunningExecution(logID)
 
-	status, errMsg, resultJSON := s.dispatchExecution(ctx, job)
+	var (
+		status     jobmeta.LogStatus
+		errMsg     string
+		resultJSON string
+		jobID      int64
+	)
+	if job != nil {
+		jobID = job.Id
+	}
+	// Provide a stable execution id before dispatch; finishLog still uses the
+	// original ctx so timeout/cancel still apply to the business call only.
+	dispatchCtx := jobmeta.WithExecutionLogID(ctx, logID)
+
+	// Isolate dispatch so a panic cannot skip finishLog while still allowing
+	// finishRunningExecution (outer defer) to release the concurrency slot.
+	func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				status = joblogv1.StatusFailed
+				errMsg = buildPanicErrMsg(recovered)
+				resultJSON = ""
+				logger.Errorf(
+					ctx,
+					"scheduled job panicked log_id=%d job_id=%d err=%v",
+					logID,
+					jobID,
+					recovered,
+				)
+			}
+		}()
+		status, errMsg, resultJSON = s.dispatchExecution(dispatchCtx, job)
+	}()
+
 	// Persist the terminal log state with a detached context so timeout or
 	// cancellation does not prevent the final status from being recorded.
 	finishCtx := context.WithoutCancel(ctx)
 	if err := s.finishLog(finishCtx, logID, execution.startedAt, status, errMsg, resultJSON); err != nil {
 		logger.Warningf(ctx, "finish scheduled job log failed log_id=%d err=%v", logID, err)
 	}
+}
+
+// buildPanicErrMsg converts a recovered panic into a bounded err_msg value.
+// Full stacks are truncated to fit sys_job_log.err_msg (VARCHAR 1000).
+func buildPanicErrMsg(recovered any) string {
+	message := fmt.Sprintf("Scheduled-job handler panicked: %v", recovered)
+	stack := strings.TrimSpace(string(debug.Stack()))
+	if stack != "" {
+		message += "\n" + stack
+	}
+	return truncateJobLogErrMsg(message)
+}
+
+// truncateJobLogErrMsg bounds free-text log errors to the database column width.
+func truncateJobLogErrMsg(message string) string {
+	if len(message) <= maxJobLogErrMsgLen {
+		return message
+	}
+	if maxJobLogErrMsgLen <= 3 {
+		return message[:maxJobLogErrMsgLen]
+	}
+	return message[:maxJobLogErrMsgLen-3] + "..."
 }
 
 // dispatchExecution runs one handler or shell task and maps the result to job-log fields.

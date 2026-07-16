@@ -314,11 +314,13 @@ make version to=v0.2.0
 
 ## 框架升级
 
-`upgrade`**始终**从官方仓库`https://github.com/linaproai/linapro.git`拉取（工具托管 remote 名`linapro`），再**合并到当前本地分支**。不会使用本地`origin`或 fork remote。随后：
+`upgrade`**始终**以官方仓库`https://github.com/linaproai/linapro.git`为升级源（工具托管 remote 名`linapro`），再**合并到当前本地分支**。不会使用本地`origin`或 fork remote。
 
-- 不传`v`：合并最新稳定版本 tag（`vMAJOR.MINOR.PATCH`；带`-rc`等预发布后缀的 tag 不会被默认选中）；
-- `v=v0.5.0`或`v=0.5.0`：合并指定稳定版本 tag；
-- `v=main`（或其它分支名）：合并`linapro/<branch>`。
+对象下载为**按目标选择性 fetch**（不会执行全量`git fetch --tags`）：
+
+- 不传`v`：先用`ls-remote`仅获取远端 tag 名列表，选出最新稳定版本 tag（`vMAJOR.MINOR.PATCH`；带`-rc`等预发布后缀的 tag 不会被默认选中），再**只拉取该 tag**；
+- `v=v0.5.0`或`v=0.5.0`：**只拉取**对应 tag；
+- `v=main`（或其它分支名）：**只拉取**该分支到`linapro/<branch>`。
 
 `apps/lina-plugins`**不会被自动更新**。合并后会保留升级前的插件工作区（submodule 指针或本地目录树）。只有在你主动需要时，才通过`make plugins.update` / `linactl plugins.update`更新插件。
 
