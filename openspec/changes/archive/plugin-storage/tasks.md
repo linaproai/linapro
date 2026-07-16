@@ -7,7 +7,8 @@
 - [x] Provider 扩展落地：唯一可服务自动选中、冲突码、配置无效 fail-closed；移除主配置 active provider 选择语义
 - [x] 官方云存储 source 插件：cos / oss / obs / qiniu / aws / azure / s3（settings、Provider 全方法、连通性探测、i18n、README）
 - [x] 配置菜单挂 `setting`；不维护 `storage` 一级目录；品牌图标在插件侧；唯一启用与 fail-closed 文案
-- [x] 运行时选择与冒烟：0→local、1→云、≥2→conflict；可选 MinIO/S3 集成路径
+- [x] 客户端直连：`storagecap` DirectAccess 契约；Service CreateDirectPut/Confirm/Get；七云 Provider 直连实现；配置页 CORS 说明；local 降级；动态 guest 第一期 proxy
+- [x] 运行时选择与冒烟：0→local、1→云、≥2→conflict；直连探测与 fail-closed；可选 MinIO/S3 集成路径
 
 ## Feedback
 
@@ -28,15 +29,15 @@
 ## Verification
 
 - [x] `openspec validate` 相关变更 strict 通过
-- [x] 边界/分片/Provider/settings 相关 Go 单测通过
+- [x] 边界/分片/Provider/settings/DirectAccess 相关 Go 单测通过
 - [x] 云插件菜单挂载与 settings 掩码/权限 E2E（或记录环境阻断）
 - [x] `lina-review` 审查通过
 
 ## Governance
 
-- [x] **i18n**：云插件菜单/设置页/错误文案双语；宿主不维护 `storage` 菜单标题；边界澄清无新增运行时文案
-- [x] **数据权限**：settings 平台配置控制面；Storage 插件/租户 key 作用域；动态分片 path 授权不变
+- [x] **i18n**：云插件菜单/设置页/错误文案/CORS 提示双语；宿主不维护 `storage` 菜单标题
+- [x] **数据权限**：settings 平台配置控制面；Storage 插件/租户 key 作用域；动态分片与直连 path 授权不变
 - [x] **缓存**：无新增跨节点业务缓存权威数据；`sys_config` 既有读路径
-- [x] **测试策略**：契约单测 + 至少一家 settings E2E + 菜单挂载 E2E；Provider mock 覆盖冲突/missing/batch/cursor
+- [x] **测试策略**：契约单测 + 至少一家 settings E2E + 菜单挂载 E2E；Provider mock 覆盖冲突/missing/batch/cursor/DirectAccess
 - [x] **DI**：settings/sys_config 与 Provider factory owner 在插件侧；宿主复用既有 `storagecap` 解析与 local 后端
 - [x] **跨平台开发工具**：无影响

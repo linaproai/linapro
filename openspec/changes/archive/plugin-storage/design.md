@@ -2,16 +2,18 @@
 
 宿主对象存储与文件中心分层如下：
 
-- 插件可见契约：`storagecap.Service`（logical path + 插件/租户作用域）
-- 后端扩展契约：`storagecap.Provider` + `storagecap.Provide` + `ResolveProvider`
-- 内置后端：local provider，委托宿主内部 `storage.Service`（namespace `plugins`）
-- 文件中心：`Files()` / `sys_file`，走宿主 `storage.Service` namespace `files`，不经 `storagecap.Provider`
+- 插件可见契约：`storagecap.Service`（logical path + 插件/租户作用域；含可选 DirectAccess 签发与确认）
+- 后端扩展契约：`storagecap.Provider` + `storagecap.Provide` + `ResolveProvider`（含可选 DirectAccess）
+- 内置后端：local provider，委托宿主内部 `storage.Service`（namespace `plugins`）；local 不支持直连
+- 文件中心：`Files()` / `sys_file`，内容字节经统一对象后端（与 `ResolveProvider` 共享选择规则）；列表元数据仍以 `sys_file` 为准
 
 历史上存在三类缺口：
 
 1. **领域语义不清**：`Storage()` 与 `Files()` 在 capability 面并存，示例与文档易把插件附件误接到文件中心或宿主本地路径。
 2. **动态插件大对象写入脆弱**：guest 侧 `io.ReadAll` 后单次 `storage.put`，受 guest 内存与 envelope 约束。
 3. **云后端未交付**：规范预留「源码插件可注册 OSS/S3 等」，但无官方 provider 插件与运维配置面。
+
+云中转落地后，进一步补齐客户端直连：原先 README 将 Presigned URLs 列为 Non-goal，现改为正式能力——宿主签发短时中立访问描述，客户端直连云，密钥不下发。
 
 菜单侧：宿主在菜单种子中维护稳定一级目录（`dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`extension`、`developer`），插件用 `parent_key` 语义挂载，空目录由导航投影隐藏。Storage 领域 owner 是宿主；配置入口应复用运维设置面，而不是仿照 plugin-owned 域目录（如「授权登录」）再建一层。
 
@@ -24,22 +26,24 @@
 - 交付 COS / OSS / OBS / 七牛 / AWS / Azure / S3 兼容等官方 source provider 插件，业务调用面仍仅 `Storage()`
 - 云插件配置页挂载到既有 `setting`（系统设置），交互与密钥治理对齐授权登录类设置页
 - 保持唯一 active provider 语义（启用状态驱动，不新增主配置 active 项）
+- 提供可探测的客户端直连 put/get（中立 DirectAccess）；官方云插件实现；local 自动降级中转
 
 **Non-Goals:**
 
-- 文件中心 / `Files()` / `sys_file` 对象内容上云
-- 预签名直传、CDN 公网 URL 进入 `storagecap` 契约
 - 跨 provider 迁移工具；按租户选择不同云后端
 - 新建 `linapro-storage-core` 或仅为菜单存在的领域壳插件
 - 独立 `storage` 一级宿主稳定目录
 - 动态插件实现 Provider（SDK 与进程内注册要求 source）
 - 重命名 `Storage()` / `Files()` 公开方法名
+- 浏览器默认内嵌各云官方 SDK（STS mode 可为高级载荷，工作台默认不用）
+- 第一期强制云端 multipart 分片直传全厂商打齐（单对象 presign/form 优先）
+- 动态 WASM guest 在沙箱内“直连云”（guest 仍走 host；第一期 CreateDirect* 对 guest 可返回 proxy）
 
 ## Decisions
 
 ### 1. Storage 与 Files 边界
 
-**决策**：不重命名公开入口。`Storage()` 拥有插件对象内容生命周期（保存、下载、替换、删除、列出、卸载清理）。`Files()` 仅做宿主文件中心投影与存在性不泄露校验。`Storage()` 不生成 `sys_file` 记录；`Files()` 不新增对象存储方法。`linapro-demo-source` 附件改走 `Storage()`。
+**决策**：不重命名公开入口。`Storage()` 拥有插件对象内容生命周期（保存、下载、替换、删除、列出、卸载清理、可选直连签发与确认）。`Files()` 仅做宿主文件中心投影与存在性不泄露校验。`Storage()` 不生成 `sys_file` 记录；`Files()` 不新增对象存储方法。`linapro-demo-source` 附件改走 `Storage()`。
 
 ### 2. 动态插件分片上传
 
@@ -92,6 +96,7 @@
 - 页面：`Card` + `Alert` + 水平 `Form`（label≈180px），无重复 Card 标题
 - 连通性探测：Head/List bucket 一类只读探测；失败以 Modal.error（或等价弹窗）展示完整原因，不单靠页顶常驻 Alert；失败不写脏配置
 - 探测权限第一期复用 `settings:view`，保存用 `settings:update`
+- 直传 CORS：配置页 Alert 补充浏览器直传所需 CORS（方法、Header、工作台 Origin）说明，与唯一启用/fail-closed 提示一并可见
 
 字段要点：
 
@@ -105,23 +110,41 @@
 
 - 只处理 adapter 传入的 scoped object key
 - 实现完整 `Provider` 方法集（含 `ListCursor`、`BatchStat`、`DeleteMany`）
-- 错误映射到 `storagecap` 稳定码（path invalid / exists / unavailable 等）
-- 大文件：第一期依赖 SDK 对流式/分片上传的封装；不扩展 `storagecap` multipart 契约
+- 错误映射到 `storagecap` 稳定码（path invalid / exists / unavailable / 直连相关码等）
+- 可选实现 DirectAccess：`SupportsDirectAccess` / `CreateDirectAccess`；输出中立 mode（`presigned_url` / `form_post` / `temporary_credentials`）
+- local：`SupportsDirectAccess=false`，上层降级 proxy/中转
+- 大文件中转：第一期依赖 SDK 对流式/分片上传的封装；云端 multipart 直传为契约可选扩展
 - 注册方式：`storagecap.Provide(pluginID, factory)` 包级注册；不在此引入 `pluginhost.Providers().ProvideStorage`
+- 宿主**不** import 云 SDK；签名逻辑只在插件内
 
-### 8. 插件菜单图标边界
+### 8. 客户端直连（DirectAccess）
+
+**决策**：在现有 Provider 扩展点上增加可选能力，而非平行总线。
+
+```text
+SupportsDirectAccess(op) -> bool
+CreateDirectAccess(DirectAccessInput) -> DirectAccess
+// Mode: presigned_url | form_post | temporary_credentials | proxy
+```
+
+`storagecap.Service` 增加 CreateDirectPut / ConfirmDirectPut / CreateDirectGet：logical path 映射为含插件 ID 与租户维度的 scoped key；确认 put 后 `Get`/`Stat` 可见。动态插件创建直连时仍过 path 授权；未授权 path 在进入 provider 签发前拒绝。
+
+安全硬性约束：key 由宿主生成；size/content-type 有界；短时过期；操作单一；Confirm 必须 Stat；永久 AK/SK 不下发。
+
+第一期动态 guest 对 CreateDirect* 可返回 `proxy`（保持大对象中转分片）；源码插件可直接使用 host 侧直连方法。
+
+### 9. 插件菜单图标边界
 
 - **优先** Iconify 集合图标（`simple-icons:*`、`carbon:*` 等），写在 `plugin.yaml`
 - 无合适图元时，自定义单色 SVG 放在插件 `frontend/icons/*.svg`；工作台构建期注册为 `svg:<plugin-id>-<stem>`
 - **禁止**把业务品牌 SVG 写入宿主 `apps/lina-vben/packages/icons`
 - 侧栏菜单图标不走 `/x-assets`（x-assets 面向公开静态托管；菜单矢量需启动期可用、可主题着色）
 
-### 9. 与文件中心隔离
+### 10. 与文件中心协作
 
-云 provider 仅承接 `storagecap` 路径（插件私有对象）。  
-`file` 模块继续使用宿主 `storage.Service` 本地根；不将 host-internal storage 抽象为云后端。
+云 provider 承接 `storagecap` 路径（插件私有对象）与经统一后端选择后的文件中心 `files/` 键。文件中心列表/权限仍以 `sys_file` 为权威；内容 Put/Get/Delete 与可选直连共享同一 `ResolveProvider` 与 fail-closed 语义。
 
-业务侧上传（文件管理/图片等）在解析 active Storage provider 冲突或不可用时必须 fail-closed：不得因哈希复用跳过 Put 而表现为成功。
+业务侧上传在解析 active Storage provider 冲突或不可用时必须 fail-closed：不得因哈希复用跳过 Put 而表现为成功。
 
 ## Risks / Trade-offs
 
@@ -133,16 +156,20 @@
 | 多云 SDK 依赖体积与许可 | 仅插件 go.mod 引入；宿主不引用 |
 | 列表/游标语义与本地实现细微差异 | Provider 契约单测锁定分页与 missing 语义 |
 | 动态插件分片会话泄漏 | abort/超时清理；会话绑定插件与 path |
+| 桶 CORS 未配导致直传失败 | 配置页 CORS 说明 + 明确错误 |
+| 七牛/Azure 与 S3 语义差异 | 中立 DirectAccess 字段；插件内适配 |
 
 ## Migration Plan
 
 1. 边界与分片能力随宿主发布；示例插件改用 `Storage()`。
 2. 升级宿主：移除历史 `storage` 一级目录（若存在）；云插件 `parent_key: setting`。
 3. 安装并配置恰好一个云插件 → 启用 → `Storage()` 流量切到云。
-4. 回滚：禁用/卸载云插件 → 自动回退 local（仅影响新读写；云上对象不会自动拉回本地）。
-5. 无强制数据迁移步骤。
+4. 云插件补齐 DirectAccess 后，支持直连的调用方自动直传；未实现前探测为不支持并中转。
+5. 回滚：禁用/卸载云插件 → 自动回退 local（仅影响新读写；云上对象不会自动拉回本地）。
+6. 无强制数据迁移步骤。
 
 ## Open Questions（已收敛默认）
 
 - 测试连接权限：第一期探测复用 `settings:view`，保存用 `settings:update`。
 - 角色默认授权：超级管理员自动拥有新权限；默认 admin 角色按宿主插件菜单同步惯例处理。
+- 动态 guest 直连：第一期 proxy 降级；源码插件可走 host DirectAccess。

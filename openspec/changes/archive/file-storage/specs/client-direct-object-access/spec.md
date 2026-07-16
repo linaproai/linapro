@@ -1,4 +1,10 @@
-## ADDED Requirements
+# client-direct-object-access Specification
+
+## Purpose
+
+定义客户端直连对象访问的通用契约与生命周期：能力探测、中立访问模式、init/complete/abort、安全 scope、local 降级，以及与领域元数据确认的边界。适用于文件中心直传与插件 Storage 直连编排。
+
+## Requirements
 
 ### Requirement: 系统必须提供可探测的客户端直连对象访问契约
 
