@@ -1,4 +1,10 @@
-## ADDED Requirements
+# object-multipart-upload Specification
+
+## Purpose
+
+定义对象存储 Multipart 领域契约、能力探测、文件中心中转/直传分片协议、自动分片阈值策略与运行时配置项。
+
+## Requirements
 
 ### Requirement: 系统必须提供可探测的对象 Multipart 上传契约
 

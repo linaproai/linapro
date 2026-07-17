@@ -1,4 +1,10 @@
-## ADDED Requirements
+# cloud-storage-provider-plugins Specification
+
+## Purpose
+
+定义官方云 storage provider 插件在客户端直连与对象 Multipart 方面的实现与运维说明要求。
+
+## Requirements
 
 ### Requirement: 支持 Multipart 的官方云 provider 必须实现中立 Multipart 接口
 

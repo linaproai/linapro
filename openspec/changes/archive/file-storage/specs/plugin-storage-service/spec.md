@@ -1,4 +1,10 @@
-## ADDED Requirements
+# plugin-storage-service Specification
+
+## Purpose
+
+定义插件 `storagecap` 领域契约在直连与 Multipart 扩展下的服务面要求：与文件中心共享后端选择语义，并在逻辑路径隔离下支持可选 Multipart 会话与大对象 Put 优化。
+
+## Requirements
 
 ### Requirement: storagecap 必须支持可选 Multipart 会话操作
 

@@ -1,4 +1,10 @@
-## ADDED Requirements
+# host-object-storage Specification
+
+## Purpose
+
+定义宿主内部 `storage.Service` 在文件命名空间上对 active provider Multipart 与 part 级访问签发能力的透传要求。
+
+## Requirements
 
 ### Requirement: 宿主 storage.Service 必须透传文件命名空间的 Multipart 能力
 
