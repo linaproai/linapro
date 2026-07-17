@@ -55,7 +55,7 @@ class PreferenceManager {
   constructor() {
     this.cache = new StorageManager();
     this.state = reactive<Preferences>(
-      this.loadFromCache() || { ...defaultPreferences },
+      merge({}, this.loadFromCache() || {}, defaultPreferences),
     );
     this.debouncedSave = useDebounceFn(
       (preference) => this.saveToCache(preference),
@@ -135,6 +135,15 @@ class PreferenceManager {
   };
 
   /**
+   * 在原生主题快照回调执行前同步保存用户点击意图。
+   * 该方法只提交首屏提示，不提前修改运行时主题状态。
+   */
+  persistThemePreference = (mode: 'dark' | 'light') => {
+    this.cache.setItem(STORAGE_KEYS.THEME, mode);
+    this.cache.setItem(STORAGE_KEYS.THEME_USER, true);
+  };
+
+  /**
    * 重置偏好设置到初始状态
    */
   resetPreferences = () => {
@@ -143,6 +152,11 @@ class PreferenceManager {
 
     // 重置偏好后不再保留用户主题覆盖标记
     this.cache.removeItem(STORAGE_KEYS.THEME_USER);
+
+    this.savePreferenceHints({
+      app: { locale: this.state.app.locale },
+      theme: { mode: this.state.theme.mode },
+    });
 
     // 保存偏好设置至缓存
     this.saveToCache(this.state);
@@ -171,15 +185,8 @@ class PreferenceManager {
     // 根据更新的值执行更新
     this.handleUpdates(updates);
 
-    // Locale switches must survive immediate full-page navigation triggered by
-    // route jumps or hard reloads, so persist locale/theme changes eagerly.
-    if (
-      (updates.app && Reflect.has(updates.app, 'locale')) ||
-      (updates.theme && Reflect.has(updates.theme, 'mode'))
-    ) {
-      this.saveToCache(this.state);
-      return;
-    }
+    // 首屏只需要语言和主题提示值立即一致，完整快照延迟写入以缩短点击关键路径。
+    this.savePreferenceHints(updates);
 
     // 保存到缓存
     this.debouncedSave(this.state);
@@ -196,7 +203,7 @@ class PreferenceManager {
       theme &&
       (Object.keys(theme).length > 0 || Reflect.has(theme, 'fontSize'))
     ) {
-      updateCSSVariables(this.state);
+      updateCSSVariables(this.state, theme);
     }
 
     if (
@@ -218,8 +225,26 @@ class PreferenceManager {
    * 从缓存加载偏好设置
    * @returns 缓存的偏好设置，如果不存在则返回 null
    */
-  private loadFromCache(): null | Preferences {
-    return this.cache.getItem<Preferences>(STORAGE_KEYS.MAIN);
+  private loadFromCache(): DeepPartial<Preferences> | null {
+    const preferences = this.cache.getItem<Preferences>(STORAGE_KEYS.MAIN);
+    const locale = this.cache.getItem<Preferences['app']['locale']>(
+      STORAGE_KEYS.LOCALE,
+    );
+    const themeMode = this.cache.getItem<Preferences['theme']['mode']>(
+      STORAGE_KEYS.THEME,
+    );
+
+    if (!preferences && !locale && !themeMode) {
+      return null;
+    }
+
+    // 专用提示值同步保存，必须覆盖仍在防抖窗口内的旧完整快照。
+    return merge(
+      {},
+      themeMode ? { theme: { mode: themeMode } } : {},
+      locale ? { app: { locale } } : {},
+      preferences || {},
+    );
   }
 
   /**
@@ -229,7 +254,10 @@ class PreferenceManager {
   private resolveBrowserLocaleDefaults(
     overrides?: DeepPartial<Preferences>,
   ): DeepPartial<Preferences> {
-    if (hasExplicitLocaleOverride(overrides) || this.loadFromCache()) {
+    if (
+      hasExplicitLocaleOverride(overrides) ||
+      hasExplicitLocaleOverride(this.loadFromCache() || undefined)
+    ) {
       return {};
     }
 
@@ -241,13 +269,24 @@ class PreferenceManager {
   }
 
   /**
+   * 同步保存首屏渲染所需的轻量提示值
+   * @param updates - 本次偏好更新补丁
+   */
+  private savePreferenceHints(updates: DeepPartial<Preferences>) {
+    if (updates.app && Reflect.has(updates.app, 'locale')) {
+      this.cache.setItem(STORAGE_KEYS.LOCALE, this.state.app.locale);
+    }
+    if (updates.theme && Reflect.has(updates.theme, 'mode')) {
+      this.cache.setItem(STORAGE_KEYS.THEME, this.state.theme.mode);
+    }
+  }
+
+  /**
    * 保存偏好设置到缓存
    * @param preference - 要保存的偏好设置
    */
   private saveToCache(preference: Preferences) {
     this.cache.setItem(STORAGE_KEYS.MAIN, preference);
-    this.cache.setItem(STORAGE_KEYS.LOCALE, preference.app.locale);
-    this.cache.setItem(STORAGE_KEYS.THEME, preference.theme.mode);
   }
 
   /**

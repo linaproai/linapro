@@ -126,6 +126,7 @@ Use `serialIsolation` in `config/execution-manifest.json` when a test file or di
 | Category | Use for |
 | --- | --- |
 | `authSession` | Tests that verify shared authenticated browser state, such as logout. |
+| `performanceTiming` | Browser wall-clock performance assertions that require an uncontended single-worker pool. |
 | `pluginLifecycle` | Plugin sync, install, enable, disable, uninstall, upload, or upgrade flows. |
 | `runtimeI18nCache` | Runtime language bundle versions, ETag checks, and language-cache revalidation. |
 | `systemConfig` | System parameter and public frontend configuration mutations. |

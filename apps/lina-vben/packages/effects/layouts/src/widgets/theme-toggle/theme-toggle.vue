@@ -4,6 +4,7 @@ import type { ThemeModeType } from '@vben/types';
 import { MoonStar, Sun, SunMoon } from '@vben/icons';
 import { $t } from '@vben/locales';
 import {
+  persistThemePreference,
   preferences,
   updatePreferences,
   usePreferences,
@@ -29,6 +30,10 @@ function handleChange(isDark: boolean | undefined) {
   updatePreferences({
     theme: { mode: isDark ? 'dark' : 'light' },
   });
+}
+
+function handleThemeChangeIntent(isDark: boolean) {
+  persistThemePreference(isDark ? 'dark' : 'light');
 }
 
 const { isDark } = usePreferences();
@@ -58,6 +63,7 @@ const PRESETS = [
         <ThemeButton
           :model-value="isDark"
           type="icon"
+          @theme-change-intent="handleThemeChangeIntent"
           @update:model-value="handleChange"
         />
       </template>

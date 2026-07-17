@@ -326,6 +326,25 @@
     @apply no-underline;
   }
 
+  html[data-theme-transition='updating'] *:not(.theme-toggle, .theme-toggle *),
+  html[data-theme-transition='updating']
+    *:not(.theme-toggle, .theme-toggle *)::before,
+  html[data-theme-transition='updating']
+    *:not(.theme-toggle, .theme-toggle *)::after {
+    transition: none !important;
+  }
+
+  html[data-theme-transition-direction='to-dark']::view-transition-old(root) {
+    clip-path: circle(
+      var(--theme-transition-radius) at var(--theme-transition-x)
+        var(--theme-transition-y)
+    );
+  }
+
+  html[data-theme-transition-direction='to-light']::view-transition-new(root) {
+    clip-path: circle(0 at var(--theme-transition-x) var(--theme-transition-y));
+  }
+
   ::view-transition-new(root),
   ::view-transition-old(root) {
     @apply animate-none mix-blend-normal;

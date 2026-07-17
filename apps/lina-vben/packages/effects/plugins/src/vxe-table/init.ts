@@ -6,6 +6,7 @@ import { usePreferences } from '@vben/preferences';
 
 import { useVbenForm } from '@vben-core/form-ui';
 
+import { vxeLocaleLoaders } from 'virtual:lina-vxe-locales';
 import {
   VxeButton,
   VxeCheckbox,
@@ -35,7 +36,6 @@ import {
   // VxeTextarea,
 } from 'vxe-pc-ui';
 import enUS from 'vxe-pc-ui/lib/language/en-US';
-import { vxeLocaleLoaders } from 'virtual:lina-vxe-locales';
 import {
   VxeColgroup,
   VxeColumn,
@@ -167,9 +167,18 @@ export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
   const { isDark, locale } = usePreferences();
 
   watch(
-    [() => isDark.value, () => locale.value],
-    ([isDarkValue, localeValue]) => {
+    () => isDark.value,
+    (isDarkValue) => {
       VxeUI.setTheme(isDarkValue ? 'dark' : 'light');
+    },
+    {
+      immediate: true,
+    },
+  );
+
+  watch(
+    () => locale.value,
+    (localeValue) => {
       void loadVxeLocale(localeValue).then((vxeLocale) => {
         VxeUI.setI18n(vxeLocale.locale, vxeLocale.messages);
         VxeUI.setLanguage(vxeLocale.locale);

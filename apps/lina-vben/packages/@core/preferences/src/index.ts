@@ -8,6 +8,7 @@ export const {
   resetPreferences,
   clearCache,
   initPreferences,
+  persistThemePreference,
 } = preferencesManager;
 
 export const preferences: Preferences = getPreferences();
