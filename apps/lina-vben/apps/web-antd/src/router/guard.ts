@@ -9,7 +9,10 @@ import { accessRoutes, coreRouteNames } from '#/router/routes';
 import { useAuthStore, useTenantStore } from '#/store';
 
 import { generateAccess } from './access';
-import { resolvePostLoginLandingPath } from './post-login-landing';
+import {
+  isPostLoginLandingIntent,
+  resolvePostLoginLandingPath,
+} from './post-login-landing';
 import { canAccessTenantLocation } from './tenant-access';
 
 /**
@@ -115,36 +118,21 @@ function setupAccessGuard(router: Router) {
 
     // 是否已经生成过动态路由
     if (accessStore.isAccessChecked) {
-      const resolveCheckedLanding = () =>
-        tenantStore.resolveFallbackPath(
-          resolvePostLoginLandingPath({
-            preferredPaths: [userStore.userInfo?.homePath],
-            accessibleMenus: accessStore.accessMenus,
-            accessibleRoutes: accessStore.accessRoutes,
-          }),
-        );
-
       if (!canAccessTenantLocation(to)) {
         return {
-          path: resolveCheckedLanding(),
+          path: tenantStore.resolveFallbackPath(
+            resolvePostLoginLandingPath({
+              preferredPaths: [userStore.userInfo?.homePath],
+              accessibleMenus: accessStore.accessMenus,
+              accessibleRoutes: accessStore.accessRoutes,
+            }),
+          ),
           replace: true,
         };
       }
-
-      // Global 404 catch-all: e.g. workbench disabled but URL still hits
-      // /dashboard/analytics. Prefer the first accessible menu over 404.
-      const isNotFoundRoute =
-        to.name === 'FallbackNotFound' ||
-        to.matched.some((record) => record.name === 'FallbackNotFound');
-      if (isNotFoundRoute) {
-        const landingPath = resolveCheckedLanding();
-        if (landingPath && landingPath !== to.path) {
-          return {
-            path: landingPath,
-            replace: true,
-          };
-        }
-      }
+      // Do not rewrite FallbackNotFound here. Missing / disabled plugin routes
+      // must still render the 404 page; landing correction is only for
+      // post-login / default-home intents (see generateAccess path below).
       return true;
     }
 
@@ -179,25 +167,32 @@ function setupAccessGuard(router: Router) {
       };
     }
 
-    // After dynamic routes exist, prefer redirect/homePath only when still
-    // accessible; otherwise land on the first sidebar menu (avoids 404 when
-    // the hardcoded workbench default is disabled).
-    const preferredTarget =
-      (from.query.redirect as string | undefined) ??
-      (to.path === preferences.app.defaultHomePath || to.path === '/'
-        ? userInfo.homePath
-        : to.fullPath);
-
-    const landingPath = tenantStore.resolveFallbackPath(
-      resolvePostLoginLandingPath({
-        preferredPaths: [preferredTarget, userInfo.homePath],
-        accessibleMenus,
-        accessibleRoutes,
-      }),
-    );
+    // Landing intents only: login redirect, root, or hardcoded default home.
+    // Deep links (incl. dynamic paths and intentionally missing routes) must
+    // keep their target so tables load and 404 pages still appear.
+    const redirectFromQuery = from.query.redirect as string | undefined;
+    if (
+      isPostLoginLandingIntent({
+        defaultHomePath: preferences.app.defaultHomePath,
+        redirectFromQuery,
+        toPath: to.path,
+      })
+    ) {
+      const landingPath = tenantStore.resolveFallbackPath(
+        resolvePostLoginLandingPath({
+          preferredPaths: [redirectFromQuery, userInfo.homePath],
+          accessibleMenus,
+          accessibleRoutes,
+        }),
+      );
+      return {
+        ...router.resolve(landingPath),
+        replace: true,
+      };
+    }
 
     return {
-      ...router.resolve(landingPath),
+      ...router.resolve(decodeURIComponent(to.fullPath)),
       replace: true,
     };
   });

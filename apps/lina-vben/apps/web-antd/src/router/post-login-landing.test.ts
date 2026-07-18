@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   SAFE_FALLBACK_HOME_PATH,
   findFirstNavigableMenuPath,
+  isPostLoginLandingIntent,
   resolvePostLoginLandingPath,
 } from './post-login-landing';
 
@@ -99,5 +100,46 @@ describe('post-login landing path', () => {
         },
       ]),
     ).toBe('/content/notice');
+  });
+
+  it('treats only redirect/root/default-home as landing intents', () => {
+    expect(
+      isPostLoginLandingIntent({
+        defaultHomePath: '/dashboard/analytics',
+        toPath: '/dashboard/analytics',
+      }),
+    ).toBe(true);
+    expect(
+      isPostLoginLandingIntent({
+        defaultHomePath: '/dashboard/analytics',
+        toPath: '/',
+      }),
+    ).toBe(true);
+    expect(
+      isPostLoginLandingIntent({
+        defaultHomePath: '/dashboard/analytics',
+        redirectFromQuery: '/system/user',
+        toPath: '/auth/login',
+      }),
+    ).toBe(true);
+    // Deep links and missing plugin routes must not be rewritten as landing.
+    expect(
+      isPostLoginLandingIntent({
+        defaultHomePath: '/dashboard/analytics',
+        toPath: '/system/scheduled-job',
+      }),
+    ).toBe(false);
+    expect(
+      isPostLoginLandingIntent({
+        defaultHomePath: '/dashboard/analytics',
+        toPath: '/system/role-auth/user/1',
+      }),
+    ).toBe(false);
+    expect(
+      isPostLoginLandingIntent({
+        defaultHomePath: '/dashboard/analytics',
+        toPath: '/content/notice',
+      }),
+    ).toBe(false);
   });
 });

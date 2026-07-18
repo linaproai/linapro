@@ -217,6 +217,27 @@ interface ResolvePostLoginLandingOptions {
 }
 
 /**
+ * Whether the current navigation should apply post-login landing correction.
+ *
+ * Only login redirect, app root, and the configured default home path are
+ * landing intents. Explicit deep links (including dynamic segments and
+ * intentionally missing routes) must keep their target so real pages load and
+ * genuine 404 pages still render.
+ */
+function isPostLoginLandingIntent(options: {
+  defaultHomePath: string;
+  redirectFromQuery?: null | string;
+  toPath: string;
+}): boolean {
+  if (options.redirectFromQuery) {
+    return true;
+  }
+  return (
+    options.toPath === options.defaultHomePath || options.toPath === '/'
+  );
+}
+
+/**
  * Resolve the post-login / default landing path.
  *
  * Priority:
@@ -262,6 +283,7 @@ export {
   findFirstNavigableMenuPath,
   findFirstNavigableRoutePath,
   isPathAccessible,
+  isPostLoginLandingIntent,
   normalizeLandingPath,
   resolvePostLoginLandingPath,
 };
