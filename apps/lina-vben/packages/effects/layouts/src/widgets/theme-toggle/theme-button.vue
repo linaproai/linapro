@@ -10,6 +10,17 @@ interface Props {
   type?: 'icon' | 'normal';
 }
 
+interface ThemeViewTransition {
+  finished: Promise<void>;
+  ready: Promise<void>;
+}
+
+type ThemeTransitionDocument = Document & {
+  startViewTransition?: (
+    updateCallback: () => Promise<void>,
+  ) => ThemeViewTransition;
+};
+
 defineOptions({
   name: 'ThemeToggleButton',
 });
@@ -18,11 +29,22 @@ const props = withDefaults(defineProps<Props>(), {
   type: 'normal',
 });
 
+const emit = defineEmits<{
+  themeChangeIntent: [isDark: boolean];
+}>();
+
 const isDark = defineModel<boolean>();
 
-const theme = computed(() => {
+const targetTheme = computed(() => {
   return isDark.value ? 'light' : 'dark';
 });
+
+let latestThemeChange = 0;
+let pendingIsDark: boolean | undefined;
+
+const THEME_TRANSITION_RADIUS = '--theme-transition-radius';
+const THEME_TRANSITION_X = '--theme-transition-x';
+const THEME_TRANSITION_Y = '--theme-transition-y';
 
 const bindProps = computed(() => {
   const type = props.type;
@@ -40,55 +62,123 @@ const bindProps = computed(() => {
 });
 
 function toggleTheme(event: MouseEvent) {
-  const isAppearanceTransition =
-    // @ts-expect-error
-    document.startViewTransition &&
-    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!isAppearanceTransition || !event) {
-    isDark.value = !isDark.value;
+  const targetIsDark = !(pendingIsDark ?? isDark.value);
+  const themeChange = ++latestThemeChange;
+  pendingIsDark = targetIsDark;
+  emit('themeChangeIntent', targetIsDark);
+  const startViewTransition = (document as ThemeTransitionDocument)
+    .startViewTransition;
+  const prefersReducedMotion = window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  ).matches;
+
+  if (!startViewTransition || prefersReducedMotion) {
+    isDark.value = targetIsDark;
+    pendingIsDark = undefined;
     return;
   }
-  const x = event.clientX;
-  const y = event.clientY;
+
+  const buttonRect = (
+    event.currentTarget as HTMLElement
+  ).getBoundingClientRect();
+  const x = buttonRect.left + buttonRect.width / 2;
+  const y = buttonRect.top + buttonRect.height / 2;
   const endRadius = Math.hypot(
-    Math.max(x, innerWidth - x),
-    Math.max(y, innerHeight - y),
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y),
   );
-  // @ts-ignore startViewTransition
-  const transition = document.startViewTransition(async () => {
-    isDark.value = !isDark.value;
-    await nextTick();
-  });
-  transition.ready.then(() => {
-    const clipPath = [
-      `circle(0px at ${x}px ${y}px)`,
-      `circle(${endRadius}px at ${x}px ${y}px)`,
-    ];
-    const animate = document.documentElement.animate(
-      {
-        clipPath: isDark.value ? [...clipPath].toReversed() : clipPath,
-      },
-      {
-        duration: 450,
-        easing: 'ease-in',
-        pseudoElement: isDark.value
-          ? '::view-transition-old(root)'
-          : '::view-transition-new(root)',
-      },
-    );
-    animate.onfinish = () => {
-      transition.skipTransition();
-    };
-  });
+  const root = document.documentElement;
+  prepareThemeTransitionGeometry(root, targetIsDark, x, y, endRadius);
+
+  let transition: ThemeViewTransition;
+  try {
+    transition = startViewTransition.call(document, async () => {
+      if (themeChange !== latestThemeChange) {
+        return;
+      }
+      isDark.value = targetIsDark;
+      await nextTick();
+      if (themeChange === latestThemeChange) {
+        pendingIsDark = undefined;
+      }
+    });
+  } catch (error) {
+    pendingIsDark = undefined;
+    clearThemeTransitionGeometry(root, themeChange);
+    throw error;
+  }
+
+  let animation: Animation | undefined;
+
+  const finishTransition = () => {
+    animation?.cancel();
+    clearThemeTransitionGeometry(root, themeChange);
+  };
+
+  void transition.finished.then(finishTransition, finishTransition);
+
+  void transition.ready.then(
+    () => {
+      if (themeChange !== latestThemeChange) {
+        return;
+      }
+      animation = root.animate(
+        {
+          clipPath: targetIsDark
+            ? [
+                `circle(${endRadius}px at ${x}px ${y}px)`,
+                `circle(0px at ${x}px ${y}px)`,
+              ]
+            : [
+                `circle(0px at ${x}px ${y}px)`,
+                `circle(${endRadius}px at ${x}px ${y}px)`,
+              ],
+        },
+        {
+          duration: 450,
+          easing: 'ease-in',
+          // CSS 负责伪元素创建前的首帧，both 负责动画接管后的首尾连续性。
+          fill: 'both',
+          pseudoElement: targetIsDark
+            ? '::view-transition-old(root)'
+            : '::view-transition-new(root)',
+        },
+      );
+    },
+    () => undefined,
+  );
+}
+
+function prepareThemeTransitionGeometry(
+  root: HTMLElement,
+  targetIsDark: boolean,
+  x: number,
+  y: number,
+  radius: number,
+) {
+  root.dataset.themeTransitionDirection = targetIsDark ? 'to-dark' : 'to-light';
+  root.style.setProperty(THEME_TRANSITION_X, `${x}px`);
+  root.style.setProperty(THEME_TRANSITION_Y, `${y}px`);
+  root.style.setProperty(THEME_TRANSITION_RADIUS, `${radius}px`);
+}
+
+function clearThemeTransitionGeometry(root: HTMLElement, themeChange: number) {
+  if (themeChange !== latestThemeChange) {
+    return;
+  }
+  delete root.dataset.themeTransitionDirection;
+  root.style.removeProperty(THEME_TRANSITION_X);
+  root.style.removeProperty(THEME_TRANSITION_Y);
+  root.style.removeProperty(THEME_TRANSITION_RADIUS);
 }
 </script>
 
 <template>
   <VbenButton
-    :aria-label="theme"
-    :class="[`is-${theme}`]"
+    :aria-label="targetTheme"
+    :class="[`is-${targetTheme}`]"
     aria-live="polite"
-    class="theme-toggle cursor-pointer border-none bg-none hover:animate-[shrink_0.3s_ease-in-out]"
+    class="theme-toggle cursor-pointer border-none bg-none motion-safe:hover:animate-[shrink_0.3s_ease-in-out]"
     v-bind="bindProps"
     @click.stop="toggleTheme"
   >
@@ -161,5 +251,13 @@ function toggleTheme(event: MouseEvent) {
 
 .theme-toggle:hover > svg .theme-toggle__sun-beams {
   stroke: hsl(var(--foreground));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle__moon > circle,
+  .theme-toggle__sun,
+  .theme-toggle__sun-beams {
+    transition: none;
+  }
 }
 </style>

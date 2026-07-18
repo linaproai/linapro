@@ -126,6 +126,7 @@ Nightly 完整 E2E 不再用单个 job 跑完整 host 套件，而是：
 | 分类 | 适用场景 |
 | --- | --- |
 | `authSession` | 验证共享认证浏览器状态的测试，例如登出。 |
+| `performanceTiming` | 依赖浏览器墙钟耗时、需要在无其他 worker 争用下执行的性能断言。 |
 | `pluginLifecycle` | 插件同步、安装、启用、禁用、卸载、上传或升级流程。 |
 | `runtimeI18nCache` | 运行时语言包版本、ETag 检查与语言缓存重校验。 |
 | `systemConfig` | 系统参数与公共前端配置变更。 |

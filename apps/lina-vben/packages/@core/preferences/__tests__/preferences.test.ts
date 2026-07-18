@@ -18,6 +18,11 @@ function mockNavigatorLanguages(language: string, languages = [language]) {
   });
 }
 
+function readStorageValue<T>(key: string): T | undefined {
+  const stored = localStorage.getItem(key);
+  return stored ? (JSON.parse(stored).value as T) : undefined;
+}
+
 describe('preferences', () => {
   let preferenceManager: PreferenceManager;
 
@@ -148,6 +153,22 @@ describe('preferences', () => {
     expect(preferenceManager.getPreferences().app.locale).toBe('zh-CN');
   });
 
+  it('still resolves browser locale when only a theme hint is cached', async () => {
+    mockNavigatorLanguages('en-US');
+    localStorage.setItem(
+      'themeHintOnlyNamespace-preferences-theme',
+      JSON.stringify({ value: 'dark' }),
+    );
+
+    await preferenceManager.initPreferences({
+      namespace: 'themeHintOnlyNamespace',
+      overrides: {},
+    });
+
+    expect(preferenceManager.getPreferences().app.locale).toBe('en-US');
+    expect(preferenceManager.getPreferences().theme.mode).toBe('dark');
+  });
+
   it('updates theme mode correctly', () => {
     preferenceManager.updatePreferences({
       theme: {
@@ -156,6 +177,165 @@ describe('preferences', () => {
     });
 
     expect(preferenceManager.getPreferences().theme.mode).toBe('light');
+  });
+
+  it('keeps unrelated preference branch references stable', () => {
+    const preferences = preferenceManager.getPreferences();
+    const app = preferences.app;
+    const sidebar = preferences.sidebar;
+    const theme = preferences.theme;
+
+    preferenceManager.updatePreferences({
+      theme: {
+        mode: 'light',
+      },
+    });
+
+    expect(preferences.app).toBe(app);
+    expect(preferences.sidebar).toBe(sidebar);
+    expect(preferences.theme).not.toBe(theme);
+  });
+
+  it('restores an eagerly saved theme before the full snapshot is flushed', async () => {
+    vi.useFakeTimers();
+    try {
+      const namespace = 'immediateThemeNamespace';
+      await preferenceManager.initPreferences({
+        namespace,
+        overrides: {
+          theme: { mode: 'light' },
+        },
+      });
+      await vi.runAllTimersAsync();
+
+      preferenceManager.updatePreferences({
+        theme: { mode: 'dark' },
+      });
+
+      expect(readStorageValue(`${namespace}-preferences-theme`)).toBe('dark');
+      expect(
+        readStorageValue<typeof defaultPreferences>(`${namespace}-preferences`)
+          ?.theme.mode,
+      ).toBe('light');
+
+      const reloadedManager = new PreferenceManager();
+      await reloadedManager.initPreferences({
+        namespace,
+        overrides: {
+          theme: { mode: 'light' },
+        },
+      });
+
+      expect(reloadedManager.getPreferences().theme.mode).toBe('dark');
+
+      await vi.advanceTimersByTimeAsync(150);
+      expect(
+        readStorageValue<typeof defaultPreferences>(`${namespace}-preferences`)
+          ?.theme.mode,
+      ).toBe('dark');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('persists a theme click intent before the visual state changes', async () => {
+    const namespace = 'themeIntentNamespace';
+    await preferenceManager.initPreferences({
+      namespace,
+      overrides: {
+        theme: { mode: 'light' },
+      },
+    });
+
+    preferenceManager.persistThemePreference('dark');
+
+    expect(preferenceManager.getPreferences().theme.mode).toBe('light');
+    expect(readStorageValue(`${namespace}-preferences-theme`)).toBe('dark');
+    expect(readStorageValue(`${namespace}-preferences-theme-user`)).toBe(true);
+
+    const reloadedManager = new PreferenceManager();
+    await reloadedManager.initPreferences({
+      namespace,
+      overrides: {
+        theme: { mode: 'light' },
+      },
+    });
+
+    expect(reloadedManager.getPreferences().theme.mode).toBe('dark');
+  });
+
+  it('keeps a theme click intent ahead of an older debounced snapshot', async () => {
+    vi.useFakeTimers();
+    try {
+      const namespace = 'pendingSnapshotThemeIntentNamespace';
+      await preferenceManager.initPreferences({
+        namespace,
+        overrides: {
+          theme: { mode: 'light' },
+        },
+      });
+      await vi.runAllTimersAsync();
+
+      preferenceManager.updatePreferences({
+        sidebar: { width: 240 },
+      });
+      preferenceManager.persistThemePreference('dark');
+      await vi.advanceTimersByTimeAsync(150);
+
+      expect(readStorageValue(`${namespace}-preferences-theme`)).toBe('dark');
+      expect(
+        readStorageValue<typeof defaultPreferences>(`${namespace}-preferences`)
+          ?.theme.mode,
+      ).toBe('light');
+
+      const reloadedManager = new PreferenceManager();
+      await reloadedManager.initPreferences({
+        namespace,
+        overrides: {
+          theme: { mode: 'light' },
+        },
+      });
+
+      expect(reloadedManager.getPreferences().theme.mode).toBe('dark');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('restores an eagerly saved locale before the full snapshot is flushed', async () => {
+    vi.useFakeTimers();
+    try {
+      const namespace = 'immediateLocaleNamespace';
+      await preferenceManager.initPreferences({
+        namespace,
+        overrides: {
+          app: { locale: 'zh-CN' },
+        },
+      });
+      await vi.runAllTimersAsync();
+
+      preferenceManager.updatePreferences({
+        app: { locale: 'en-US' },
+      });
+
+      expect(readStorageValue(`${namespace}-preferences-locale`)).toBe('en-US');
+      expect(
+        readStorageValue<typeof defaultPreferences>(`${namespace}-preferences`)
+          ?.app.locale,
+      ).toBe('zh-CN');
+
+      const reloadedManager = new PreferenceManager();
+      await reloadedManager.initPreferences({
+        namespace,
+        overrides: {
+          app: { locale: 'zh-CN' },
+        },
+      });
+
+      expect(reloadedManager.getPreferences().app.locale).toBe('en-US');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('updates color modes correctly', () => {

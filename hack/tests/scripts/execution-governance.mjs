@@ -28,6 +28,10 @@ export const isolationCategories = [
     label: 'shared authenticated browser session',
   },
   {
+    category: 'performanceTiming',
+    label: 'isolated browser performance timing',
+  },
+  {
     category: 'dictionaryData',
     label: 'dictionary data mutation',
   },
