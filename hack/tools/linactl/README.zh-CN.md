@@ -31,7 +31,6 @@ go run . version to=v0.2.0
 go run . upgrade
 go run . upgrade v=v0.5.0
 go run . upgrade v=main
-go run . upgrade force=1
 go run . release.tag.check tag=v0.2.0
 go run . release.tag.check print-version=1
 ```
@@ -92,7 +91,7 @@ make.cmd release.tag.check tag=v0.2.0
 | `p` | `p=linapro-tenant-core` | 为插件工作区管理命令选择单个插件。 |
 | `out` | `out=temp/output` | 指定动态插件产物输出目录；相对路径按仓库根目录解析。 |
 | `source` | `source=official` | 为插件工作区管理命令选择单个已配置来源。 |
-| `force` | `force=1` | 允许插件安装或更新命令覆盖已存在或存在本地改动的插件目录；对`upgrade`跳过工作区干净检查与脏工作区确认提示。 |
+| `force` | `force=1` | 允许插件安装或更新命令覆盖已存在或存在本地改动的插件目录。`upgrade`不接受该参数（升级始终要求宿主与插件工作区干净，且不会 stash 或覆盖本地改动）。 |
 | `verbose` | `verbose=1` | 构建任务展示子命令输出。 |
 
 未传入`plugins`时，构建和开发命令会在`apps/lina-plugins`存在插件清单时启用插件完整模式。插件完整模式会基于宿主专用的根目录`go.work`生成或刷新已忽略的`temp/go.work.plugins`，并通过`GOWORK`解析源码插件`Go`模块。
@@ -324,13 +323,12 @@ make version to=v0.2.0
 
 `apps/lina-plugins`**不会被自动更新**。合并后会保留升级前的插件工作区（submodule 指针或本地目录树）。只有在你主动需要时，才通过`make plugins.update` / `linactl plugins.update`更新插件。
 
-`HEAD`必须位于已命名分支。工作区建议保持干净：若存在未提交变更，命令会提示确认，输入`y`（或`yes`）可继续，其它输入则退出；也可传入`force=1`跳过确认。插件路径以外的合并冲突需手动解决（或使用`git merge --abort`取消）。
+`HEAD`必须位于已命名分支。宿主工作区以及`apps/lina-plugins`嵌套 Git 工作区（若存在）必须干净。`upgrade`不会自动 stash、不会在脏工作区上提示“确认后继续”，也不接受`force=`跳过该门禁——请先提交或挪走宿主/插件本地改动。插件路径以外的合并冲突需手动解决（或使用`git merge --abort`取消）。
 
 ```bash
 make upgrade
 make upgrade v=v0.5.0
 make upgrade v=main
-make upgrade force=1
 make.cmd upgrade v=main
 go run . upgrade v=v0.5.0
 ```

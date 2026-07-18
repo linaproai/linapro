@@ -11,7 +11,7 @@ TBD - created by archiving change make-upgrade-framework. Update Purpose after a
 
 - **WHEN** 开发者在仓库根目录运行 `make upgrade`
 - **THEN** 根 Makefile 转发到 `linactl upgrade`
-- **AND** 可选参数 `v`、`force` 被透传到 `linactl`
+- **AND** 可选参数 `v` 被透传到 `linactl`
 
 #### Scenario: 直接调用 linactl
 
@@ -100,50 +100,62 @@ TBD - created by archiving change make-upgrade-framework. Update Purpose after a
 系统 SHALL 在执行 merge 前校验：
 
 1. 当前不处于 detached HEAD
-2. 工作区干净（`git status --porcelain` 无输出），或用户在交互确认中明确同意在脏工作区继续，或显式传入 `force=1` / `force=true`
+2. 宿主仓库工作区干净（在仓库根执行 `git status --porcelain` 无输出）
+3. 若 `apps/lina-plugins` 自身是嵌套 Git 工作区（submodule 工作树或内含 `.git` 的嵌套仓库），该嵌套工作区也 MUST 干净
 
-当工作区不干净且未传 `force` 时，系统 MUST：
+系统 MUST NOT：
 
-1. 向标准输出提示工作区不干净；
-2. 请求用户确认是否继续（提示中说明输入 `y` 继续）；
-3. 仅当用户输入 `y` / `yes`（大小写不敏感，忽略首尾空白）时继续后续 fetch/merge；
-4. 其它输入、空输入或读取失败时 MUST 以非零退出码结束，且 MUST NOT 执行 merge。
+- 自动执行 `git stash` 或任何隐藏本地改动的自动暂存
+- 在脏工作区上通过交互确认（`y`/`yes`）继续
+- 接受 `force=1` / `force=true` 跳过脏工作区检查
+- 在门禁失败后执行 fetch 目标 merge，或改写宿主/插件未提交改动
 
-系统 MUST NOT 在门禁失败时执行 merge。`force` MUST NOT 跳过 detached HEAD 检查。`force=1` 时 MUST 跳过脏工作区检查与确认提示。
+当宿主或插件嵌套工作区不干净时，系统 MUST 以非零退出码失败，错误信息 MUST 明确说明需要先提交或挪走本地改动，并说明 upgrade 不会 stash、reset 或覆盖本地改动。
 
-#### Scenario: 脏工作区用户确认 y 后继续
+#### Scenario: 宿主脏工作区硬失败
 
-- **WHEN** 工作区存在未提交变更且未传 `force`
-- **AND** 用户在确认提示中输入 `y` 或 `yes`
-- **THEN** 系统继续后续 fetch/merge 流程
-
-#### Scenario: 脏工作区用户拒绝或未确认
-
-- **WHEN** 工作区存在未提交变更且未传 `force`
-- **AND** 用户输入非 `y`/`yes` 的内容、空行，或 stdin 无可用输入（如非交互管道）
+- **WHEN** 宿主仓库存在未提交变更（含已跟踪修改、暂存变更或未跟踪文件）
 - **THEN** 命令失败且不执行 merge
+- **AND** 不提示“确认后继续”
+- **AND** 本地未提交文件内容保持不变
 
-#### Scenario: force 允许脏工作区继续
+#### Scenario: 插件路径本地改动硬失败
 
-- **WHEN** 工作区存在未提交变更且传入 `force=1`
-- **AND** 当前位于已命名分支
-- **THEN** 系统跳过脏工作区检查与确认提示并继续 fetch/merge
+- **WHEN** `apps/lina-plugins` 下存在未提交改动，或插件嵌套 Git 工作区不干净
+- **THEN** 命令失败且不执行 merge
+- **AND** 插件本地改动保持不变
+
+#### Scenario: 拒绝 force 跳过脏检查
+
+- **WHEN** 开发者传入 `force=1` 或 `force=true`
+- **THEN** 命令失败
+- **AND** 错误信息说明 `force=` 不被 upgrade 支持
 
 #### Scenario: detached HEAD 拒绝
 
 - **WHEN** 当前处于 detached HEAD
 - **THEN** 命令失败且不执行 merge
-- **AND** 即使传入 `force=1` 也不得继续
+
+### Requirement: 升级不得改写当前分支或子仓的本地未提交改动
+
+系统在 `upgrade` 全流程中 MUST NOT 丢弃、覆盖或自动转移当前分支工作区与 `apps/lina-plugins`（含子仓/嵌套仓库）中的本地未提交改动。保留本地插件已提交状态时，系统 MUST 仅将 merge 结果中的 `apps/lina-plugins` 恢复为升级前 HEAD 的已提交树或 gitlink，MUST NOT 对未跟踪插件文件执行 clean/删除，MUST NOT 对嵌套插件仓库执行强制 checkout 到外来 SHA。
+
+#### Scenario: 干净工作区升级不触碰无关本地文件
+
+- **WHEN** 工作区干净且 upgrade 成功合并宿主框架
+- **THEN** 仅框架 merge 与插件路径的“保留升级前已提交状态”进入结果
+- **AND** 不产生 stash 记录
 
 ### Requirement: 合并失败时保持可恢复
 
-当 `git merge` 因冲突或其它 Git 错误失败时，系统 SHALL 以非零退出码结束，并向前端输出/错误流暴露失败原因。系统 MUST NOT 在失败后自动执行 `git reset --hard` 或丢弃用户本地变更。
+当 `git merge` 因冲突或其它 Git 错误失败时，系统 SHALL 以非零退出码结束，并向前端输出/错误流暴露失败原因。系统 MUST NOT 在失败后自动执行 `git reset --hard`、`git stash` 或丢弃用户本地变更。
 
 #### Scenario: merge 冲突
 
 - **WHEN** 目标 ref 与当前分支产生冲突导致 merge 失败
 - **THEN** 命令返回错误
 - **AND** 不自动 hard reset 工作区
+- **AND** 不自动 stash
 
 ### Requirement: 升级时仅下载所选目标 ref
 

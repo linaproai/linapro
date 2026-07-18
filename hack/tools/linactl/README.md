@@ -31,7 +31,6 @@ go run . version to=v0.2.0
 go run . upgrade
 go run . upgrade v=v0.5.0
 go run . upgrade v=main
-go run . upgrade force=1
 go run . release.tag.check tag=v0.2.0
 go run . release.tag.check print-version=1
 ```
@@ -92,7 +91,7 @@ In PowerShell, run it with an explicit current-directory prefix:
 | `p` | `p=linapro-tenant-core` | Selects one plugin for plugin workspace management commands. |
 | `out` | `out=temp/output` | Selects the dynamic plugin artifact output directory. Relative paths resolve from the repository root. |
 | `source` | `source=official` | Selects one configured plugin source for plugin workspace management commands. |
-| `force` | `force=1` | Allows plugin install/update commands to overwrite existing or dirty plugin directories; for `upgrade`, skips the clean-worktree check and dirty-worktree confirmation prompt only. |
+| `force` | `force=1` | Allows plugin install/update commands to overwrite existing or dirty plugin directories. Not accepted by `upgrade` (upgrade always requires clean host and plugins worktrees and never stashes or overwrites local changes). |
 | `verbose` | `verbose=1` | Shows child command output for build tasks. |
 
 When `plugins` is omitted, build and dev commands enable plugin-full mode if `apps/lina-plugins` contains plugin manifests. Plugin-full mode generates or refreshes ignored `temp/go.work.plugins` from the host-only root `go.work`, then resolves source-plugin Go modules through `GOWORK`.
@@ -324,13 +323,12 @@ Object download is **selective** (not a full `git fetch --tags`):
 
 `apps/lina-plugins` is **never auto-updated**. The pre-upgrade plugin workspace (submodule pointer or local tree) is preserved after the merge. Update plugins only when you intend to, via `make plugins.update` / `linactl plugins.update`.
 
-HEAD must be on a named branch. A clean worktree is recommended: if uncommitted changes exist, the command prompts for confirmation — type `y` (or `yes`) to continue, any other answer to abort. Pass `force=1` to skip the prompt non-interactively. Merge conflicts outside plugins are left for manual resolution (`git merge --abort` if you need to cancel).
+HEAD must be on a named branch. The host worktree and any nested `apps/lina-plugins` git worktree must be clean. Upgrade never stashes, never prompts to continue on a dirty tree, and never accepts `force=` to override that gate — commit or relocate local host/plugin changes first. Merge conflicts outside plugins are left for manual resolution (`git merge --abort` if you need to cancel).
 
 ```bash
 make upgrade
 make upgrade v=v0.5.0
 make upgrade v=main
-make upgrade force=1
 make.cmd upgrade v=main
 go run . upgrade v=v0.5.0
 ```

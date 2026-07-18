@@ -1,14 +1,23 @@
 // This file implements the upgrade command that merges upstream framework
 // refs into the current local branch.
+//
+// Safety invariants (must not be weakened without updating framework-upgrade
+// specs and tests):
+//   - Never run git stash (or any other auto-save that hides local work).
+//   - Never discard, overwrite, or "fix" uncommitted changes in the host
+//     worktree or in apps/lina-plugins (including nested plugin git repos).
+//   - Refuse dirty host/plugin worktrees instead of prompting or force-skipping.
+//   - Official apps/lina-plugins changes are excluded from the merge result, but
+//     only by restoring the pre-upgrade committed tree/gitlink — not by cleaning
+//     untracked local plugin files.
 
 package main
 
 import (
-	"bufio"
 	"context"
-	"errors"
 	"fmt"
-	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -57,20 +66,19 @@ func runFrameworkUpgrade(ctx context.Context, a *app, input commandInput) error 
 	if strings.TrimSpace(input.Get("remote")) != "" {
 		return fmt.Errorf("remote= is not supported; upgrade always fetches %s via remote %q", officialFrameworkRepoURL, officialFrameworkRemoteName)
 	}
-	force, err := input.Bool("force", false)
-	if err != nil {
-		return fmt.Errorf("parse force: %w", err)
+	if strings.TrimSpace(input.Get("force")) != "" {
+		return fmt.Errorf("force= is not supported for upgrade; commit or relocate local changes first (upgrade never stashes, resets, or overwrites host/plugin worktree changes)")
 	}
 	versionParam := strings.TrimSpace(input.Get("v"))
 
-	if err = ensureGitAvailable(ctx, a); err != nil {
+	if err := ensureGitAvailable(ctx, a); err != nil {
 		return err
 	}
 	branch, err := currentGitBranch(ctx, a)
 	if err != nil {
 		return err
 	}
-	if err = ensureCleanWorktree(ctx, a, force); err != nil {
+	if err = ensureUpgradeWorktreeSafe(ctx, a); err != nil {
 		return err
 	}
 	if err = ensureOfficialFrameworkRemote(ctx, a); err != nil {
@@ -143,17 +151,36 @@ func runFrameworkUpgrade(ctx context.Context, a *app, input commandInput) error 
 	return nil
 }
 
-// preserveLocalPluginsPath restores apps/lina-plugins to the pre-upgrade state so
-// official submodule pointer or plugin tree changes are never applied by upgrade.
+// preserveLocalPluginsPath restores apps/lina-plugins in the merge index (and the
+// corresponding tracked worktree paths) to the pre-upgrade commit so official
+// submodule pointer or plugin tree changes never enter the upgrade result.
+//
+// It intentionally:
+//   - does not run git stash / reset --hard / clean
+//   - does not delete untracked files under apps/lina-plugins
+//   - does not recurse into nested plugin repos to checkout foreign SHAs
+//   - aborts if the plugins path still has local modifications (should be
+//     unreachable when ensureUpgradeWorktreeSafe passed before merge)
 func preserveLocalPluginsPath(ctx context.Context, a *app, preMergeHEAD string) error {
 	path := plugins.ManagedRootRelativePath
+	// Nested plugin worktrees are independent of the host merge index. If they
+	// became dirty, refuse to rewrite the host plugins path over them.
+	if nestedRoot, ok := nestedGitWorktreeRoot(filepath.Join(a.root, filepath.FromSlash(path))); ok {
+		if err := ensureGitWorktreeClean(ctx, a, nestedRoot, path+" (nested git worktree)"); err != nil {
+			return fmt.Errorf("refuse to preserve %s over nested plugin changes: %w", path, err)
+		}
+	}
 	if gitPathExists(ctx, a, preMergeHEAD, path) {
-		if err := a.runCommand(ctx, commandOptions{Dir: a.root, Quiet: true}, "git", "checkout", preMergeHEAD, "--", path); err != nil {
+		// restore --source rewrites only the merge result for this path back to
+		// the pre-upgrade committed tree/gitlink. The pre-merge clean-worktree
+		// gate guarantees this does not discard host/plugin WIP.
+		if err := a.runCommand(ctx, commandOptions{Dir: a.root, Quiet: true}, "git", "restore", "--source="+preMergeHEAD, "--staged", "--worktree", "--", path); err != nil {
 			return fmt.Errorf("preserve local %s from pre-upgrade commit: %w", path, err)
 		}
 		return nil
 	}
 	// Pre-upgrade tree had no plugins workspace: drop any path introduced by official merge.
+	// --cached only: leave any already-present worktree content alone.
 	if gitPathExists(ctx, a, "", path) || indexHasPath(ctx, a, path) {
 		if err := a.runCommand(ctx, commandOptions{Dir: a.root, Quiet: true}, "git", "rm", "-r", "--cached", "-f", "--ignore-unmatch", "--", path); err != nil {
 			return fmt.Errorf("exclude official %s introduced by upgrade: %w", path, err)
@@ -248,39 +275,52 @@ func currentGitBranch(ctx context.Context, a *app) (string, error) {
 	return branch, nil
 }
 
-// ensureCleanWorktree rejects uncommitted changes unless force is set or the
-// user interactively confirms continuing with a dirty worktree.
-func ensureCleanWorktree(ctx context.Context, a *app, force bool) error {
-	if force {
-		return nil
+// ensureUpgradeWorktreeSafe hard-fails when the host worktree or the plugins
+// workspace has local changes. Upgrade never stashes, never prompts to continue
+// on dirty trees, and never accepts force= to override this gate.
+func ensureUpgradeWorktreeSafe(ctx context.Context, a *app) error {
+	if err := ensureGitWorktreeClean(ctx, a, a.root, "host repository"); err != nil {
+		return err
 	}
-	status, err := a.runCommandOutput(ctx, commandOptions{Dir: a.root, Quiet: true}, "git", "status", "--porcelain")
+	pluginsAbs := filepath.Join(a.root, filepath.FromSlash(plugins.ManagedRootRelativePath))
+	if nestedRoot, ok := nestedGitWorktreeRoot(pluginsAbs); ok {
+		if err := ensureGitWorktreeClean(ctx, a, nestedRoot, plugins.ManagedRootRelativePath+" nested repository"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensureGitWorktreeClean fails when git status --porcelain reports any change.
+func ensureGitWorktreeClean(ctx context.Context, a *app, dir string, label string) error {
+	status, err := a.runCommandOutput(ctx, commandOptions{Dir: dir, Quiet: true}, "git", "status", "--porcelain")
 	if err != nil {
-		return fmt.Errorf("check worktree status: %w", err)
+		return fmt.Errorf("check %s worktree status: %w", label, err)
 	}
 	if strings.TrimSpace(status) == "" {
 		return nil
 	}
-	return confirmDirtyWorktreeContinue(a)
+	return fmt.Errorf("%s worktree is not clean; commit or relocate local changes before upgrade (upgrade never stashes, resets, or overwrites local host/plugin changes)", label)
 }
 
-// confirmDirtyWorktreeContinue prompts the operator to continue despite a dirty
-// worktree. Only y/yes (case-insensitive) proceeds; any other answer, empty
-// input, or unreadable stdin aborts the upgrade.
-func confirmDirtyWorktreeContinue(a *app) error {
-	fmt.Fprintln(a.stdout, "Worktree is not clean (uncommitted changes detected).")
-	fmt.Fprint(a.stdout, "Continue upgrade with a dirty worktree? [y/N]: ")
-	line, err := bufio.NewReader(a.stdin).ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("read dirty worktree confirmation: %w", err)
+// nestedGitWorktreeRoot reports whether absPath is itself a nested git worktree
+// (directory with .git file/dir, or a resolved submodule worktree). Host repo
+// root must not be returned when absPath is merely a tracked ordinary tree.
+func nestedGitWorktreeRoot(absPath string) (string, bool) {
+	info, err := os.Stat(absPath)
+	if err != nil || !info.IsDir() {
+		return "", false
 	}
-	// EOF with partial line is still usable (e.g. piped "y" without trailing newline).
-	answer := strings.ToLower(strings.TrimSpace(line))
-	if answer == "y" || answer == "yes" {
-		fmt.Fprintln(a.stdout, "Continuing with dirty worktree...")
-		return nil
+	gitMeta := filepath.Join(absPath, ".git")
+	metaInfo, err := os.Stat(gitMeta)
+	if err != nil {
+		return "", false
 	}
-	return fmt.Errorf("worktree is not clean; commit or stash changes, pass force=1, or answer y at the confirmation prompt")
+	// Submodule: .git is a file; nested clone: .git is a directory.
+	if metaInfo.IsDir() || metaInfo.Mode().IsRegular() {
+		return absPath, true
+	}
+	return "", false
 }
 
 // resolveUpgradeTarget decides whether to merge a tag or a remote branch from
