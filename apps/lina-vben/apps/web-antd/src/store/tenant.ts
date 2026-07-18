@@ -5,7 +5,6 @@ import type { LoginTenant, TenantState } from '#/api/tenant/model';
 
 import { computed, ref } from 'vue';
 
-import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
@@ -320,7 +319,9 @@ export const useTenantStore = defineStore('tenant', () => {
 
   function resolveFallbackPath(candidate?: string) {
     if (!enabled.value) {
-      return candidate || preferences.app.defaultHomePath || '/';
+      // Prefer an explicit candidate; do not force the hardcoded workbench
+      // default (which 404s when that menu is disabled).
+      return candidate || '/profile';
     }
     if (isPlatform.value) {
       return '/platform/tenants';

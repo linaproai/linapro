@@ -65,3 +65,39 @@ func TestResolveHomePathFallsBackToHostedPluginAssetWhenNeeded(t *testing.T) {
 		t.Fatalf("expected hosted plugin asset fallback, got %s", got)
 	}
 }
+
+// TestResolveHomePathSkipsMissingWorkbench verifies homePath lands on the next
+// navigable menu when the workbench/dashboard tree is absent (disabled).
+func TestResolveHomePathSkipsMissingWorkbench(t *testing.T) {
+	items := []*menu.MenuItem{
+		{
+			Name: "系统管理",
+			Path: "system",
+			Type: menutype.Directory.String(),
+			Children: []*menu.MenuItem{
+				{
+					Name: "用户管理",
+					Path: "user",
+					Type: menutype.Menu.String(),
+				},
+				{
+					Name: "角色管理",
+					Path: "role",
+					Type: menutype.Menu.String(),
+				},
+			},
+		},
+	}
+
+	if got := resolveHomePath(items); got != "/system/user" {
+		t.Fatalf("expected first navigable menu /system/user, got %s", got)
+	}
+}
+
+// TestResolveHomePathEmptyTreeUsesProfile verifies the safe fallback when the
+// user has no navigable internal menus.
+func TestResolveHomePathEmptyTreeUsesProfile(t *testing.T) {
+	if got := resolveHomePath(nil); got != "/profile" {
+		t.Fatalf("expected /profile fallback, got %s", got)
+	}
+}

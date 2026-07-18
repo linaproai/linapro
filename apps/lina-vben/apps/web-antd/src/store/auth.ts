@@ -7,7 +7,6 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { LOGIN_PATH } from '@vben/constants';
-import { preferences } from '@vben/preferences';
 import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 
 import { notification } from 'ant-design-vue';
@@ -17,6 +16,7 @@ import { getUserInfoApi, loginApi, logoutApi } from '#/api';
 import { exchangeExternalLoginHandoffApi } from '#/api/extlogin';
 import { authSelectTenant } from '#/api/tenant';
 import { $t } from '#/locales';
+import { resolvePostLoginLandingPath } from '#/router/post-login-landing';
 import { useTenantStore } from '#/store/tenant';
 
 type UserMenuNode = {
@@ -126,7 +126,9 @@ export const useAuthStore = defineStore('auth', () => {
             ? await onSuccess?.()
             : await router.push(
                 tenantStore.resolveFallbackPath(
-                  userInfo.homePath || preferences.app.defaultHomePath,
+                  resolvePostLoginLandingPath({
+                    preferredPaths: [userInfo.homePath],
+                  }),
                 ),
               );
         }
@@ -173,7 +175,9 @@ export const useAuthStore = defineStore('auth', () => {
       userStore.setUserInfo(userInfo);
       await router.push(
         tenantStore.resolveFallbackPath(
-          userInfo.homePath || preferences.app.defaultHomePath,
+          resolvePostLoginLandingPath({
+            preferredPaths: [userInfo.homePath],
+          }),
         ),
       );
       notification.success({
@@ -264,12 +268,12 @@ export const useAuthStore = defineStore('auth', () => {
         tenants,
       });
       accessStore.setLoginExpired(false);
-      const landing = (redirectPath ?? '').trim();
       await router.push(
-        landing ||
-          tenantStore.resolveFallbackPath(
-            userInfo.homePath || preferences.app.defaultHomePath,
-          ),
+        tenantStore.resolveFallbackPath(
+          resolvePostLoginLandingPath({
+            preferredPaths: [redirectPath, userInfo.homePath],
+          }),
+        ),
       );
       if (userInfo?.realName) {
         notification.success({

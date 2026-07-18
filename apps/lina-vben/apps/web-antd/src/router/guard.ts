@@ -9,6 +9,7 @@ import { accessRoutes, coreRouteNames } from '#/router/routes';
 import { useAuthStore, useTenantStore } from '#/store';
 
 import { generateAccess } from './access';
+import { resolvePostLoginLandingPath } from './post-login-landing';
 import { canAccessTenantLocation } from './tenant-access';
 
 /**
@@ -73,10 +74,17 @@ function setupAccessGuard(router: Router) {
     // 基本路由，这些路由不需要进入权限拦截
     if (coreRouteNames.includes(to.name as string)) {
       if (to.path === LOGIN_PATH && accessStore.accessToken) {
-        return decodeURIComponent(
-          (to.query?.redirect as string) ||
-            userStore.userInfo?.homePath ||
-            preferences.app.defaultHomePath,
+        return tenantStore.resolveFallbackPath(
+          resolvePostLoginLandingPath({
+            preferredPaths: [
+              to.query?.redirect as string | undefined,
+              userStore.userInfo?.homePath,
+            ],
+            accessibleMenus: accessStore.accessMenus,
+            accessibleRoutes: accessStore.isAccessChecked
+              ? accessStore.accessRoutes
+              : undefined,
+          }),
         );
       }
       return true;
@@ -107,13 +115,35 @@ function setupAccessGuard(router: Router) {
 
     // 是否已经生成过动态路由
     if (accessStore.isAccessChecked) {
+      const resolveCheckedLanding = () =>
+        tenantStore.resolveFallbackPath(
+          resolvePostLoginLandingPath({
+            preferredPaths: [userStore.userInfo?.homePath],
+            accessibleMenus: accessStore.accessMenus,
+            accessibleRoutes: accessStore.accessRoutes,
+          }),
+        );
+
       if (!canAccessTenantLocation(to)) {
         return {
-          path: tenantStore.resolveFallbackPath(
-            userStore.userInfo?.homePath || preferences.app.defaultHomePath,
-          ),
+          path: resolveCheckedLanding(),
           replace: true,
         };
+      }
+
+      // Global 404 catch-all: e.g. workbench disabled but URL still hits
+      // /dashboard/analytics. Prefer the first accessible menu over 404.
+      const isNotFoundRoute =
+        to.name === 'FallbackNotFound' ||
+        to.matched.some((record) => record.name === 'FallbackNotFound');
+      if (isNotFoundRoute) {
+        const landingPath = resolveCheckedLanding();
+        if (landingPath && landingPath !== to.path) {
+          return {
+            path: landingPath,
+            replace: true,
+          };
+        }
       }
       return true;
     }
@@ -122,15 +152,6 @@ function setupAccessGuard(router: Router) {
     // 当前登录用户拥有的角色标识列表
     const userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
     const userRoles = userInfo.roles ?? [];
-
-    if (!canAccessTenantLocation(to)) {
-      return {
-        path: tenantStore.resolveFallbackPath(
-          userInfo.homePath || preferences.app.defaultHomePath,
-        ),
-        replace: true,
-      };
-    }
 
     // 生成菜单和路由
     const { accessibleMenus, accessibleRoutes } = await generateAccess({
@@ -144,13 +165,39 @@ function setupAccessGuard(router: Router) {
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(accessibleRoutes);
     accessStore.setIsAccessChecked(true);
-    const redirectPath = (from.query.redirect ??
-      (to.path === preferences.app.defaultHomePath
-        ? userInfo.homePath || preferences.app.defaultHomePath
-        : to.fullPath)) as string;
+
+    if (!canAccessTenantLocation(to)) {
+      return {
+        path: tenantStore.resolveFallbackPath(
+          resolvePostLoginLandingPath({
+            preferredPaths: [userInfo.homePath],
+            accessibleMenus,
+            accessibleRoutes,
+          }),
+        ),
+        replace: true,
+      };
+    }
+
+    // After dynamic routes exist, prefer redirect/homePath only when still
+    // accessible; otherwise land on the first sidebar menu (avoids 404 when
+    // the hardcoded workbench default is disabled).
+    const preferredTarget =
+      (from.query.redirect as string | undefined) ??
+      (to.path === preferences.app.defaultHomePath || to.path === '/'
+        ? userInfo.homePath
+        : to.fullPath);
+
+    const landingPath = tenantStore.resolveFallbackPath(
+      resolvePostLoginLandingPath({
+        preferredPaths: [preferredTarget, userInfo.homePath],
+        accessibleMenus,
+        accessibleRoutes,
+      }),
+    );
 
     return {
-      ...router.resolve(decodeURIComponent(redirectPath)),
+      ...router.resolve(landingPath),
       replace: true,
     };
   });
