@@ -1,4 +1,10 @@
-## ADDED Requirements
+# frontend-theme-switching
+
+## Purpose
+
+定义后台管理端主题切换的视觉语义、组件实例稳定性、更新范围、持久化与可观察性能约束。
+
+## Requirements
 
 ### Requirement: 主题圆形揭幕必须保持双向方向
 

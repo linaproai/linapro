@@ -11,3 +11,6 @@
 - [x] 交叉影响：组织、日志、通知、调度、插件运行时、插件 host service、配置/字典、工作台、数据库引导、`E2E`和后端一致性等非`user-auth` owner 能力已迁移到`design.md`交叉影响摘要。
 - [x] 角色权限树模式切换：独立提交状态与展示勾选分离，仅按钮授权在独立/父子联动切换后不得扩大`menuIds`；覆盖组件单测、E2E TC005 与 issue #82。
 - [x] FB-1：Make command smoke 前端夹具跟随`vite.js`入口，避免误触发`pnpm install`；属 CI 夹具修复，无运行时 i18n/缓存/数据权限影响。
+- [x] 登录落地：统一前端落地路径解析与守卫装配后纠偏；后端 `homePath` 在工作台缺失时落到下一可导航菜单；覆盖单元测试与 E2E TC011。
+- [x] 验证：前端落地解析单测、后端 `resolveHomePath` 单测、E2E `auth/TC011-login-landing-first-menu`、OpenSpec strict 校验通过。
+- [x] 治理：登录落地无用户可见文案、无数据权限/缓存/新增运行期 DI 影响；深链与插件 404 保持原语义。

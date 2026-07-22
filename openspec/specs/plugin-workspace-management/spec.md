@@ -177,3 +177,33 @@ TBD - created by archiving change plugin-workspace-management. Update Purpose af
 - **THEN** 命令输出 orphaned lock entry 诊断
 - **AND** 命令不自动删除锁定状态或本地插件目录
 
+### Requirement: 插件命名来源配置
+
+系统 SHALL 在 `hack/config.yaml` 的 `plugins` 下使用用户自定义命名来源，而不得要求 `plugins.sources` 外壳。每个命名来源 MUST 为 Git 形态（`repo` + `ref`）或市场形态（`url`）之一；不得同时配置 `repo` 与 `url`。
+
+#### Scenario: Git 命名来源按仓级 ref 检出
+
+- **WHEN** 配置 `plugins.official` 含 `repo`、`root`、`ref` 与 items
+- **AND** 用户运行 `linactl plugins.install source=official`
+- **THEN** 命令按该来源的 `ref` 检出仓库
+- **AND** 将 items 中的插件目录安装到 `apps/lina-plugins/<plugin-id>`
+- **AND** Git 来源不依赖 `version` 或 `defaultBranch` 配置项
+
+#### Scenario: 市场命名来源经 distribution 安装
+
+- **WHEN** 配置 `plugins.public-market.url` 与带 `version` 的 items
+- **AND** 用户运行 `linactl plugins.install source=public-market`
+- **THEN** 命令向该 url 请求各插件版本的 `distribution`
+- **AND** 按返回的 `mode=git` 或 `mode=https` 完成落盘
+
+#### Scenario: v= 仅覆盖市场版本
+
+- **WHEN** 用户对市场来源传入 `v=<version>`
+- **THEN** 命令使用该版本请求 distribution
+- **AND** 不改变 Git 来源的 `ref`
+
+#### Scenario: 同一插件 id 不得跨来源重复
+
+- **WHEN** 两个命名来源的 items 包含相同 plugin id
+- **THEN** 配置校验失败
+

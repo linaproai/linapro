@@ -219,3 +219,16 @@ New core-owned host service methods must use JSON envelopes. Existing dedicated 
 - 源码 provider ownership 继续 `ProvideExternalIdentity(providerID)`；动态 ownership 由 `auth` 服务下 `resources[].ref` 声明 provider ID，WASM dispatcher 校验后盖章 pluginID 铸会话。
 - 调用链：dynamic guest → domainhostcall → wasm dispatcher（授权 + ownership）→ capability 或等价 auth/users 实现。
 - 安全仍依赖安装治理、方法级授权、provider ownership 与启用检查；被攻破的已授权动态插件与源码插件同信模型，后续可叠加宿主验签加固。
+
+## 插件命名来源与市场安装
+
+插件工作区安装配置从 `plugins.sources` 外壳演进为直接挂在 `plugins.<自定义名>` 下的命名来源。每个来源必须显式声明 `type`，不做 repo/url 推导。
+
+| 形态 | 坐标字段 | items |
+| --- | --- | --- |
+| Git | 仓级 `repo` + `root` + `ref` | 插件 id 列表（可 `"*"`）；禁止 item 级 `version`/`defaultBranch` |
+| 市场 | `url` | `id` + `version`；命令 `v=` 仅覆盖市场版本 |
+
+禁止同一来源同时配置 `repo` 与 `url`；禁止同一 plugin id 出现在多个命名来源。市场 API 只解析顶层 `distribution`/`session`，不保留 `data` 双信封兼容；市场失败不静默回退 Git。
+
+执行流：规划命名来源 → 市场 item 请求 distribution 后按 `mode=git|https` 安装（含源码与动态产物）→ Git 按仓级 `ref` 每个 origin 检出一次并复制 items → 更新锁文件。入口仍为 `plugins.install`/`plugins.update`，支持 `source=`/`p=`/`base=`/`token=`/`force=1`。Git monorepo 多插件共用同一 `ref`；若需不同 ref，拆成多个命名来源。`version` 仅用于市场，与 Git 的 `ref` 语义分离。

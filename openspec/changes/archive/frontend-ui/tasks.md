@@ -1,15 +1,10 @@
+# Tasks
+
 ## Summary
 
-- [x] 扩展`form-ui`行数计算逻辑，派生是否存在超出`collapsedRows`的可折叠字段
-- [x] 调整表单操作区渲染条件，使展开/折叠按钮仅在存在可折叠字段时显示
-- [x] 确认`useVbenVxeGrid`搜索表单集成保留默认折叠能力，搜索/重置/刷新语义不变
-- [x] E2E TC006：一行搜索区隐藏按钮、多行搜索区保留按钮、布局无重叠
-- [x] 前端类型检查、E2E 验证、格式检查、截图视觉检查均通过
-- [x] 影响分析：无 API、后端、数据库、权限、缓存、工具链、插件、i18n 影响
-- [x] `lina-review`通过，覆盖前端 UI、E2E、OpenSpec、文档、架构和 i18n 审查
-
-## 执行记录
-
-- 前端类型检查：`pnpm -C apps/lina-vben --filter @lina/web-antd typecheck`，通过。
-- E2E 验证：`cd hack/tests && npx playwright test e2e/dashboard/TC006-search-collapse-visibility.ts`，通过。
-- 截图：`temp/20260607/164638-search-collapse-single-row.png`、`164642-search-collapse-multi-row-expanded.png`、`164642-search-collapse-multi-row-collapsed.png`、`164643-search-collapse-multi-row-reexpanded.png`；未发现搜索区重叠、截断或原始 i18n key。
+- [x] 搜索区：扩展 `form-ui` 行数计算，派生可折叠字段并仅在存在可折叠内容时显示展开/折叠按钮；`useVbenVxeGrid` 搜索/重置/刷新语义不变。
+- [x] 主题交互：保留双向圆形 `View Transition` 揭幕与节奏，主题事务暂停页面内容过渡；按补丁字段定向更新变量并保持未变化偏好分支引用稳定。
+- [x] 主题消费者：`ECharts` 复用实例 + `setTheme()` 与完整业务配置基线；`VXE` 拆分主题/语言监听。
+- [x] 持久化：主题与语言提示同步写入、完整偏好防抖保存；加载时提示覆盖旧快照；重叠点击按最后一次意图生效。
+- [x] 验证：搜索折叠 E2E TC006；主题偏好/图表/表格单元测试；分析页主题性能 E2E TC007（双向方向、更新/就绪/完成耗时、动画边界图表非空、实例标识稳定、立即刷新恢复）；类型检查与 OpenSpec 校验。
+- [x] 治理：无 API/后端/数据库/权限/缓存/工具链/插件影响；无新增运行时文案；`lina-review` 覆盖前端 UI、E2E、OpenSpec 与 i18n。
