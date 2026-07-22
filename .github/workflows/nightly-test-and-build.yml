@@ -29,6 +29,7 @@ jobs:
   # Reuses the shared verification suite with browser E2E enabled for nightly health checks.
   # 复用共享验证套件，并为 nightly 健康检查启用浏览器 E2E。
   verification-suite:
+    if: github.event_name != 'schedule' || github.repository == 'linaproai/linapro' || vars.ENABLE_NIGHTLY_ACTIONS == 'true'
     name: Test verification suite
     uses: ./.github/workflows/reusable-test-verification-suite.yml
     with:
@@ -58,6 +59,7 @@ jobs:
   # Publishes the nightly image only after every host-only, plugin-full, E2E, and Redis gate passes.
   # 仅在所有宿主、插件完整、E2E 和 Redis 门禁通过后发布 nightly 镜像。
   nightly-image:
+    if: github.event_name != 'schedule' || github.repository == 'linaproai/linapro' || vars.ENABLE_NIGHTLY_ACTIONS == 'true'
     name: Build and publish nightly image
     needs:
       - verification-suite
