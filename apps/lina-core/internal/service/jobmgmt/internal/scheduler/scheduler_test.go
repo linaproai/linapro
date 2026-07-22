@@ -889,9 +889,20 @@ func TestExecuteJobPanicMarksLogFailed(t *testing.T) {
 	}
 
 	// A recovered panic must free the singleton slot for later ticks.
+	// runCronJob dispatches executeJob asynchronously, so wait until both logs
+	// are terminal failed — not merely until the second running row appears.
 	svc.runCronJob(ctx, jobID)
 	waitForCondition(t, 3*time.Second, func() bool {
-		return len(latestLogs(t, ctx, jobID)) == 2
+		statuses := latestLogStatuses(t, ctx, jobID)
+		if len(statuses) != 2 {
+			return false
+		}
+		for _, status := range statuses {
+			if status != string(joblogv1.StatusFailed) {
+				return false
+			}
+		}
+		return true
 	})
 	statuses := latestLogStatuses(t, ctx, jobID)
 	if len(statuses) != 2 {
