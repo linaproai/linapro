@@ -88,15 +88,17 @@ jobs:
           )
           WORK
           mkdir -p "$smoke_root/hack"
+          # Fixture must match current named-origin schema (type + mapping items).
+          # fixture 必须匹配当前命名来源 schema（type + mapping items）。
           cat > "$smoke_root/hack/config.yaml" <<YAML
           plugins:
-            sources:
-              local:
-                repo: "$source_dir"
-                root: "."
-                ref: "main"
-                items:
-                  - "demo-ci"
+            local:
+              type: git
+              repo: "$source_dir"
+              root: "."
+              ref: "main"
+              items:
+                - id: demo-ci
           YAML
 
           git -C "$smoke_root" init -q --initial-branch=main
