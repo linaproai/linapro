@@ -54,6 +54,7 @@ jobs:
   # - workflow_dispatch → 运行
   # - 默认分支 push → 始终运行（合并后校验）
   ci-gate:
+    if: github.event_name != 'push' || github.repository == 'linaproai/linapro' || vars.ENABLE_FORK_PUSH_CI == 'true'
     name: CI gate
     runs-on: ubuntu-latest
     # Only this job lists open PRs; keep verification-suite on repo default token scopes.
