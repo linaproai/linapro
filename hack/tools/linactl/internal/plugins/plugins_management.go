@@ -73,12 +73,20 @@ type pluginPlan struct {
 
 // pluginPlanItem stores one configured plugin operation target.
 type pluginPlanItem struct {
-	ID     string
-	Source string
-	Repo   string
-	Root   string
-	Ref    string
-	All    bool
+	ID      string
+	Source  string
+	Type    string // config.OriginTypeGit or config.OriginTypeMarketplace
+	Repo    string
+	Root    string
+	URL     string // marketplace base URL
+	Version string // marketplace release version (git origins leave empty)
+	GitRef  string // git origin repository-level ref to checkout
+	All     bool
+}
+
+// checkoutKey groups Git checkouts by named origin (one ref per origin).
+func (item pluginPlanItem) checkoutKey() string {
+	return item.Source
 }
 
 // pluginSourceCheckout stores one source checkout and resolved commit.
@@ -143,23 +151,41 @@ func InstallOrUpdate(ctx context.Context, runtime Runtime, input Input, update b
 	if _, err = fmt.Fprintf(runtime.Stdout, "Preparing plugin %s for %d configured item(s)...\n", prepAction, len(plan.Items)); err != nil {
 		return fmt.Errorf("write plugin progress: %w", err)
 	}
-	checkouts, sourceErrors, err := checkoutPluginSources(ctx, runtime, plan.Items)
+
+	gitItems, marketItems := splitPlanByOriginType(plan.Items)
+	if len(marketItems) > 0 {
+		if err = installPlanMarketplaceItems(ctx, runtime, input, marketItems, update, force); err != nil {
+			return err
+		}
+		// Reload lock after marketplace writes so git path merges cleanly.
+		lock, err = ReadLock(runtime.Root)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(gitItems) == 0 {
+		return nil
+	}
+
+	checkouts, sourceErrors, err := checkoutPluginSources(ctx, runtime, gitItems)
 	if err != nil {
 		return err
 	}
 	if len(sourceErrors) > 0 {
 		return firstPluginSourceError(sourceErrors)
 	}
-	plan, err = expandPluginPlanFromCheckouts(plan, checkouts)
+	gitPlan := pluginPlan{Items: gitItems, Filter: plan.Filter}
+	gitPlan, err = expandPluginPlanFromCheckouts(gitPlan, checkouts)
 	if err != nil {
 		return err
 	}
-	if _, err = fmt.Fprintf(runtime.Stdout, "%s %d plugin(s)...\n", action, len(plan.Items)); err != nil {
+	if _, err = fmt.Fprintf(runtime.Stdout, "%s %d git plugin(s)...\n", action, len(gitPlan.Items)); err != nil {
 		return fmt.Errorf("write plugin progress: %w", err)
 	}
-	for index, item := range plan.Items {
-		checkout := checkouts[item.Source]
-		if _, err = fmt.Fprintf(runtime.Stdout, "[%d/%d] %s plugin %s from %s...\n", index+1, len(plan.Items), strings.ToLower(action), item.ID, item.Source); err != nil {
+	for index, item := range gitPlan.Items {
+		checkout := checkouts[item.checkoutKey()]
+		if _, err = fmt.Fprintf(runtime.Stdout, "[%d/%d] %s plugin %s from %s@%s...\n", index+1, len(gitPlan.Items), strings.ToLower(action), item.ID, item.Source, item.GitRef); err != nil {
 			return fmt.Errorf("write plugin progress: %w", err)
 		}
 		if err = applyPluginFromCheckout(ctx, runtime, item, checkout, &lock, update, force); err != nil {
@@ -170,6 +196,18 @@ func InstallOrUpdate(ctx context.Context, runtime Runtime, input Input, update b
 		return err
 	}
 	return nil
+}
+
+func splitPlanByOriginType(items []pluginPlanItem) (gitItems, marketItems []pluginPlanItem) {
+	for _, item := range items {
+		switch item.Type {
+		case config.OriginTypeMarketplace:
+			marketItems = append(marketItems, item)
+		default:
+			gitItems = append(gitItems, item)
+		}
+	}
+	return gitItems, marketItems
 }
 
 // Status prints read-only plugin workspace and source status.
@@ -190,16 +228,25 @@ func Status(ctx context.Context, runtime Runtime, input Input) error {
 	}
 	lockByID := lock.entriesByID()
 
-	if _, err = fmt.Fprintln(runtime.Stdout, "Querying configured plugin sources..."); err != nil {
+	if _, err = fmt.Fprintln(runtime.Stdout, "Querying configured plugin origins..."); err != nil {
 		return fmt.Errorf("write plugin status progress: %w", err)
 	}
-	checkouts, sourceErrors, err := checkoutPluginSources(ctx, runtime, plan.Items)
+	gitItems, _ := splitPlanByOriginType(plan.Items)
+	checkouts, sourceErrors, err := checkoutPluginSources(ctx, runtime, gitItems)
 	if err != nil {
 		return err
 	}
-	expandedPlan, expandErr := expandPluginPlanFromCheckouts(plan, checkouts)
+	gitPlan := pluginPlan{Items: gitItems, Filter: plan.Filter}
+	expandedGit, expandErr := expandPluginPlanFromCheckouts(gitPlan, checkouts)
 	if expandErr != nil {
 		return expandErr
+	}
+	// Marketplace items stay as configured (no local git remote comparison).
+	expandedPlan := pluginPlan{Items: append([]pluginPlanItem{}, expandedGit.Items...), Filter: plan.Filter}
+	for _, item := range plan.Items {
+		if item.Type == config.OriginTypeMarketplace {
+			expandedPlan.Items = append(expandedPlan.Items, item)
+		}
 	}
 
 	if _, err = fmt.Fprintf(runtime.Stdout, "Rendering status for %d configured plugin(s)...\n", len(expandedPlan.Items)); err != nil {
@@ -234,7 +281,21 @@ func Status(ctx context.Context, runtime Runtime, input Input) error {
 
 		remote := "unknown"
 		note := ""
-		if sourceErr, ok := sourceErrors[item.Source]; ok {
+		if item.Type == config.OriginTypeMarketplace {
+			remote = "marketplace"
+			note = item.Version
+			rows = append(rows, pluginStatusRow{
+				Plugin:    item.ID,
+				Source:    item.Source,
+				Version:   version,
+				Installed: fmt.Sprintf("%t", exists),
+				Dirty:     dirty,
+				Remote:    remote,
+				Note:      note,
+			})
+			continue
+		}
+		if sourceErr, ok := sourceErrors[item.checkoutKey()]; ok {
 			note = sourceErr.Error()
 			rows = append(rows, pluginStatusRow{
 				Plugin:    item.ID,
@@ -247,7 +308,7 @@ func Status(ctx context.Context, runtime Runtime, input Input) error {
 			})
 			continue
 		}
-		if checkout, ok := checkouts[item.Source]; ok {
+		if checkout, ok := checkouts[item.checkoutKey()]; ok {
 			sourceDir := filepath.Join(checkout.Dir, filepath.FromSlash(sourcePluginRelativePath(item)))
 			if !fileutil.FileExists(filepath.Join(sourceDir, "plugin.yaml")) {
 				remote = "missing"
@@ -287,18 +348,19 @@ func LoadPlan(root string, input Input) (pluginPlan, error) {
 	return ValidateConfig(cfg.Plugins, input)
 }
 
-// ValidateConfig normalizes configured plugin sources and applies
-// command-level source or plugin filters.
-func ValidateConfig(cfg config.Plugins, input Input) (pluginPlan, error) {
-	if len(cfg.Sources) == 0 {
-		return pluginPlan{}, errors.New("plugins.sources is empty in hack/config.yaml")
+// ValidateConfig normalizes named plugin origins and applies command-level filters.
+func ValidateConfig(origins config.PluginOrigins, input Input) (pluginPlan, error) {
+	if len(origins) == 0 {
+		return pluginPlan{}, errors.New("plugins has no named origins in hack/config.yaml")
 	}
 	var (
-		sourceFilter = strings.TrimSpace(input.Get("source"))
-		pluginFilter = splitPluginFilter(input.Get("p"))
-		sourceNames  = make([]string, 0, len(cfg.Sources))
+		sourceFilter   = strings.TrimSpace(input.Get("source"))
+		pluginFilter   = splitPluginFilter(input.Get("p"))
+		commandVersion = strings.TrimSpace(input.Get("v"))
+		baseOverride   = strings.TrimSpace(input.Get("base"))
+		sourceNames    = make([]string, 0, len(origins))
 	)
-	for name := range cfg.Sources {
+	for name := range origins {
 		sourceNames = append(sourceNames, name)
 	}
 	sort.Strings(sourceNames)
@@ -307,97 +369,194 @@ func ValidateConfig(cfg config.Plugins, input Input) (pluginPlan, error) {
 	hasWildcard := false
 	var items []pluginPlanItem
 	for _, sourceName := range sourceNames {
-		source := cfg.Sources[sourceName]
 		if err := validatePluginSourceName(sourceName); err != nil {
 			return pluginPlan{}, err
 		}
 		if sourceFilter != "" && sourceName != sourceFilter {
 			continue
 		}
-		root, err := validatePluginSourceConfig(sourceName, source)
+		planned, originHasWildcard, err := planItemsFromOrigin(
+			sourceName,
+			origins[sourceName],
+			pluginFilter,
+			commandVersion,
+			baseOverride,
+			seen,
+		)
 		if err != nil {
 			return pluginPlan{}, err
 		}
-		for _, id := range source.Items {
-			id = strings.TrimSpace(id)
-			all := id == pluginWildcardItem
-			if all && len(source.Items) > 1 {
-				return pluginPlan{}, fmt.Errorf("source %s cannot mix wildcard %q with explicit plugin ids", sourceName, pluginWildcardItem)
-			}
-			if all {
-				hasWildcard = true
-			}
-			if !all {
-				if err = validatePluginID(id); err != nil {
-					return pluginPlan{}, fmt.Errorf("source %s has invalid plugin id %q: %w", sourceName, id, err)
-				}
-			}
-			if previous, ok := seen[id]; ok {
-				return pluginPlan{}, fmt.Errorf("plugin %q is declared by multiple sources: %s, %s", id, previous, sourceName)
-			}
-			if !all {
-				seen[id] = sourceName
-			}
-			if len(pluginFilter) > 0 {
-				if all {
-					// Wildcard expansion happens after checkout, where the plugin
-					// filter can be applied to discovered plugin IDs.
-				} else if _, ok := pluginFilter[id]; !ok {
-					continue
-				}
-			}
-			items = append(items, pluginPlanItem{
-				ID:     id,
-				Source: sourceName,
-				Repo:   strings.TrimSpace(source.Repo),
-				Root:   root,
-				Ref:    strings.TrimSpace(source.Ref),
-				All:    all,
-			})
+		if originHasWildcard {
+			hasWildcard = true
 		}
+		items = append(items, planned...)
 	}
-	if sourceFilter != "" {
-		if _, ok := cfg.Sources[sourceFilter]; !ok {
-			return pluginPlan{}, fmt.Errorf("plugin source %q is not configured", sourceFilter)
-		}
-	}
-	if len(pluginFilter) > 0 {
-		if !hasWildcard {
-			for requested := range pluginFilter {
-				if _, ok := seen[requested]; !ok {
-					return pluginPlan{}, fmt.Errorf("plugin %q is not configured", requested)
-				}
-			}
-		}
-	}
-	if len(items) == 0 {
-		return pluginPlan{}, errors.New("no configured plugins match the requested filters")
+	if err := validatePlanFilters(origins, sourceFilter, pluginFilter, seen, hasWildcard, len(items)); err != nil {
+		return pluginPlan{}, err
 	}
 	return pluginPlan{Items: items, Filter: pluginFilter}, nil
 }
 
-// checkoutPluginSources synchronizes each configured source once.
+// planItemsFromOrigin expands one named origin into plan items.
+func planItemsFromOrigin(
+	sourceName string,
+	origin config.PluginOrigin,
+	pluginFilter map[string]struct{},
+	commandVersion string,
+	baseOverride string,
+	seen map[string]string,
+) ([]pluginPlanItem, bool, error) {
+	originType, err := origin.ResolvedType()
+	if err != nil {
+		return nil, false, fmt.Errorf("plugins.%s: %w", sourceName, err)
+	}
+	if len(origin.Items) == 0 {
+		return nil, false, fmt.Errorf("plugins.%s.items must contain at least one plugin id", sourceName)
+	}
+
+	var root string
+	marketURL := ""
+	gitRef := ""
+	switch originType {
+	case config.OriginTypeGit:
+		root, gitRef, err = validateGitOriginConfig(sourceName, origin)
+		if err != nil {
+			return nil, false, err
+		}
+	case config.OriginTypeMarketplace:
+		marketURL, err = validateMarketplaceOriginConfig(sourceName, origin, baseOverride)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+
+	hasWildcard := false
+	var items []pluginPlanItem
+	for _, configured := range origin.Items {
+		id := strings.TrimSpace(configured.ID)
+		all := id == pluginWildcardItem
+		if all && len(origin.Items) > 1 {
+			return nil, false, fmt.Errorf("plugins.%s cannot mix wildcard %q with explicit plugin ids", sourceName, pluginWildcardItem)
+		}
+		if all {
+			hasWildcard = true
+			if originType == config.OriginTypeMarketplace {
+				return nil, false, fmt.Errorf("plugins.%s marketplace origin does not support wildcard items", sourceName)
+			}
+		}
+		if !all {
+			if err = validatePluginID(id); err != nil {
+				return nil, false, fmt.Errorf("plugins.%s has invalid plugin id %q: %w", sourceName, id, err)
+			}
+		}
+		if previous, ok := seen[id]; ok {
+			return nil, false, fmt.Errorf("plugin %q is declared by multiple origins: %s, %s", id, previous, sourceName)
+		}
+		if !all {
+			seen[id] = sourceName
+		}
+		if len(pluginFilter) > 0 && !all {
+			if _, ok := pluginFilter[id]; !ok {
+				continue
+			}
+		}
+
+		itemVersion, err := resolveItemVersion(originType, sourceName, id, configured.Version, commandVersion)
+		if err != nil {
+			return nil, false, err
+		}
+		items = append(items, pluginPlanItem{
+			ID:      id,
+			Source:  sourceName,
+			Type:    originType,
+			Repo:    strings.TrimSpace(origin.Repo),
+			Root:    root,
+			URL:     marketURL,
+			Version: itemVersion,
+			GitRef:  gitRef,
+			All:     all,
+		})
+	}
+	return items, hasWildcard, nil
+}
+
+func resolveItemVersion(
+	originType string,
+	sourceName string,
+	id string,
+	configuredVersion string,
+	commandVersion string,
+) (string, error) {
+	itemVersion := strings.TrimSpace(configuredVersion)
+	switch originType {
+	case config.OriginTypeGit:
+		if itemVersion != "" {
+			return "", fmt.Errorf("plugins.%s item %s must not set version on git origin (use origin ref)", sourceName, id)
+		}
+		return "", nil
+	case config.OriginTypeMarketplace:
+		itemVersion = toolutil.FirstNonEmpty(commandVersion, itemVersion)
+		if itemVersion == "" {
+			return "", fmt.Errorf("plugins.%s item %s requires version (or pass v=)", sourceName, id)
+		}
+		return itemVersion, nil
+	default:
+		return "", nil
+	}
+}
+
+func validatePlanFilters(
+	origins config.PluginOrigins,
+	sourceFilter string,
+	pluginFilter map[string]struct{},
+	seen map[string]string,
+	hasWildcard bool,
+	itemCount int,
+) error {
+	if sourceFilter != "" {
+		if _, ok := origins[sourceFilter]; !ok {
+			return fmt.Errorf("plugin origin %q is not configured", sourceFilter)
+		}
+	}
+	if len(pluginFilter) > 0 && !hasWildcard {
+		for requested := range pluginFilter {
+			if _, ok := seen[requested]; !ok {
+				return fmt.Errorf("plugin %q is not configured", requested)
+			}
+		}
+	}
+	if itemCount == 0 {
+		return errors.New("no configured plugins match the requested filters")
+	}
+	return nil
+}
+
+// checkoutPluginSources synchronizes each distinct origin@gitRef once.
 func checkoutPluginSources(ctx context.Context, runtime Runtime, items []pluginPlanItem) (map[string]pluginSourceCheckout, map[string]error, error) {
 	checkouts := map[string]pluginSourceCheckout{}
 	sourceErrors := map[string]error{}
 	for _, item := range items {
-		if _, ok := checkouts[item.Source]; ok {
+		if item.Type != config.OriginTypeGit && item.Type != "" {
 			continue
 		}
-		if _, ok := sourceErrors[item.Source]; ok {
+		key := item.checkoutKey()
+		if _, ok := checkouts[key]; ok {
 			continue
 		}
-		if _, err := fmt.Fprintf(runtime.Stdout, "Synchronizing plugin source %s from %s (%s)...\n", item.Source, item.Repo, item.Ref); err != nil {
-			return checkouts, sourceErrors, fmt.Errorf("write plugin source progress: %w", err)
+		if _, ok := sourceErrors[key]; ok {
+			continue
+		}
+		if _, err := fmt.Fprintf(runtime.Stdout, "Synchronizing plugin origin %s from %s (ref %s)...\n", item.Source, item.Repo, item.GitRef); err != nil {
+			return checkouts, sourceErrors, fmt.Errorf("write plugin origin progress: %w", err)
 		}
 		checkout, err := checkoutPluginSource(ctx, runtime, item)
 		if err != nil {
-			sourceErrors[item.Source] = err
+			sourceErrors[key] = err
 			continue
 		}
-		checkouts[item.Source] = checkout
-		if _, err = fmt.Fprintf(runtime.Stdout, "Resolved plugin source %s at %s\n", item.Source, checkout.Commit); err != nil {
-			return checkouts, sourceErrors, fmt.Errorf("write plugin source progress: %w", err)
+		checkouts[key] = checkout
+		if _, err = fmt.Fprintf(runtime.Stdout, "Resolved plugin origin %s@%s at %s\n", item.Source, item.GitRef, checkout.Commit); err != nil {
+			return checkouts, sourceErrors, fmt.Errorf("write plugin origin progress: %w", err)
 		}
 	}
 	return checkouts, sourceErrors, nil
@@ -413,7 +572,7 @@ func firstPluginSourceError(sourceErrors map[string]error) error {
 	if len(names) == 0 {
 		return nil
 	}
-	return fmt.Errorf("checkout plugin source %s: %w", names[0], sourceErrors[names[0]])
+	return fmt.Errorf("checkout plugin origin %s: %w", names[0], sourceErrors[names[0]])
 }
 
 // expandPluginPlanFromCheckouts expands wildcard source items into concrete plugins.
@@ -423,13 +582,13 @@ func expandPluginPlanFromCheckouts(plan pluginPlan, checkouts map[string]pluginS
 	for _, item := range plan.Items {
 		if !item.All {
 			if previous, ok := seen[item.ID]; ok {
-				return pluginPlan{}, fmt.Errorf("plugin %q is declared by multiple sources: %s, %s", item.ID, previous, item.Source)
+				return pluginPlan{}, fmt.Errorf("plugin %q is declared by multiple origins: %s, %s", item.ID, previous, item.Source)
 			}
 			seen[item.ID] = item.Source
 			expanded = append(expanded, item)
 			continue
 		}
-		checkout, ok := checkouts[item.Source]
+		checkout, ok := checkouts[item.checkoutKey()]
 		if !ok {
 			continue
 		}
@@ -444,7 +603,7 @@ func expandPluginPlanFromCheckouts(plan pluginPlan, checkouts map[string]pluginS
 				}
 			}
 			if previous, ok := seen[pluginID]; ok {
-				return pluginPlan{}, fmt.Errorf("plugin %q is declared by multiple sources: %s, %s", pluginID, previous, item.Source)
+				return pluginPlan{}, fmt.Errorf("plugin %q is declared by multiple origins: %s, %s", pluginID, previous, item.Source)
 			}
 			seen[pluginID] = item.Source
 			next := item
@@ -490,28 +649,39 @@ func discoverSourcePlugins(checkoutDir string, sourceRoot string) ([]string, err
 	return plugins, nil
 }
 
-// validatePluginSourceConfig checks required source fields and returns a safe root.
-func validatePluginSourceConfig(sourceName string, source config.PluginSource) (string, error) {
-	if strings.TrimSpace(source.Repo) == "" {
-		return "", fmt.Errorf("plugins.sources.%s.repo is required", sourceName)
+// validateGitOriginConfig checks required Git origin fields and returns root + ref.
+func validateGitOriginConfig(sourceName string, origin config.PluginOrigin) (string, string, error) {
+	if strings.TrimSpace(origin.Repo) == "" {
+		return "", "", fmt.Errorf("plugins.%s.repo is required", sourceName)
 	}
-	root, err := ValidateSourceRoot(source.Root)
+	root, err := ValidateSourceRoot(origin.Root)
 	if err != nil {
-		return "", fmt.Errorf("plugins.sources.%s.root is invalid: %w", sourceName, err)
+		return "", "", fmt.Errorf("plugins.%s.root is invalid: %w", sourceName, err)
 	}
-	if strings.TrimSpace(source.Ref) == "" {
-		return "", fmt.Errorf("plugins.sources.%s.ref is required", sourceName)
+	ref := strings.TrimSpace(origin.Ref)
+	if ref == "" {
+		return "", "", fmt.Errorf("plugins.%s.ref is required for git origin (branch, tag, or commit)", sourceName)
 	}
-	if len(source.Items) == 0 {
-		return "", fmt.Errorf("plugins.sources.%s.items must contain at least one plugin id", sourceName)
-	}
-	return root, nil
+	return root, ref, nil
 }
 
-// validatePluginSourceName checks that a source name is safe for diagnostics.
+// validateMarketplaceOriginConfig validates marketplace url (with optional base= override).
+func validateMarketplaceOriginConfig(sourceName string, origin config.PluginOrigin, baseOverride string) (string, error) {
+	raw := toolutil.FirstNonEmpty(strings.TrimSpace(baseOverride), strings.TrimSpace(origin.URL))
+	if raw == "" {
+		return "", fmt.Errorf("plugins.%s.url is required for marketplace origin", sourceName)
+	}
+	normalized, err := normalizeMarketplaceBaseURL(raw)
+	if err != nil {
+		return "", fmt.Errorf("plugins.%s.url: %w", sourceName, err)
+	}
+	return normalized, nil
+}
+
+// validatePluginSourceName checks that an origin name is safe for diagnostics.
 func validatePluginSourceName(name string) error {
 	if !pluginSourceNamePattern.MatchString(strings.TrimSpace(name)) {
-		return fmt.Errorf("invalid plugin source name %q", name)
+		return fmt.Errorf("invalid plugin origin name %q", name)
 	}
 	return nil
 }
@@ -742,7 +912,7 @@ func checkoutPluginSource(ctx context.Context, runtime Runtime, item pluginPlanI
 		return pluginSourceCheckout{}, err
 	}
 
-	commit, err := resolvePluginSourceRef(ctx, runtime, cacheDir, item.Ref)
+	commit, err := resolvePluginSourceRef(ctx, runtime, cacheDir, item.GitRef)
 	if err != nil {
 		return pluginSourceCheckout{}, err
 	}
@@ -817,6 +987,13 @@ func resolvePluginSourceRef(ctx context.Context, runtime Runtime, cacheDir strin
 // applyPluginFromCheckout copies one plugin from a source checkout.
 func applyPluginFromCheckout(ctx context.Context, runtime Runtime, item pluginPlanItem, checkout pluginSourceCheckout, lock *pluginLockFile, update bool, force bool) error {
 	sourceDir := filepath.Join(checkout.Dir, filepath.FromSlash(sourcePluginRelativePath(item)))
+	return applyPluginDirectory(ctx, runtime, item, sourceDir, checkout.Commit, lock, update, force)
+}
+
+// applyPluginDirectory copies one validated plugin directory into the managed
+// workspace and updates the lock entry. The source may come from a Git checkout
+// or from a verified marketplace package extraction directory.
+func applyPluginDirectory(ctx context.Context, runtime Runtime, item pluginPlanItem, sourceDir string, resolved string, lock *pluginLockFile, update bool, force bool) error {
 	if !fileutil.FileExists(filepath.Join(sourceDir, "plugin.yaml")) {
 		return fmt.Errorf("source plugin %s is missing plugin.yaml at %s", item.ID, sourcePluginRelativePath(item))
 	}
@@ -860,12 +1037,14 @@ func applyPluginFromCheckout(ctx context.Context, runtime Runtime, item pluginPl
 		return err
 	}
 	lock.upsert(pluginLockEntry{
-		ID:             item.ID,
-		Source:         item.Source,
-		Repo:           item.Repo,
-		Root:           item.Root,
-		Ref:            item.Ref,
-		ResolvedCommit: checkout.Commit,
+		ID:     item.ID,
+		Source: item.Source,
+		Repo:   item.Repo,
+		Root:   item.Root,
+		// Ref is only the Git checkout ref (origin ref or market distribution ref).
+		// Marketplace release version is not stored in Ref.
+		Ref:            item.GitRef,
+		ResolvedCommit: resolved,
 		Version:        manifest.Version,
 		ContentHash:    hash,
 	})
@@ -873,7 +1052,7 @@ func applyPluginFromCheckout(ctx context.Context, runtime Runtime, item pluginPl
 	if update {
 		action = "Updated"
 	}
-	fmt.Fprintf(runtime.Stdout, "%s plugin %s from %s@%s\n", action, item.ID, item.Source, checkout.Commit)
+	fmt.Fprintf(runtime.Stdout, "%s plugin %s from %s@%s\n", action, item.ID, item.Source, resolved)
 	return nil
 }
 

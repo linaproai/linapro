@@ -54,6 +54,7 @@ type OfficialWorkspace struct {
 
 // Manifest stores the plugin fields needed by linactl.
 type Manifest struct {
+	ID      string `yaml:"id"`
 	Type    string `yaml:"type"`
 	Version string `yaml:"version"`
 }

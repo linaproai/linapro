@@ -345,21 +345,32 @@ make release.tag.check metadata=apps/lina-core/manifest/config/metadata.yaml tag
 
 ## Plugin Workspace Commands
 
-Plugin workspace management always uses the fixed `apps/lina-plugins` directory. Configure sources in `hack/config.yaml`:
+Plugin workspace management always uses the fixed `apps/lina-plugins` directory. Configure **named origins** under `plugins` in `hack/config.yaml` (no `sources` wrapper):
 
 ```yaml
 plugins:
-  sources:
-    official:
-      repo: "https://github.com/linaproai/official-plugins.git"
-      root: "."
-      ref: "main"
-      items:
-        - "linapro-tenant-core"
-        - "linapro-org-core"
+  official:
+    type: git              # required
+    repo: "https://github.com/linaproai/official-plugins.git"
+    root: "."
+    ref: "main"            # repository-level branch / tag / commit
+    items:
+      - id: linapro-tenant-core
+      - id: linapro-org-core
+  public-market:
+    type: marketplace      # required
+    url: "https://linapro.ai"
+    items:
+      - id: linapro-demo-source
+        version: "v1.0.0"  # required for marketplace items
 ```
 
-`items` only accepts plugin ID strings. Use the quoted string `"*"` to install every plugin directory directly under the source `root`; do not write bare `- *` because YAML treats it as alias syntax. If plugins from the same repository need different refs, split them into separate sources.
+- **`type` is required** (`git` | `marketplace`); no field inference.
+- **items** must be mappings `{ id, version? }` (no scalar string ids).
+- **Git origin**: `repo` + `root` + `ref` (one checkout per origin). Items list plugin directories only; item `version` is **forbidden**. Wildcard: `{ id: "*" }`.
+- **Marketplace origin**: `url` + items with required `version`. Install uses market `distribution`, then `mode=git` or `mode=https`.
+- Command `source=` selects an origin; `v=` overrides marketplace version only; `base=` overrides marketplace `url`; `token=` / `LINAPRO_MARKETPLACE_TOKEN` for auth.
+- The same plugin `id` must not appear under two origins.
 
 Common commands:
 
@@ -370,9 +381,11 @@ make plugins.install p=linapro-tenant-core
 make plugins.update source=official
 make plugins.update force=1
 make plugins.status
+make plugins.install source=public-market p=linapro-demo-source v=v1.0.0
+make plugins.install source=public-market base=http://127.0.0.1:9120 p=linapro-demo-source v=v1.0.0 token=...
 ```
 
-`plugins.init` converts `apps/lina-plugins` from a submodule into a normal directory while preserving files. `plugins.install`, `plugins.update`, and `plugins.status` run the same workspace initialization automatically when needed, so users can start with the command they actually need. `plugins.install` and `plugins.update` reuse configured source checkouts under `temp/plugin-sources/<source>`, fetching updates after the first clone, copy plugin directories into `apps/lina-plugins/<plugin-id>`, and update the generated `apps/lina-plugins/.linapro-plugins.lock.yaml` lock file.
+`plugins.init` converts `apps/lina-plugins` from a submodule into a normal directory while preserving files. `plugins.install`, `plugins.update`, and `plugins.status` run the same workspace initialization automatically when needed. Git origins reuse checkouts under `temp/plugin-sources/<origin>`, copy into `apps/lina-plugins/<plugin-id>`, and update `apps/lina-plugins/.linapro-plugins.lock.yaml`.
 
 ## Verification
 

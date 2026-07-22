@@ -5,8 +5,10 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
@@ -3934,22 +3936,25 @@ func readFile(t *testing.T, path string) string {
 	return string(content)
 }
 
-// TestValidatePluginConfigAcceptsStringItemsAndFilters verifies configured
-// source and plugin filters keep items as plain string plugin IDs.
+// TestValidatePluginConfigAcceptsStringItemsAndFilters verifies named origins
+// and plugin filters select the expected plan items.
 func TestValidatePluginConfigAcceptsStringItemsAndFilters(t *testing.T) {
-	cfg := config.Plugins{
-		Sources: map[string]config.PluginSource{
-			"custom": {
-				Repo:  "https://example.com/custom.git",
-				Root:  "apps/lina-plugins",
-				Ref:   "main",
-				Items: []string{"linapro-content-notice"},
-			},
-			"official": {
-				Repo:  "https://example.com/official.git",
-				Root:  ".",
-				Ref:   "main",
-				Items: []string{"linapro-tenant-core", "linapro-org-core"},
+	cfg := config.PluginOrigins{
+		"custom": {
+			Type:  config.OriginTypeGit,
+			Repo:  "https://example.com/custom.git",
+			Root:  "apps/lina-plugins",
+			Ref:   "main",
+			Items: []config.PluginItem{{ID: "linapro-content-notice"}},
+		},
+		"official": {
+			Type: config.OriginTypeGit,
+			Repo: "https://example.com/official.git",
+			Root: ".",
+			Ref:  "main",
+			Items: []config.PluginItem{
+				{ID: "linapro-tenant-core"},
+				{ID: "linapro-org-core"},
 			},
 		},
 	}
@@ -3962,33 +3967,35 @@ func TestValidatePluginConfigAcceptsStringItemsAndFilters(t *testing.T) {
 		t.Fatalf("expected one filtered item, got %#v", plan.Items)
 	}
 	item := plan.Items[0]
-	if item.ID != "linapro-org-core" || item.Source != "official" || item.Root != "." {
+	if item.ID != "linapro-org-core" || item.Source != "official" || item.Root != "." || item.GitRef != "main" {
 		t.Fatalf("unexpected filtered item: %#v", item)
 	}
 }
 
 // TestValidatePluginConfigRejectsDuplicatePluginIDs verifies duplicate plugin
-// IDs across sources are rejected before any workspace write.
+// IDs across origins are rejected before any workspace write.
 func TestValidatePluginConfigRejectsDuplicatePluginIDs(t *testing.T) {
-	cfg := config.Plugins{
-		Sources: map[string]config.PluginSource{
-			"a": {Repo: "repo-a", Root: ".", Ref: "main", Items: []string{"linapro-tenant-core"}},
-			"b": {Repo: "repo-b", Root: ".", Ref: "main", Items: []string{"linapro-tenant-core"}},
-		},
+	cfg := config.PluginOrigins{
+		"a": {Type: config.OriginTypeGit, Repo: "repo-a", Root: ".", Ref: "main", Items: []config.PluginItem{{ID: "linapro-tenant-core"}}},
+		"b": {Type: config.OriginTypeGit, Repo: "repo-b", Root: ".", Ref: "main", Items: []config.PluginItem{{ID: "linapro-tenant-core"}}},
 	}
 
 	_, err := plugins.ValidateConfig(cfg, commandInput{})
-	if err == nil || !strings.Contains(err.Error(), "multiple sources") {
+	if err == nil || !strings.Contains(err.Error(), "multiple origins") {
 		t.Fatalf("expected duplicate plugin validation error, got %v", err)
 	}
 }
 
 // TestValidatePluginConfigRejectsWildcardMixedWithExplicitIDs verifies a
-// source cannot mix "*" with individual plugin IDs.
+// origin cannot mix "*" with individual plugin IDs.
 func TestValidatePluginConfigRejectsWildcardMixedWithExplicitIDs(t *testing.T) {
-	cfg := config.Plugins{
-		Sources: map[string]config.PluginSource{
-			"official": {Repo: "repo", Root: ".", Ref: "main", Items: []string{"*", "linapro-tenant-core"}},
+	cfg := config.PluginOrigins{
+		"official": {
+			Type:  config.OriginTypeGit,
+			Repo:  "repo",
+			Root:  ".",
+			Ref:   "main",
+			Items: []config.PluginItem{{ID: "*"}, {ID: "linapro-tenant-core"}},
 		},
 	}
 
@@ -4011,27 +4018,29 @@ func TestValidatePluginSourceRootRejectsUnsafePaths(t *testing.T) {
 	}
 }
 
-// TestLoadPluginPlanRejectsNonStringItems verifies YAML objects in items fail
-// because plugin items must remain a string array.
-func TestLoadPluginPlanRejectsNonStringItems(t *testing.T) {
+// TestLoadPluginPlanAcceptsStructuredItems verifies {id} items load for Git origins.
+func TestLoadPluginPlanAcceptsStructuredItems(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")
 	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-core"), 0o755); err != nil {
 		t.Fatalf("mkdir lina-core: %v", err)
 	}
 	writeFile(t, filepath.Join(root, "hack", "config.yaml"), `plugins:
-  sources:
-    official:
-      repo: "https://example.com/plugins.git"
-      root: "."
-      ref: "main"
-      items:
-        - id: linapro-tenant-core
+  official:
+    type: git
+    repo: "https://example.com/plugins.git"
+    root: "."
+    ref: "main"
+    items:
+      - id: linapro-tenant-core
 `)
 
-	_, err := plugins.LoadPlan(root, commandInput{})
-	if err == nil || !strings.Contains(err.Error(), "cannot unmarshal") {
-		t.Fatalf("expected non-string item YAML error, got %v", err)
+	plan, err := plugins.LoadPlan(root, commandInput{})
+	if err != nil {
+		t.Fatalf("LoadPlan returned error: %v", err)
+	}
+	if len(plan.Items) != 1 || plan.Items[0].ID != "linapro-tenant-core" || plan.Items[0].GitRef != "main" {
+		t.Fatalf("unexpected plan: %#v", plan.Items)
 	}
 }
 
@@ -4148,7 +4157,7 @@ func TestPluginsInstallAutoInitializesSubmoduleWorkspace(t *testing.T) {
 	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "initial plugin")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - id: linapro-tenant-core\n")
 	writeFile(t, filepath.Join(root, ".gitmodules"), `[submodule "apps/lina-plugins"]
 	path = apps/lina-plugins
 	url = https://example.com/plugins.git
@@ -4193,7 +4202,7 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	writeFile(t, filepath.Join(source, "linapro-tenant-core", "README.md"), "v1\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "initial plugin")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - id: linapro-tenant-core\n")
 
 	var installOut bytes.Buffer
 	application := newApp(&installOut, ioDiscard{}, strings.NewReader(""))
@@ -4206,9 +4215,9 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"Preparing plugin installation for 1 configured item(s)...",
-		"Installing 1 plugin(s)...",
-		"Synchronizing plugin source official",
-		"[1/1] installing plugin linapro-tenant-core from official...",
+		"Installing 1 git plugin(s)...",
+		"Synchronizing plugin origin official",
+		"[1/1] installing plugin linapro-tenant-core from official@master...",
 		"Installed plugin linapro-tenant-core",
 	} {
 		if !strings.Contains(installOut.String(), expected) {
@@ -4247,7 +4256,7 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	output := statusOut.String()
 	for _, expected := range []string{
 		"Plugin workspace:",
-		"Querying configured plugin sources...",
+		"Querying configured plugin origins...",
 		"Rendering status for 1 configured plugin(s)...",
 		"| Plugin",
 		"| Source",
@@ -4288,7 +4297,7 @@ func TestPluginsSourceCacheReusesCheckoutWithFetch(t *testing.T) {
 	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "initial plugin")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - id: linapro-tenant-core\n")
 
 	var firstOut bytes.Buffer
 	application := newApp(&firstOut, ioDiscard{}, strings.NewReader(""))
@@ -4327,6 +4336,305 @@ func TestPluginsSourceCacheReusesCheckoutWithFetch(t *testing.T) {
 	assertNoLegacyPluginSourceTemps(t, root)
 }
 
+// TestMarketplaceInstallUsesConfiguredBaseAndPinnedGitRef verifies marketplace
+// installs resolve the user-selected version to the exact marketplace ref.
+func TestMarketplaceInstallUsesConfiguredBaseAndPinnedGitRef(t *testing.T) {
+	root := newGitRepo(t)
+	pluginID := "linapro-demo-source"
+	source, pinnedCommit := newMarketplaceGitSource(t, pluginID)
+	var requestedPath string
+	var authorization string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestedPath = request.URL.Path
+		authorization = request.Header.Get("Authorization")
+		if request.Method != http.MethodGet {
+			t.Fatalf("unexpected marketplace method: %s", request.Method)
+		}
+		expectedPath := "/x/linapro-plugin-marketplace/api/v1/market/plugins/" + pluginID + "/releases/v1.0.0/distribution"
+		if request.URL.Path != expectedPath {
+			t.Fatalf("unexpected marketplace path: got %s want %s", request.URL.Path, expectedPath)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(writer).Encode(map[string]interface{}{
+			"distribution": map[string]interface{}{
+				"mode":     "git",
+				"pluginId": pluginID,
+				"version":  "v1.0.0",
+				"repoUrl":  filepath.ToSlash(source),
+				"ref":      pinnedCommit,
+				"path":     "plugins/" + pluginID,
+			},
+		}); err != nil {
+			t.Fatalf("encode distribution response: %v", err)
+		}
+	}))
+	defer server.Close()
+	writeMarketplaceConfig(t, root, server.URL)
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	err := runPluginsInstall(context.Background(), application, commandInput{
+		Params: map[string]string{"p": pluginID, "v": "v1.0.0", "token": "market-token"},
+	})
+	if err != nil {
+		t.Fatalf("runPluginsInstall returned error: %v", err)
+	}
+	if requestedPath == "" {
+		t.Fatalf("marketplace distribution endpoint was not requested")
+	}
+	if authorization != "Bearer market-token" {
+		t.Fatalf("authorization header mismatch: %q", authorization)
+	}
+	readme, err := os.ReadFile(filepath.Join(root, "apps", "lina-plugins", pluginID, "README.md"))
+	if err != nil {
+		t.Fatalf("read installed plugin README: %v", err)
+	}
+	if strings.TrimSpace(string(readme)) != "v1" {
+		t.Fatalf("marketplace install used the floating latest branch instead of pinned ref:\n%s", string(readme))
+	}
+	lockContent, err := os.ReadFile(plugins.LockPath(root))
+	if err != nil {
+		t.Fatalf("read plugin lock: %v", err)
+	}
+	lockText := string(lockContent)
+	for _, expected := range []string{
+		"id: " + pluginID,
+		"source: public-market",
+		"ref: " + pinnedCommit,
+		"resolvedCommit: " + pinnedCommit,
+		"version: v1.0.0",
+	} {
+		if !strings.Contains(lockText, expected) {
+			t.Fatalf("expected lock to contain %q, got:\n%s", expected, lockText)
+		}
+	}
+}
+
+// TestMarketplaceInstallBaseParameterOverridesConfiguredBase verifies private
+// marketplace URLs can be overridden for one command invocation.
+func TestMarketplaceInstallBaseParameterOverridesConfiguredBase(t *testing.T) {
+	root := newGitRepo(t)
+	pluginID := "linapro-demo-source"
+	source, pinnedCommit := newMarketplaceGitSource(t, pluginID)
+	configuredHits := 0
+	configuredServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		configuredHits++
+	}))
+	defer configuredServer.Close()
+	overrideHits := 0
+	overrideServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		overrideHits++
+		writer.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(writer).Encode(map[string]interface{}{
+			"distribution": map[string]interface{}{
+				"mode":     "git",
+				"pluginId": pluginID,
+				"version":  "v1.0.0",
+				"repoUrl":  filepath.ToSlash(source),
+				"ref":      pinnedCommit,
+				"path":     "plugins/" + pluginID,
+			},
+		}); err != nil {
+			t.Fatalf("encode distribution response: %v", err)
+		}
+	}))
+	defer overrideServer.Close()
+	writeMarketplaceConfig(t, root, configuredServer.URL)
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	err := runPluginsInstall(context.Background(), application, commandInput{
+		Params: map[string]string{"base": overrideServer.URL, "p": pluginID, "v": "v1.0.0"},
+	})
+	if err != nil {
+		t.Fatalf("runPluginsInstall returned error: %v", err)
+	}
+	if configuredHits != 0 {
+		t.Fatalf("configured marketplace URL was used despite base override")
+	}
+	if overrideHits == 0 {
+		t.Fatalf("override marketplace URL was not used")
+	}
+}
+
+// TestMarketplaceInstallRejectsExistingPluginWithoutForce preserves the source
+// workspace overwrite guard for marketplace installs.
+func TestMarketplaceInstallRejectsExistingPluginWithoutForce(t *testing.T) {
+	root := newGitRepo(t)
+	pluginID := "linapro-demo-source"
+	source, pinnedCommit := newMarketplaceGitSource(t, pluginID)
+	writeFile(t, filepath.Join(root, "apps", "lina-plugins", pluginID, "plugin.yaml"), "id: "+pluginID+"\nversion: local\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-plugins", pluginID, "README.md"), "local\n")
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(writer).Encode(map[string]interface{}{
+			"distribution": map[string]interface{}{
+				"mode":     "git",
+				"pluginId": pluginID,
+				"version":  "v1.0.0",
+				"repoUrl":  filepath.ToSlash(source),
+				"ref":      pinnedCommit,
+				"path":     "plugins/" + pluginID,
+			},
+		}); err != nil {
+			t.Fatalf("encode distribution response: %v", err)
+		}
+	}))
+	defer server.Close()
+	writeMarketplaceConfig(t, root, server.URL)
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	err := runPluginsInstall(context.Background(), application, commandInput{
+		Params: map[string]string{"p": pluginID, "v": "v1.0.0"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("expected existing marketplace plugin to be rejected, got %v", err)
+	}
+	content, readErr := os.ReadFile(filepath.Join(root, "apps", "lina-plugins", pluginID, "README.md"))
+	if readErr != nil {
+		t.Fatalf("read existing plugin README: %v", readErr)
+	}
+	if strings.TrimSpace(string(content)) != "local" {
+		t.Fatalf("existing plugin was overwritten without force:\n%s", string(content))
+	}
+}
+
+// TestMarketplaceUpdateUsesDistributionRef verifies plugins.update reuses the
+// same marketplace distribution semantics after an installed plugin is clean.
+func TestMarketplaceUpdateUsesDistributionRef(t *testing.T) {
+	root := newGitRepo(t)
+	pluginID := "linapro-demo-source"
+	source, v1Commit := newMarketplaceGitSource(t, pluginID)
+	v2Commit := strings.TrimSpace(runGitOutput(t, source, "rev-parse", "HEAD"))
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		version := "v1.0.0"
+		ref := v1Commit
+		if strings.Contains(request.URL.Path, "/releases/v2.0.0/") {
+			version = "v2.0.0"
+			ref = v2Commit
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(writer).Encode(map[string]interface{}{
+			"distribution": map[string]interface{}{
+				"mode":     "git",
+				"pluginId": pluginID,
+				"version":  version,
+				"repoUrl":  filepath.ToSlash(source),
+				"ref":      ref,
+				"path":     "plugins/" + pluginID,
+			},
+		}); err != nil {
+			t.Fatalf("encode distribution response: %v", err)
+		}
+	}))
+	defer server.Close()
+	writeMarketplaceConfig(t, root, server.URL)
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	if err := runPluginsInstall(context.Background(), application, commandInput{
+		Params: map[string]string{"p": pluginID, "v": "v1.0.0"},
+	}); err != nil {
+		t.Fatalf("runPluginsInstall returned error: %v", err)
+	}
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "install marketplace v1")
+	if err := runPluginsUpdate(context.Background(), application, commandInput{
+		Params: map[string]string{"p": pluginID, "v": "v2.0.0"},
+	}); err != nil {
+		t.Fatalf("runPluginsUpdate returned error: %v", err)
+	}
+	readme, err := os.ReadFile(filepath.Join(root, "apps", "lina-plugins", pluginID, "README.md"))
+	if err != nil {
+		t.Fatalf("read updated plugin README: %v", err)
+	}
+	if strings.TrimSpace(string(readme)) != "v2" {
+		t.Fatalf("marketplace update did not use the selected distribution ref:\n%s", string(readme))
+	}
+	lockContent, err := os.ReadFile(plugins.LockPath(root))
+	if err != nil {
+		t.Fatalf("read plugin lock after update: %v", err)
+	}
+	lockText := string(lockContent)
+	for _, expected := range []string{
+		"ref: " + v2Commit,
+		"resolvedCommit: " + v2Commit,
+		"version: v2.0.0",
+	} {
+		if !strings.Contains(lockText, expected) {
+			t.Fatalf("expected updated lock to contain %q, got:\n%s", expected, lockText)
+		}
+	}
+}
+
+// TestMarketplaceInstallDownloadsHTTPSPackageAndVerifiesSHA covers controlled
+// download sessions and package checksum verification for uploaded releases.
+func TestMarketplaceInstallDownloadsHTTPSPackageAndVerifiesSHA(t *testing.T) {
+	root := newGitRepo(t)
+	pluginID := "linapro-demo-source"
+	packageBytes := marketplacePluginZip(t, pluginID)
+	checksum := fmt.Sprintf("%x", sha256.Sum256(packageBytes))
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestedPaths = append(requestedPaths, request.Method+" "+request.URL.Path)
+		writer.Header().Set("Content-Type", "application/json")
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/tenant-a/x/linapro-plugin-marketplace/api/v1/market/plugins/"+pluginID+"/releases/v1.0.0/distribution":
+			if err := json.NewEncoder(writer).Encode(map[string]interface{}{
+				"distribution": map[string]interface{}{
+					"mode":         "https",
+					"pluginId":     pluginID,
+					"version":      "v1.0.0",
+					"artifactType": "source_zip",
+					"sha256":       checksum,
+				},
+			}); err != nil {
+				t.Fatalf("encode distribution response: %v", err)
+			}
+		case request.Method == http.MethodPost && request.URL.Path == "/tenant-a/x/linapro-plugin-marketplace/api/v1/market/plugins/"+pluginID+"/releases/v1.0.0/downloads":
+			if err := json.NewEncoder(writer).Encode(map[string]interface{}{
+				"session": map[string]interface{}{
+					"sessionId":    "session-1",
+					"pluginId":     pluginID,
+					"version":      "v1.0.0",
+					"artifactType": "source_zip",
+					"sha256":       checksum,
+					"status":       "active",
+				},
+			}); err != nil {
+				t.Fatalf("encode download session response: %v", err)
+			}
+		case request.Method == http.MethodGet && request.URL.Path == "/tenant-a/x/linapro-plugin-marketplace/api/v1/market/download-sessions/session-1/content":
+			writer.Header().Set("Content-Type", "application/zip")
+			if _, err := writer.Write(packageBytes); err != nil {
+				t.Fatalf("write package response: %v", err)
+			}
+		default:
+			t.Fatalf("unexpected marketplace request: %s %s", request.Method, request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeMarketplaceConfig(t, root, server.URL+"/tenant-a")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	err := runPluginsInstall(context.Background(), application, commandInput{
+		Params: map[string]string{"p": pluginID, "v": "v1.0.0"},
+	})
+	if err != nil {
+		t.Fatalf("runPluginsInstall returned error: %v\nrequests: %#v", err, requestedPaths)
+	}
+	readme, readErr := os.ReadFile(filepath.Join(root, "apps", "lina-plugins", pluginID, "README.md"))
+	if readErr != nil {
+		t.Fatalf("read installed marketplace package README: %v", readErr)
+	}
+	if strings.TrimSpace(string(readme)) != "zip package" {
+		t.Fatalf("marketplace package content mismatch:\n%s", string(readme))
+	}
+}
+
 // TestPluginsInstallExpandsWildcardItems verifies items ["*"] installs every
 // plugin directory under the configured source root.
 func TestPluginsInstallExpandsWildcardItems(t *testing.T) {
@@ -4337,7 +4645,7 @@ func TestPluginsInstallExpandsWildcardItems(t *testing.T) {
 	writeFile(t, filepath.Join(source, "plugins", "not-plugin", "README.md"), "ignored\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "source plugins")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \"plugins\"\n      ref: \"master\"\n      items:\n        - \"*\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \"plugins\"\n      ref: \"master\"\n      items:\n        - id: \"*\"\n")
 
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
@@ -4363,7 +4671,7 @@ func TestPluginsInstallWildcardHonorsPluginFilter(t *testing.T) {
 	writeFile(t, filepath.Join(source, "linapro-org-core", "plugin.yaml"), "id: linapro-org-core\nversion: 0.1.0\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "source plugins")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"*\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - id: \"*\"\n")
 
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
@@ -4386,7 +4694,7 @@ func TestRunPluginsUpdateRejectsLocalChangesUnlessForced(t *testing.T) {
 	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "initial plugin")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - id: linapro-tenant-core\n")
 
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
@@ -4417,7 +4725,7 @@ func TestRunPluginsUpdateRejectsCommittedLockDrift(t *testing.T) {
 	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "initial plugin")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - id: linapro-tenant-core\n")
 
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
@@ -4447,7 +4755,7 @@ func TestPluginsStatusAutoInitializesSubmoduleWithoutPluginWrites(t *testing.T) 
 	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
 	runGit(t, source, "add", ".")
 	runGit(t, source, "commit", "-m", "initial plugin")
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  official:\n      type: git\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - id: linapro-tenant-core\n")
 	writeFile(t, filepath.Join(root, ".gitmodules"), `[submodule "apps/lina-plugins"]
 	path = apps/lina-plugins
 	url = https://example.com/plugins.git
@@ -4710,6 +5018,57 @@ func writeFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func writeMarketplaceConfig(t *testing.T, root string, baseURL string) {
+	t.Helper()
+	// Named marketplace origin; tests select plugins with p= / v=.
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), ""+
+		"plugins:\n"+
+		"  public-market:\n"+
+		"    type: marketplace\n"+
+		"    url: \""+baseURL+"\"\n"+
+		"    items:\n"+
+		"      - id: linapro-demo-source\n"+
+		"        version: \"v1.0.0\"\n")
+}
+
+func newMarketplaceGitSource(t *testing.T, pluginID string) (string, string) {
+	t.Helper()
+	source := newGitRepo(t)
+	writeFile(t, filepath.Join(source, "plugins", pluginID, "plugin.yaml"), "id: "+pluginID+"\nversion: v1.0.0\n")
+	writeFile(t, filepath.Join(source, "plugins", pluginID, "README.md"), "v1\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "marketplace v1")
+	pinnedCommit := strings.TrimSpace(runGitOutput(t, source, "rev-parse", "HEAD"))
+	writeFile(t, filepath.Join(source, "plugins", pluginID, "plugin.yaml"), "id: "+pluginID+"\nversion: v2.0.0\n")
+	writeFile(t, filepath.Join(source, "plugins", pluginID, "README.md"), "v2\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "marketplace v2")
+	return source, pinnedCommit
+}
+
+func marketplacePluginZip(t *testing.T, pluginID string) []byte {
+	t.Helper()
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	add := func(name string, content string) {
+		t.Helper()
+		file, err := writer.Create(name)
+		if err != nil {
+			t.Fatalf("create zip entry %s: %v", name, err)
+		}
+		if _, err = file.Write([]byte(content)); err != nil {
+			t.Fatalf("write zip entry %s: %v", name, err)
+		}
+	}
+	prefix := "bundle/" + pluginID + "/"
+	add(prefix+"plugin.yaml", "id: "+pluginID+"\nversion: v1.0.0\n")
+	add(prefix+"README.md", "zip package\n")
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close marketplace zip: %v", err)
+	}
+	return buffer.Bytes()
 }
 
 func sameStringSet(left []string, right []string) bool {

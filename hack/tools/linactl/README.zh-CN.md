@@ -345,21 +345,32 @@ make release.tag.check metadata=apps/lina-core/manifest/config/metadata.yaml tag
 
 ## 插件工作区命令
 
-插件工作区管理始终使用固定目录 `apps/lina-plugins`。在 `hack/config.yaml` 中配置来源：
+插件工作区管理始终使用固定目录 `apps/lina-plugins`。在 `hack/config.yaml` 的 `plugins` 下配置**命名来源**（不再使用 `sources` 外壳）：
 
 ```yaml
 plugins:
-  sources:
-    official:
-      repo: "https://github.com/linaproai/official-plugins.git"
-      root: "."
-      ref: "main"
-      items:
-        - "linapro-tenant-core"
-        - "linapro-org-core"
+  official:
+    type: git              # 必填
+    repo: "https://github.com/linaproai/official-plugins.git"
+    root: "."
+    ref: "main"            # 仓级分支 / tag / commit
+    items:
+      - id: linapro-tenant-core
+      - id: linapro-org-core
+  public-market:
+    type: marketplace      # 必填
+    url: "https://linapro.ai"
+    items:
+      - id: linapro-demo-source
+        version: "v1.0.0"  # 市场 item 必填
 ```
 
-`items` 只接受插件 ID 字符串。使用带引号的 `"*"` 可安装 source `root` 下一层的全部插件目录；不要写裸的 `- *`，因为 YAML 会把它当作 alias 语法。如果同一仓库中的插件需要不同 `ref`，应拆成多个 source。
+- **`type` 必填**（`git` | `marketplace`），不做字段推导。
+- **items 仅支持 mapping** `{ id, version? }`，不支持标量字符串 id。
+- **Git 来源**：`repo` + `root` + `ref`（一个来源一次 checkout）。items 只列插件目录；**禁止**写 item `version`。通配：`{ id: "*" }`。
+- **市场来源**：`url` + 必填 `version` 的 items；经 `distribution` 后按 `mode=git|https` 落盘。
+- 命令 `source=` 筛选来源；`v=` 仅覆盖市场 version；`base=` 覆盖市场 `url`；`token=` / `LINAPRO_MARKETPLACE_TOKEN` 鉴权。
+- 同一 plugin `id` 不得跨来源重复。
 
 常用命令：
 
@@ -370,9 +381,11 @@ make plugins.install p=linapro-tenant-core
 make plugins.update source=official
 make plugins.update force=1
 make plugins.status
+make plugins.install source=public-market p=linapro-demo-source v=v1.0.0
+make plugins.install source=public-market base=http://127.0.0.1:9120 p=linapro-demo-source v=v1.0.0 token=...
 ```
 
-`plugins.init` 会将 `apps/lina-plugins` 从 `submodule` 转成普通目录并保留文件。`plugins.install`、`plugins.update` 和 `plugins.status` 会在需要时自动执行同等工作区初始化，因此用户可以直接执行实际需要的命令。`plugins.install` 和 `plugins.update` 会复用 `temp/plugin-sources/<source>` 下的配置来源缓存，首次 clone 后通过 fetch 更新，再复制插件目录到 `apps/lina-plugins/<plugin-id>`，并更新工具生成的 `apps/lina-plugins/.linapro-plugins.lock.yaml` 锁文件。
+`plugins.init` 会将 `apps/lina-plugins` 从 submodule 转成普通目录并保留文件。`plugins.install` / `update` / `status` 会在需要时自动完成同等初始化。Git 来源复用 `temp/plugin-sources/<origin>` 缓存，安装到 `apps/lina-plugins/<plugin-id>`，并更新 `apps/lina-plugins/.linapro-plugins.lock.yaml`。
 
 ## 验证
 
