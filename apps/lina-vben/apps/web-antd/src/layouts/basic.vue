@@ -40,6 +40,7 @@ import {
   onPluginRegistryChanged,
 } from '#/plugins/slot-registry';
 import { refreshAccessibleState } from '#/router/access-refresh';
+import { resolvePostLoginLandingPath } from '#/router/post-login-landing';
 import { useAuthStore, useTenantStore } from '#/store';
 import { useMessageStore } from '#/store/message';
 import { formatTimestamp } from '#/utils/time';
@@ -457,8 +458,11 @@ async function handlePluginPageRefreshNow() {
     return;
   }
 
-  const fallbackPath =
-    userStore.userInfo?.homePath || preferences.app.defaultHomePath || '/';
+  const fallbackPath = resolvePostLoginLandingPath({
+    preferredPaths: [userStore.userInfo?.homePath],
+    accessibleMenus: accessStore.accessMenus,
+    accessibleRoutes: accessStore.accessRoutes,
+  });
   await router.replace(fallbackPath);
 }
 

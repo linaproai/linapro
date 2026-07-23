@@ -9,6 +9,10 @@ import { accessRoutes, coreRouteNames } from '#/router/routes';
 import { useAuthStore, useTenantStore } from '#/store';
 
 import { generateAccess } from './access';
+import {
+  isPostLoginLandingIntent,
+  resolvePostLoginLandingPath,
+} from './post-login-landing';
 import { canAccessTenantLocation } from './tenant-access';
 
 /**
@@ -73,10 +77,17 @@ function setupAccessGuard(router: Router) {
     // 基本路由，这些路由不需要进入权限拦截
     if (coreRouteNames.includes(to.name as string)) {
       if (to.path === LOGIN_PATH && accessStore.accessToken) {
-        return decodeURIComponent(
-          (to.query?.redirect as string) ||
-            userStore.userInfo?.homePath ||
-            preferences.app.defaultHomePath,
+        return tenantStore.resolveFallbackPath(
+          resolvePostLoginLandingPath({
+            preferredPaths: [
+              to.query?.redirect as string | undefined,
+              userStore.userInfo?.homePath,
+            ],
+            accessibleMenus: accessStore.accessMenus,
+            accessibleRoutes: accessStore.isAccessChecked
+              ? accessStore.accessRoutes
+              : undefined,
+          }),
         );
       }
       return true;
@@ -110,11 +121,18 @@ function setupAccessGuard(router: Router) {
       if (!canAccessTenantLocation(to)) {
         return {
           path: tenantStore.resolveFallbackPath(
-            userStore.userInfo?.homePath || preferences.app.defaultHomePath,
+            resolvePostLoginLandingPath({
+              preferredPaths: [userStore.userInfo?.homePath],
+              accessibleMenus: accessStore.accessMenus,
+              accessibleRoutes: accessStore.accessRoutes,
+            }),
           ),
           replace: true,
         };
       }
+      // Do not rewrite FallbackNotFound here. Missing / disabled plugin routes
+      // must still render the 404 page; landing correction is only for
+      // post-login / default-home intents (see generateAccess path below).
       return true;
     }
 
@@ -122,15 +140,6 @@ function setupAccessGuard(router: Router) {
     // 当前登录用户拥有的角色标识列表
     const userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
     const userRoles = userInfo.roles ?? [];
-
-    if (!canAccessTenantLocation(to)) {
-      return {
-        path: tenantStore.resolveFallbackPath(
-          userInfo.homePath || preferences.app.defaultHomePath,
-        ),
-        replace: true,
-      };
-    }
 
     // 生成菜单和路由
     const { accessibleMenus, accessibleRoutes } = await generateAccess({
@@ -144,13 +153,46 @@ function setupAccessGuard(router: Router) {
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(accessibleRoutes);
     accessStore.setIsAccessChecked(true);
-    const redirectPath = (from.query.redirect ??
-      (to.path === preferences.app.defaultHomePath
-        ? userInfo.homePath || preferences.app.defaultHomePath
-        : to.fullPath)) as string;
+
+    if (!canAccessTenantLocation(to)) {
+      return {
+        path: tenantStore.resolveFallbackPath(
+          resolvePostLoginLandingPath({
+            preferredPaths: [userInfo.homePath],
+            accessibleMenus,
+            accessibleRoutes,
+          }),
+        ),
+        replace: true,
+      };
+    }
+
+    // Landing intents only: login redirect, root, or hardcoded default home.
+    // Deep links (incl. dynamic paths and intentionally missing routes) must
+    // keep their target so tables load and 404 pages still appear.
+    const redirectFromQuery = from.query.redirect as string | undefined;
+    if (
+      isPostLoginLandingIntent({
+        defaultHomePath: preferences.app.defaultHomePath,
+        redirectFromQuery,
+        toPath: to.path,
+      })
+    ) {
+      const landingPath = tenantStore.resolveFallbackPath(
+        resolvePostLoginLandingPath({
+          preferredPaths: [redirectFromQuery, userInfo.homePath],
+          accessibleMenus,
+          accessibleRoutes,
+        }),
+      );
+      return {
+        ...router.resolve(landingPath),
+        replace: true,
+      };
+    }
 
     return {
-      ...router.resolve(decodeURIComponent(redirectPath)),
+      ...router.resolve(decodeURIComponent(to.fullPath)),
       replace: true,
     };
   });

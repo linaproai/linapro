@@ -56,3 +56,5 @@
 - [x] 依赖两轴：`PluginSnapshot.Enabled`、`RequireEnabled`/`OnlyEnabledDependents`、启用正向与禁用反向矩阵、错误码/文案分流；resolver + lifecycle 单测/集成测通过。
 - [x] 静默路由刷新：access-refresh 在 generateAccess 后按可访问性判定是否 force 导航；宿主静态页启停不 remount；单测锁定静默/fallback/replacement 决策。
 - [x] 验证：相关 Go 测试包、前端 access-refresh 单测、`openspec validate --strict`、lina-review；治理：禁用反向新增 i18n 错误文案；无 DB schema；静默刷新无后端/权限契约变更。
+- [x] 命名来源：`plugins.<name>` 强制 type；Git 仓级 ref、市场 url+version 经 distribution；移除 sources 外壳与兼容糖；`hack/config.yaml`/README 同步；`go test ./hack/tools/linactl/...` 与 lint 通过。
+- [x] 治理：无运行时 UI/菜单/API 文档 i18n 义务；无服务端缓存与宿主 DI；市场路径经 API+token；纯 Go 跨平台。

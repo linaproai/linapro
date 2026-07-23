@@ -31,7 +31,6 @@ go run . version to=v0.2.0
 go run . upgrade
 go run . upgrade v=v0.5.0
 go run . upgrade v=main
-go run . upgrade force=1
 go run . release.tag.check tag=v0.2.0
 go run . release.tag.check print-version=1
 ```
@@ -92,7 +91,7 @@ make.cmd release.tag.check tag=v0.2.0
 | `p` | `p=linapro-tenant-core` | 为插件工作区管理命令选择单个插件。 |
 | `out` | `out=temp/output` | 指定动态插件产物输出目录；相对路径按仓库根目录解析。 |
 | `source` | `source=official` | 为插件工作区管理命令选择单个已配置来源。 |
-| `force` | `force=1` | 允许插件安装或更新命令覆盖已存在或存在本地改动的插件目录；对`upgrade`跳过工作区干净检查与脏工作区确认提示。 |
+| `force` | `force=1` | 允许插件安装或更新命令覆盖已存在或存在本地改动的插件目录。`upgrade`不接受该参数（升级始终要求宿主与插件工作区干净，且不会 stash 或覆盖本地改动）。 |
 | `verbose` | `verbose=1` | 构建任务展示子命令输出。 |
 
 未传入`plugins`时，构建和开发命令会在`apps/lina-plugins`存在插件清单时启用插件完整模式。插件完整模式会基于宿主专用的根目录`go.work`生成或刷新已忽略的`temp/go.work.plugins`，并通过`GOWORK`解析源码插件`Go`模块。
@@ -324,13 +323,12 @@ make version to=v0.2.0
 
 `apps/lina-plugins`**不会被自动更新**。合并后会保留升级前的插件工作区（submodule 指针或本地目录树）。只有在你主动需要时，才通过`make plugins.update` / `linactl plugins.update`更新插件。
 
-`HEAD`必须位于已命名分支。工作区建议保持干净：若存在未提交变更，命令会提示确认，输入`y`（或`yes`）可继续，其它输入则退出；也可传入`force=1`跳过确认。插件路径以外的合并冲突需手动解决（或使用`git merge --abort`取消）。
+`HEAD`必须位于已命名分支。宿主工作区以及`apps/lina-plugins`嵌套 Git 工作区（若存在）必须干净。`upgrade`不会自动 stash、不会在脏工作区上提示“确认后继续”，也不接受`force=`跳过该门禁——请先提交或挪走宿主/插件本地改动。插件路径以外的合并冲突需手动解决（或使用`git merge --abort`取消）。
 
 ```bash
 make upgrade
 make upgrade v=v0.5.0
 make upgrade v=main
-make upgrade force=1
 make.cmd upgrade v=main
 go run . upgrade v=v0.5.0
 ```
@@ -347,21 +345,32 @@ make release.tag.check metadata=apps/lina-core/manifest/config/metadata.yaml tag
 
 ## 插件工作区命令
 
-插件工作区管理始终使用固定目录 `apps/lina-plugins`。在 `hack/config.yaml` 中配置来源：
+插件工作区管理始终使用固定目录 `apps/lina-plugins`。在 `hack/config.yaml` 的 `plugins` 下配置**命名来源**（不再使用 `sources` 外壳）：
 
 ```yaml
 plugins:
-  sources:
-    official:
-      repo: "https://github.com/linaproai/official-plugins.git"
-      root: "."
-      ref: "main"
-      items:
-        - "linapro-tenant-core"
-        - "linapro-org-core"
+  official:
+    type: git              # 必填
+    repo: "https://github.com/linaproai/official-plugins.git"
+    root: "."
+    ref: "main"            # 仓级分支 / tag / commit
+    items:
+      - id: linapro-tenant-core
+      - id: linapro-org-core
+  public-market:
+    type: marketplace      # 必填
+    url: "https://linapro.ai"
+    items:
+      - id: linapro-demo-source
+        version: "v1.0.0"  # 市场 item 必填
 ```
 
-`items` 只接受插件 ID 字符串。使用带引号的 `"*"` 可安装 source `root` 下一层的全部插件目录；不要写裸的 `- *`，因为 YAML 会把它当作 alias 语法。如果同一仓库中的插件需要不同 `ref`，应拆成多个 source。
+- **`type` 必填**（`git` | `marketplace`），不做字段推导。
+- **items 仅支持 mapping** `{ id, version? }`，不支持标量字符串 id。
+- **Git 来源**：`repo` + `root` + `ref`（一个来源一次 checkout）。items 只列插件目录；**禁止**写 item `version`。通配：`{ id: "*" }`。
+- **市场来源**：`url` + 必填 `version` 的 items；经 `distribution` 后按 `mode=git|https` 落盘。
+- 命令 `source=` 筛选来源；`v=` 仅覆盖市场 version；`base=` 覆盖市场 `url`；`token=` / `LINAPRO_MARKETPLACE_TOKEN` 鉴权。
+- 同一 plugin `id` 不得跨来源重复。
 
 常用命令：
 
@@ -372,9 +381,11 @@ make plugins.install p=linapro-tenant-core
 make plugins.update source=official
 make plugins.update force=1
 make plugins.status
+make plugins.install source=public-market p=linapro-demo-source v=v1.0.0
+make plugins.install source=public-market base=http://127.0.0.1:9120 p=linapro-demo-source v=v1.0.0 token=...
 ```
 
-`plugins.init` 会将 `apps/lina-plugins` 从 `submodule` 转成普通目录并保留文件。`plugins.install`、`plugins.update` 和 `plugins.status` 会在需要时自动执行同等工作区初始化，因此用户可以直接执行实际需要的命令。`plugins.install` 和 `plugins.update` 会复用 `temp/plugin-sources/<source>` 下的配置来源缓存，首次 clone 后通过 fetch 更新，再复制插件目录到 `apps/lina-plugins/<plugin-id>`，并更新工具生成的 `apps/lina-plugins/.linapro-plugins.lock.yaml` 锁文件。
+`plugins.init` 会将 `apps/lina-plugins` 从 submodule 转成普通目录并保留文件。`plugins.install` / `update` / `status` 会在需要时自动完成同等初始化。Git 来源复用 `temp/plugin-sources/<origin>` 缓存，安装到 `apps/lina-plugins/<plugin-id>`，并更新 `apps/lina-plugins/.linapro-plugins.lock.yaml`。
 
 ## 验证
 

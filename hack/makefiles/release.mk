@@ -20,9 +20,6 @@ endif
 ifneq ($(origin v), undefined)
 UPGRADE_ARGS += v=$(v)
 endif
-ifneq ($(origin force), undefined)
-UPGRADE_ARGS += force=$(force)
-endif
 
 # Verify that the release tag matches framework.version in metadata.yaml.
 # 校验 release tag 与 metadata.yaml 中的 framework.version 一致。
@@ -40,7 +37,7 @@ version:
 
 # Merge the latest stable official framework release (or a specified version/branch) into the current branch.
 # 从官方仓库拉取最新稳定框架版本（或指定版本/分支）并合并到当前本地分支。
-## upgrade: Merge latest stable official LinaPro release into the current branch; use v=v0.5.0 or v=main; optional force=1
+## upgrade: Merge latest stable official LinaPro release into the current branch; use v=v0.5.0 or v=main (requires clean host and plugins worktrees; never stashes or overwrites local changes)
 .PHONY: upgrade
 upgrade:
 	@$(LINACTL) upgrade $(UPGRADE_ARGS)

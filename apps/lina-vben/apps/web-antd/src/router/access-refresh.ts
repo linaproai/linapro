@@ -1,6 +1,5 @@
 import type { Router } from 'vue-router';
 
-import { preferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
 import { resetStaticRoutes } from '@vben/utils';
 
@@ -14,6 +13,7 @@ import {
   resolveAccessRefreshNavigation,
   resolveAccessibleRouteRefreshTarget,
 } from './access-refresh-route-match';
+import { resolvePostLoginLandingPath } from './post-login-landing';
 import { routes } from './routes';
 import { accessRoutes } from './routes';
 
@@ -88,7 +88,11 @@ async function performAccessibleStateRefresh(
   accessStore.setIsAccessChecked(true);
 
   const fallbackPath = tenantStore.resolveFallbackPath(
-    userInfo?.homePath || preferences.app.defaultHomePath || '/',
+    resolvePostLoginLandingPath({
+      preferredPaths: [userInfo?.homePath],
+      accessibleMenus,
+      accessibleRoutes,
+    }),
   );
 
   const resolved = router.resolve(currentFullPath);

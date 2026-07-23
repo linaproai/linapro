@@ -95,6 +95,9 @@ func TestCommandRegistryIncludesUpgrade(t *testing.T) {
 	if strings.Contains(spec.Usage, "remote=") {
 		t.Fatalf("upgrade must not accept remote=; got usage %s", spec.Usage)
 	}
+	if strings.Contains(spec.Usage, "force=") {
+		t.Fatalf("upgrade must not accept force=; got usage %s", spec.Usage)
+	}
 	if defaultOfficialFrameworkRepoURL != "https://github.com/linaproai/linapro.git" {
 		t.Fatalf("official repo URL constant changed unexpectedly: %s", defaultOfficialFrameworkRepoURL)
 	}
@@ -285,6 +288,7 @@ func TestRunFrameworkUpgradeRejectsDirtyWorktree(t *testing.T) {
 	defer cleanup()
 
 	writeFile(t, filepath.Join(local, "dirty.txt"), "dirty\n")
+	preHEAD := strings.TrimSpace(runGitOutput(t, local, "rev-parse", "HEAD"))
 
 	var stdout bytes.Buffer
 	application := newApp(&stdout, &stdout, strings.NewReader(""))
@@ -294,54 +298,51 @@ func TestRunFrameworkUpgradeRejectsDirtyWorktree(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "worktree is not clean") {
 		t.Fatalf("expected dirty worktree error, got %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Continue upgrade with a dirty worktree?") {
-		t.Fatalf("expected dirty worktree confirmation prompt, output:\n%s", stdout.String())
+	if strings.Contains(stdout.String(), "Continue upgrade with a dirty worktree?") {
+		t.Fatalf("upgrade must not prompt to continue on dirty worktree, output:\n%s", stdout.String())
+	}
+	if strings.Contains(err.Error(), "stash") && !strings.Contains(err.Error(), "never stashes") {
+		t.Fatalf("error should discourage auto-stash, got %v", err)
+	}
+	// Must not start merge or move HEAD when dirty.
+	if got := strings.TrimSpace(runGitOutput(t, local, "rev-parse", "HEAD")); got != preHEAD {
+		t.Fatalf("HEAD moved on dirty rejection: got %s want %s", got, preHEAD)
+	}
+	if _, err := os.Stat(filepath.Join(local, ".git", "MERGE_HEAD")); err == nil {
+		t.Fatal("merge must not start when worktree is dirty")
+	}
+	if _, err := os.Stat(filepath.Join(local, "dirty.txt")); err != nil {
+		t.Fatalf("local dirty file must remain untouched: %v", err)
 	}
 }
 
-func TestRunFrameworkUpgradeRejectsDirtyWorktreeOnNo(t *testing.T) {
+func TestRunFrameworkUpgradeRejectsDirtyPluginsPath(t *testing.T) {
 	local, cleanup := setupUpgradeRepos(t)
 	defer cleanup()
 
-	writeFile(t, filepath.Join(local, "dirty.txt"), "dirty\n")
-
-	var stdout bytes.Buffer
-	application := newApp(&stdout, &stdout, strings.NewReader("n\n"))
-	application.root = local
-
-	err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{}})
-	if err == nil || !strings.Contains(err.Error(), "worktree is not clean") {
-		t.Fatalf("expected dirty worktree rejection on n, got %v", err)
-	}
-}
-
-func TestRunFrameworkUpgradeDirtyWorktreeConfirmedYes(t *testing.T) {
-	local, cleanup := setupUpgradeRepos(t)
-	defer cleanup()
-
-	writeFile(t, filepath.Join(local, "dirty.txt"), "dirty\n")
+	// Uncommitted edit under apps/lina-plugins must hard-fail and stay intact.
+	writeFile(t, filepath.Join(local, "apps", "lina-plugins", "MARKER"), "local-wip\n")
+	preMarker := readFileString(t, filepath.Join(local, "apps", "lina-plugins", "MARKER"))
+	preHEAD := strings.TrimSpace(runGitOutput(t, local, "rev-parse", "HEAD"))
 
 	var stdout bytes.Buffer
 	application := newApp(&stdout, &stdout, strings.NewReader("y\n"))
 	application.root = local
 
-	if err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{"v": "v0.5.0"}}); err != nil {
-		t.Fatalf("confirmed dirty upgrade should continue: %v\n%s", err, stdout.String())
+	err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{"v": "v0.5.0"}})
+	if err == nil || !strings.Contains(err.Error(), "worktree is not clean") {
+		t.Fatalf("expected dirty plugins worktree error, got %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Continuing with dirty worktree") {
-		t.Fatalf("expected continue message after y confirmation, output:\n%s", stdout.String())
+	if got := readFileString(t, filepath.Join(local, "apps", "lina-plugins", "MARKER")); got != preMarker {
+		t.Fatalf("plugins local change was modified: got %q want %q", got, preMarker)
 	}
-	content := readFileString(t, filepath.Join(local, "VERSION"))
-	if strings.TrimSpace(content) != "0.5.0" {
-		t.Fatalf("merged VERSION=%q want 0.5.0", content)
+	if got := strings.TrimSpace(runGitOutput(t, local, "rev-parse", "HEAD")); got != preHEAD {
+		t.Fatalf("HEAD moved when plugins dirty: got %s want %s", got, preHEAD)
 	}
-	// Untracked dirty file must still be present after upgrade.
-	if _, err := os.Stat(filepath.Join(local, "dirty.txt")); err != nil {
-		t.Fatalf("dirty.txt should remain after confirmed upgrade: %v", err)
-	}
+	_ = stdout
 }
 
-func TestRunFrameworkUpgradeForceAllowsDirtyWorktree(t *testing.T) {
+func TestRunFrameworkUpgradeRejectsForceParam(t *testing.T) {
 	local, cleanup := setupUpgradeRepos(t)
 	defer cleanup()
 
@@ -351,12 +352,12 @@ func TestRunFrameworkUpgradeForceAllowsDirtyWorktree(t *testing.T) {
 	application := newApp(&stdout, &stdout, strings.NewReader(""))
 	application.root = local
 
-	if err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{"force": "1", "v": "v0.5.0"}}); err != nil {
-		t.Fatalf("force upgrade should continue: %v\n%s", err, stdout.String())
+	err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{"force": "1", "v": "v0.5.0"}})
+	if err == nil || !strings.Contains(err.Error(), "force= is not supported") {
+		t.Fatalf("expected force rejection, got %v", err)
 	}
-	// force must not wait for interactive confirmation.
-	if strings.Contains(stdout.String(), "Continue upgrade with a dirty worktree?") {
-		t.Fatalf("force=1 must skip confirmation prompt, output:\n%s", stdout.String())
+	if _, err := os.Stat(filepath.Join(local, "dirty.txt")); err != nil {
+		t.Fatalf("local dirty file must remain untouched: %v", err)
 	}
 }
 
@@ -370,7 +371,7 @@ func TestRunFrameworkUpgradeRejectsDetachedHEAD(t *testing.T) {
 	application := newApp(&stdout, &stdout, strings.NewReader(""))
 	application.root = local
 
-	err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{"force": "1"}})
+	err := runFrameworkUpgrade(context.Background(), application, commandInput{Params: map[string]string{}})
 	if err == nil || !strings.Contains(err.Error(), "detached HEAD") {
 		t.Fatalf("expected detached HEAD error, got %v", err)
 	}
