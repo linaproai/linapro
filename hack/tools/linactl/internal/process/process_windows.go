@@ -49,9 +49,12 @@ func Alive(pid int) bool {
 	if err != nil {
 		return false
 	}
-	defer syscall.CloseHandle(handle)
-	var code uint32
-	if err = syscall.GetExitCodeProcess(handle, &code); err != nil {
+	var (
+		code     uint32
+		queryErr = syscall.GetExitCodeProcess(handle, &code)
+		closeErr = syscall.CloseHandle(handle)
+	)
+	if queryErr != nil || closeErr != nil {
 		return false
 	}
 	return code == stillActiveExitCode
