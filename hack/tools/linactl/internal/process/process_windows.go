@@ -8,6 +8,7 @@
 package process
 
 import (
+	"log"
 	"os/exec"
 	"syscall"
 )
@@ -41,6 +42,7 @@ func ConfigureDetached(cmd *exec.Cmd) {
 // process on Windows. It opens the process with limited query rights and
 // inspects the exit code: STILL_ACTIVE means the process is still running.
 // Windows 平台下检测进程是否存活：使用最小权限打开进程并通过退出码判断。
+// 句柄清理失败单独记录诊断，不覆盖查询得到的存活结果。
 func Alive(pid int) bool {
 	if pid <= 1 {
 		return false
@@ -49,13 +51,28 @@ func Alive(pid int) bool {
 	if err != nil {
 		return false
 	}
+	alive, closeErr := aliveAndCloseHandle(handle, syscall.GetExitCodeProcess, syscall.CloseHandle)
+	if closeErr != nil {
+		log.Printf("警告：关闭进程 %d 的查询句柄失败：%v", pid, closeErr)
+	}
+	return alive
+}
+
+// aliveAndCloseHandle 查询已打开的进程句柄并关闭一次。
+// 存活值仅由查询结果决定，返回的 error 仅表示清理失败。
+// 系统调用作为显式参数传入，避免测试修改全局状态。
+func aliveAndCloseHandle(
+	handle syscall.Handle,
+	query func(syscall.Handle, *uint32) error,
+	closeHandle func(syscall.Handle) error,
+) (bool, error) {
 	var (
 		code     uint32
-		queryErr = syscall.GetExitCodeProcess(handle, &code)
-		closeErr = syscall.CloseHandle(handle)
+		queryErr = query(handle, &code)
+		closeErr = closeHandle(handle)
 	)
-	if queryErr != nil || closeErr != nil {
-		return false
+	if queryErr != nil {
+		return false, closeErr
 	}
-	return code == stillActiveExitCode
+	return code == stillActiveExitCode, closeErr
 }
