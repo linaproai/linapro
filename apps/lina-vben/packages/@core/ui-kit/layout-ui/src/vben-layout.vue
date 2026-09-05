@@ -231,7 +231,8 @@ const maskVisible = computed(() => !sidebarCollapse.value && props.isMobile);
 
 const mainStyle = computed(() => {
   let width = '100%';
-  let sidebarAndExtraWidth = 'unset';
+  // 使用可插值的零偏移，让顶栏 left 与 width 同步过渡并保持右边界稳定。
+  let sidebarAndExtraWidth = '0px';
   if (
     headerFixed.value &&
     currentLayout.value !== 'header-nav' &&

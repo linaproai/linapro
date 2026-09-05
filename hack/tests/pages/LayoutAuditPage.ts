@@ -12,6 +12,100 @@ type ElementBox = {
 export class LayoutAuditPage {
   constructor(private page: Page) {}
 
+  async measureSidebarToggle(reverseDuringAnimation = false) {
+    const header = this.page.locator("header");
+    const toggle = header.locator(":scope > button").first();
+    await expect(toggle).toBeVisible();
+    await this.page.evaluate(() => document.fonts.ready.then(() => undefined));
+
+    // 点击前安装探针，避免跨进程往返漏掉动画开头；不修改生产样式。
+    const probe = await header.evaluateHandle((element, reverse) => {
+      const wrapper = element.parentElement!;
+      const toolbar = element.lastElementChild!;
+      const button =
+        element.querySelector<HTMLButtonElement>(":scope > button")!;
+      const aside = document.querySelector("aside")!;
+      const tools = Array.from(toolbar.querySelectorAll("button"));
+      const read = () => ({
+        headerRight: wrapper.getBoundingClientRect().right,
+        headerWidth: wrapper.getBoundingClientRect().width,
+        sidebarWidth: aside.getBoundingClientRect().width,
+        toolbarLeft: toolbar.getBoundingClientRect().left,
+        toolbarRight: toolbar.getBoundingClientRect().right,
+        toolPositions: tools.map((tool) => tool.getBoundingClientRect().left),
+      });
+      type Frame = ReturnType<typeof read>;
+      let frameId = 0;
+      let timeoutId = 0;
+      let onClick: () => void;
+      const cancel = () => {
+        cancelAnimationFrame(frameId);
+        clearTimeout(timeoutId);
+        button.removeEventListener("click", onClick, true);
+      };
+      const result = new Promise<{
+        frames: Frame[];
+        initial: Frame;
+        reversedWhileAnimating: boolean;
+      }>((resolve, reject) => {
+        onClick = () => {
+          const initial = read();
+          const frames: Frame[] = [];
+          const startedAt = performance.now();
+          let reversedWhileAnimating = false;
+          let stableFrames = 0;
+          const sample = () => {
+            const frame = read();
+            frames.push(frame);
+            // 反向时两种过渡的剩余时长不同，必须等待顶栏和侧栏都结束。
+            const running = [
+              ...wrapper.getAnimations(),
+              ...aside.getAnimations(),
+            ].some((animation) => animation.playState === "running");
+            if (
+              reverse &&
+              !reversedWhileAnimating &&
+              running &&
+              performance.now() - startedAt >= 60 &&
+              Math.abs(frame.headerWidth - initial.headerWidth) > 1
+            ) {
+              // 普通 Playwright 点击会等待元素稳定；此处需要在真实过渡中反向。
+              reversedWhileAnimating = true;
+              button.click();
+              stableFrames = 0;
+            } else {
+              stableFrames = running ? 0 : stableFrames + 1;
+            }
+            if (stableFrames >= 2) {
+              cancel();
+              resolve({ frames, initial, reversedWhileAnimating });
+              return;
+            }
+            frameId = requestAnimationFrame(sample);
+          };
+          frameId = requestAnimationFrame(sample);
+        };
+        button.addEventListener("click", onClick, {
+          capture: true,
+          once: true,
+        });
+        timeoutId = window.setTimeout(() => {
+          cancel();
+          reject(new Error("侧栏动画采样未在 5 秒内结束"));
+        }, 5000);
+      });
+      return { cancel, result };
+    }, reverseDuringAnimation);
+
+    try {
+      await toggle.click();
+      return await probe.evaluate((value) => value.result);
+    } finally {
+      await probe.evaluate((value) => value.cancel());
+      await probe.dispose();
+    }
+  }
+
   async goto(path: string, options?: { tableSelector?: string }) {
     await this.page.goto(path);
     if (options?.tableSelector) {
