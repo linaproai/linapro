@@ -8,7 +8,8 @@
 package process
 
 import (
-	"log"
+	"fmt"
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -53,7 +54,7 @@ func Alive(pid int) bool {
 	}
 	alive, closeErr := aliveAndCloseHandle(handle, syscall.GetExitCodeProcess, syscall.CloseHandle)
 	if closeErr != nil {
-		log.Printf("警告：关闭进程 %d 的查询句柄失败：%v", pid, closeErr)
+		fmt.Fprintf(os.Stderr, "warning: close process %d query handle: %v\n", pid, closeErr)
 	}
 	return alive
 }
