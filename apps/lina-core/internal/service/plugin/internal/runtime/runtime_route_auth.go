@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/golang-jwt/jwt/v5"
 
+	"lina-core/internal/service/datascope"
 	rolesvc "lina-core/internal/service/role"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -43,10 +44,21 @@ func (s *serviceImpl) authorizeDynamicRouteRequest(
 	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Match.Route == nil {
 		return nil, bridgecodec.NewInternalErrorResponse("Dynamic route runtime state is incomplete"), nil
 	}
-	if runtimeState.Match.Route.Access != bridgecontract.AccessLogin {
-		return nil, nil, nil
+	var identity *bridgecontract.IdentitySnapshotV1
+	if runtimeState.Match.Route.Access == bridgecontract.AccessLogin {
+		verifiedIdentity, failure, err := s.buildDynamicRouteIdentitySnapshot(ctx, runtimeState.Match, request)
+		if err != nil || failure != nil {
+			return nil, failure, err
+		}
+		identity = verifiedIdentity
+		// 租户启用检查必须以已验证的身份为准，覆盖调用方预置的租户作用域。
+		ctx = datascope.WithTenantScope(ctx, int(identity.TenantId))
 	}
-	return s.buildDynamicRouteIdentitySnapshot(ctx, runtimeState.Match, request)
+	// 公开路由保留原有上下文语义；登录路由在认证完成后才进入租户启用检查。
+	if s.integrationSvc != nil && !s.integrationSvc.CanExposeBusinessEntries(ctx, runtimeState.Match.PluginID) {
+		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
+	}
+	return identity, nil, nil
 }
 
 // buildDynamicRouteIdentitySnapshot validates session state and permission grants

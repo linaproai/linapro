@@ -241,9 +241,6 @@ func (s *serviceImpl) prepareDynamicRouteRuntime(
 			message,
 		), nil
 	}
-	if s.integrationSvc != nil && !s.integrationSvc.CanExposeBusinessEntries(ctx, match.PluginID) {
-		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
-	}
 	return &dynamicRouteRuntimeState{
 		Manifest: manifest,
 		Match:    match,
