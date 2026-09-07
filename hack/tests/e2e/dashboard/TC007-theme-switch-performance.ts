@@ -141,7 +141,146 @@ test.describe("TC007 主题切换性能回归", () => {
     await mainLayout.switchThemeModeAndReloadImmediately("light");
     expect(await mainLayout.getThemeMode()).toBe("light");
   });
+
+  test("TC007c: 深色侧边栏切换期间不出现浅色背景帧", async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    const screenshots = await createScreenshotPaths();
+    await mainLayout.prepareThemeModeWithoutAnimation("light");
+    await mainLayout.ensureSemiDarkSidebar(false);
+
+    try {
+      const frames = await mainLayout.captureSemiDarkSidebarThemeFrames();
+      expect(frames.length).toBeGreaterThan(1);
+
+      const invalidMenuFrames = frames.flatMap(({ elapsedMs, menuRoots }) =>
+        menuRoots
+          .filter(
+            ({ backgroundColor }) => !isOpaqueDarkBackground(backgroundColor),
+          )
+          .map(({ backgroundColor, className }) => ({
+            backgroundColor,
+            className,
+            elapsedMs: roundTiming(elapsedMs),
+          })),
+      );
+      const emptyMenuFrames = frames
+        .filter(({ menuRoots }) => menuRoots.length === 0)
+        .map(({ elapsedMs }) => roundTiming(elapsedMs));
+      const invalidSurfaces = frames.flatMap(({ elapsedMs, surfaces }) =>
+        surfaces
+          .filter(
+            ({ backgroundColor, className, rootBackgroundColor }) =>
+              !isValidSidebarMenuSurface(
+                backgroundColor,
+                className,
+                rootBackgroundColor,
+              ),
+          )
+          .map(({ backgroundColor, className, rootBackgroundColor }) => ({
+            backgroundColor,
+            className,
+            elapsedMs: roundTiming(elapsedMs),
+            rootBackgroundColor,
+          })),
+      );
+      expect({
+        emptyMenuFrames,
+        invalidMenuFrames,
+        invalidSurfaces,
+      }).toEqual({
+        emptyMenuFrames: [],
+        invalidMenuFrames: [],
+        invalidSurfaces: [],
+      });
+
+      await adminPage.screenshot({
+        path: screenshots.semiDarkSidebar,
+      });
+      await adminPage.keyboard.press("Escape");
+      await expect(mainLayout.preferencesDrawer).toBeHidden({ timeout: 5_000 });
+
+      const hoverTarget = adminPage
+        .locator("aside .vben-menu-item:not(.is-active):visible")
+        .first();
+      await expect(hoverTarget).toBeVisible({ timeout: 5_000 });
+      await hoverTarget.hover({ timeout: 5_000 });
+      await expect
+        .poll(
+          async () =>
+            isOpaqueDarkBackground(
+              await hoverTarget.evaluate(
+                (element) => getComputedStyle(element).backgroundColor,
+              ),
+            ),
+          { timeout: 2_000 },
+        )
+        .toBeTruthy();
+      await adminPage.screenshot({
+        path: screenshots.semiDarkSidebarHover,
+      });
+    } finally {
+      await mainLayout.ensureSemiDarkSidebar(false);
+    }
+  });
 });
+
+function parseBackgroundColor(color: string) {
+  const match = color.match(
+    /^rgba?\(\s*(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)(?:\D+(\d+(?:\.\d+)?))?\s*\)$/u,
+  );
+  if (!match) {
+    return null;
+  }
+  return {
+    alpha: match[4] === undefined ? 1 : Number(match[4]),
+    blue: Number(match[3]),
+    green: Number(match[2]),
+    red: Number(match[1]),
+  };
+}
+
+function isTransparentBackground(color: string) {
+  const parsed = parseBackgroundColor(color);
+  return parsed !== null && parsed.alpha === 0;
+}
+
+function isOpaqueDarkBackground(color: string) {
+  const parsed = parseBackgroundColor(color);
+  if (!parsed || parsed.alpha < 0.99) {
+    return false;
+  }
+  const luminance =
+    parsed.red * 0.2126 + parsed.green * 0.7152 + parsed.blue * 0.0722;
+  return luminance < 128;
+}
+
+function isValidSidebarMenuSurface(
+  color: string,
+  className: string,
+  rootColor: string,
+) {
+  if (/\bis-active\b/u.test(className)) {
+    const foreground = parseBackgroundColor(color);
+    const background = parseBackgroundColor(rootColor);
+    if (!foreground || !background || background.alpha < 0.99) {
+      return false;
+    }
+    const red =
+      foreground.red * foreground.alpha +
+      background.red * (1 - foreground.alpha);
+    const green =
+      foreground.green * foreground.alpha +
+      background.green * (1 - foreground.alpha);
+    const blue =
+      foreground.blue * foreground.alpha +
+      background.blue * (1 - foreground.alpha);
+    const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
+    return luminance < 128;
+  }
+  return isTransparentBackground(color);
+}
 
 function expectTransitionRecord(
   record: {
@@ -320,6 +459,14 @@ async function createScreenshotPaths() {
     lightRestored: path.join(
       directory,
       `${time}-theme-switch-light-restored.png`,
+    ),
+    semiDarkSidebar: path.join(
+      directory,
+      `${time}-theme-switch-semi-dark-sidebar.png`,
+    ),
+    semiDarkSidebarHover: path.join(
+      directory,
+      `${time}-theme-switch-semi-dark-sidebar-hover.png`,
     ),
   };
 }

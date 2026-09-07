@@ -6,6 +6,19 @@ import { waitForRouteReady } from "../support/ui";
 
 type SidebarMenuLabel = RegExp | string;
 
+interface SidebarThemeFrame {
+  elapsedMs: number;
+  menuRoots: Array<{
+    backgroundColor: string;
+    className: string;
+  }>;
+  surfaces: Array<{
+    backgroundColor: string;
+    className: string;
+    rootBackgroundColor: string;
+  }>;
+}
+
 export class MainLayout {
   constructor(private page: Page) {}
 
@@ -305,6 +318,137 @@ export class MainLayout {
     } finally {
       await this.page.emulateMedia({ reducedMotion: "no-preference" });
     }
+  }
+
+  private semiDarkSidebarSwitch() {
+    return this.preferencesDrawer
+      .getByText(/Dark Sidebar|深色侧边栏/, { exact: true })
+      .first()
+      .locator("xpath=ancestor::div[.//*[@role='switch']][1]")
+      .locator('[role="switch"]')
+      .first();
+  }
+
+  async ensureSemiDarkSidebar(enabled: boolean) {
+    if (!(await this.preferencesDrawer.isVisible().catch(() => false))) {
+      await this.openPreferences();
+    }
+
+    const sidebarSwitch = this.semiDarkSidebarSwitch();
+    await expect(sidebarSwitch).toBeVisible();
+    const expectedState = enabled ? "checked" : "unchecked";
+    if ((await sidebarSwitch.getAttribute("data-state")) !== expectedState) {
+      await sidebarSwitch.click();
+    }
+    await expect(sidebarSwitch).toHaveAttribute("data-state", expectedState);
+  }
+
+  async captureSemiDarkSidebarThemeFrames(): Promise<SidebarThemeFrame[]> {
+    await this.page.evaluate(() => {
+      type Probe = {
+        done: boolean;
+        frames: SidebarThemeFrame[];
+      };
+      type ProbeWindow = Window & {
+        __semiDarkSidebarProbe?: Probe;
+      };
+
+      const sidebar = document.querySelector<HTMLElement>("aside");
+      const menu = [
+        ...(sidebar?.querySelectorAll<HTMLElement>(".vben-menu.is-vertical") ??
+          []),
+      ].find((element) => element.getClientRects().length > 0);
+      if (!sidebar || sidebar.getClientRects().length === 0 || !menu) {
+        throw new Error("Visible vertical sidebar menu was not found");
+      }
+
+      const probe: Probe = { done: false, frames: [] };
+      (window as ProbeWindow).__semiDarkSidebarProbe = probe;
+      const sampleDurationMs = 200;
+      let startedAt = 0;
+
+      const sample = () => {
+        const now = performance.now();
+        const menuRoots = [
+          ...sidebar.querySelectorAll<HTMLElement>(".vben-menu.is-vertical"),
+          ...document.querySelectorAll<HTMLElement>(
+            ".vben-menu__popup-container",
+          ),
+        ]
+          .filter((element) => element.getClientRects().length > 0)
+          .map((element) => ({
+            backgroundColor: getComputedStyle(element).backgroundColor,
+            className: element.className,
+          }));
+        const surfaceElements = new Set([
+          ...sidebar.querySelectorAll<HTMLElement>(
+            ".vben-menu-item, .vben-sub-menu, .vben-sub-menu-content",
+          ),
+          ...document.querySelectorAll<HTMLElement>(
+            ".vben-menu__popup-container .vben-menu-item, .vben-menu__popup-container .vben-sub-menu, .vben-menu__popup-container .vben-sub-menu-content",
+          ),
+        ]);
+        const surfaces = [...surfaceElements]
+          .filter((element) => element.getClientRects().length > 0)
+          .map((element) => {
+            const root = element.closest<HTMLElement>(
+              ".vben-menu.is-vertical, .vben-menu__popup-container",
+            );
+            return {
+              backgroundColor: getComputedStyle(element).backgroundColor,
+              className: element.className,
+              rootBackgroundColor: root
+                ? getComputedStyle(root).backgroundColor
+                : "",
+            };
+          });
+
+        probe.frames.push({
+          elapsedMs: now - startedAt,
+          menuRoots,
+          surfaces,
+        });
+
+        if (now - startedAt < sampleDurationMs) {
+          requestAnimationFrame(sample);
+        } else {
+          probe.done = true;
+        }
+      };
+
+      const observer = new MutationObserver(() => {
+        if (!menu.classList.contains("is-dark")) {
+          return;
+        }
+        observer.disconnect();
+        startedAt = performance.now();
+        sample();
+      });
+      observer.observe(menu, { attributeFilter: ["class"], attributes: true });
+    });
+
+    await this.semiDarkSidebarSwitch().click();
+    await expect
+      .poll(() =>
+        this.page.evaluate(
+          () =>
+            (
+              window as Window & {
+                __semiDarkSidebarProbe?: { done: boolean };
+              }
+            ).__semiDarkSidebarProbe?.done ?? false,
+        ),
+      )
+      .toBeTruthy();
+
+    return this.page.evaluate(
+      () =>
+        (
+          window as Window & {
+            __semiDarkSidebarProbe?: { frames: SidebarThemeFrame[] };
+          }
+        ).__semiDarkSidebarProbe?.frames ?? [],
+    );
   }
 
   async installThemeTransitionProbe() {
